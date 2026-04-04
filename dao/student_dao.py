@@ -1,13 +1,14 @@
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from model.student import StuBasicInfo
+from schemas.student import StudentCreate
 
 
 # 1、创建新学生记录（学生编号、学生班级、学生姓名、籍贯、毕业院校、专业、入学时间、毕业时间、学历、
 # 顾问编号、年龄、性别）
 
 # new_student_data 要声明类型
-def create_student(new_student_data,
+def create_student(new_student_data : StudentCreate,
                    db: Session):
     """创建新学生"""
     # 将传入的数据转换为数据库模型

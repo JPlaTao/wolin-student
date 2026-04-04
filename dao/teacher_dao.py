@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from model.teachers import Teacher
-from model.schemas import TeacheresUpdata
+from schemas.teacher import TeacheresUpdata
 
 
 # 新增老师

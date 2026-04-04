@@ -1,15 +1,16 @@
 from sqlalchemy import ForeignKey, Table, Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
+from model.class_model import class_teacher
 
 
 
-class_teachers = Table(
-    'class_teachers_association',
-    Base.metadata,
-    Column('class_id', Integer, ForeignKey('class_model.class_id'), primary_key=True),
-    Column('teacher_id', Integer, ForeignKey('teacher.teacher_id'), primary_key=True)
-)
+# class_teachers = Table(
+#     'class_teacher',
+#     Base.metadata,
+#     Column('class_id', Integer, ForeignKey('class_model.class_id'), primary_key=True),
+#     Column('teacher_id', Integer, ForeignKey('teacher.teacher_id'), primary_key=True)
+# )
 
 
 class Teacher(Base):
@@ -23,8 +24,8 @@ class Teacher(Base):
 
 
     # # 关联中间表(多对多)class.teacher()
-    teach_classes = relationship('Class', secondary=class_teachers, back_populates='teachers')
+    teach_classes = relationship('Class', secondary=class_teacher, back_populates='teachers')
     # # 关联班主任(一对多)
-    head_classes = relationship('Class', foreign_keys='Class.headteacher_id', back_populates='headteacher')
+    class_as_head = relationship('Class', foreign_keys='Class.head_teacher_id', back_populates='head_teacher_info')
     # # 关联学生表(一对多)
-    my_student = relationship('StuBasicInfo', foreign_keys='StuBasicInfo.advisor_id', back_populates='advisor')
+    students = relationship('StuBasicInfo', foreign_keys='StuBasicInfo.advisor_id', back_populates='counselor')

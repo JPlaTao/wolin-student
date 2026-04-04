@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from dao import student_dao
-from schemas import response, stu_request
+from schemas.student import StudentCreate, StudentUpdate, Student
+from schemas import response
 from typing import Optional
 
 router = APIRouter(prefix="/students", tags=["学生管理"])
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/students", tags=["学生管理"])
 
 # 创建新学生
 @router.post("/", response_model=response.ResponseBase)
-def create_student(new_student_data: stu_request.NewStudentData,
+def create_student(new_student_data: StudentCreate,
                    db: Session = Depends(get_db)):
     new_student = student_dao.create_student(new_student_data, db)
     return response.ResponseBase(
@@ -42,13 +43,13 @@ def get_students(
 @router.put("/{stu_id}", response_model=response.ResponseBase)
 def update_student(
         stu_id: int,
-        update_data: stu_request.NewStudentData,  # 请求体
+        update_data: StudentCreate,  # 请求体
         db: Session = Depends(get_db)
 ):
     # 调用更新方法
-    update_student = student_dao.update_student(db, stu_id, update_data)
+    is_update_student = student_dao.update_student(db, stu_id, update_data)
 
-    if update_student == '不存在这个学生':
+    if is_update_student == '不存在这个学生':
         raise HTTPException(status_code=400, detail="没有这个学生")
     else:
         return response.ResponseBase(
@@ -63,9 +64,9 @@ def delete_student(
         db: Session = Depends(get_db)
 ):
     # 调用更新方法
-    delete_student = student_dao.delete_student(db, stu_id)
+    is_delete_student = student_dao.delete_student(db, stu_id)
 
-    if delete_student == '不存在这个学生或已被删除':
+    if is_delete_student == '不存在这个学生或已被删除':
         raise HTTPException(status_code=400, detail="没有这个学生或已被删除")
     else:
         return response.ResponseBase(
