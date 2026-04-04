@@ -1,120 +1,77 @@
-# 导入FastAPI相关工具
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from datetime import date
+from typing import List
 
-# 数据库连接
+from schemas.emp_schemas import EmploymentUpdate, EmploymentResp
 from database import get_db
+from dao.employment_dao import *
 
-# 导入你的DAO方法
-from dao.employment_dao import (
-    query_employment,
-    update_employment,
-    delete_employment
-)
+router = APIRouter(prefix="/employment", tags=["就业管理模块"])
 
-# 创建路由
-router = APIRouter(prefix="/employment", tags=["就业信息模块"])
 
 # ------------------------------
-# 修改就业信息的数据格式
+# 1. 获取单个学生就业信息
 # ------------------------------
-class EmploymentUpdate(BaseModel):
-    stu_id: int =None
-    stu_name: str  = None
-    open_time: date = None
-    offer_time: date  = None
-    company: str  = None
-    salary: float  = None
+@router.get("/students/{stu_id}", response_model=EmploymentResp)
+def get_student_employment(stu_id: int, db: Session = Depends(get_db)):
+    emp = get_employment_by_stu_id(db, stu_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail="未找到就业信息")
+    return emp
+
 
 # ------------------------------
-# 1. 多条件查询（所有查询都走这里）
+# 2. 获取班级所有就业信息
 # ------------------------------
-@router.get("/query")
-def query_employment_api(
-    emp_id: int = Query(None, description="就业编号"),
-    stu_id: int = Query(None, description="学生编号"),
-    stu_name: str = Query(None, description="学生姓名"),
-    company: str = Query(None, description="公司名称"),
-    min_salary: float = Query(None, description="最低工资"),
-    max_salary: float = Query(None, description="最高工资"),
-    skip: int = Query(0, description="跳过几条"),
-    limit: int = Query(50, description="每页几条"),
-    db: Session = Depends(get_db)
-):
-    data = query_employment(
-        db=db,
-        emp_id=emp_id,
-        stu_id=stu_id,
-        stu_name=stu_name,
-        company=company,
-        min_salary=min_salary,
-        max_salary=max_salary,
-        skip=skip,
-        limit=limit
-    )
-    if not data:
-        return {
-            "code": 200,
-            "msg": "未查询到符合条件的就业信息",
-            "data": []
-        }
-    return {
-        "code": 200,
-        "msg": "查询成功",
-        "data": data
-    }
+@router.get("/class/{class_id}", response_model=List[EmploymentResp])
+def get_class_employment(class_id: int, db: Session = Depends(get_db)):
+    data = get_employment_by_class_id(db, class_id)
+    return data
+
 
 # ------------------------------
-# 2. 修改就业信息（调用 DAO，不是 API 自身）
+# 3. 更新学生就业信息
 # ------------------------------
-@router.put("/update/{emp_id}")
-def update_employment_api(
-    emp_id: int,
+@router.post("/students/{stu_id}", response_model=EmploymentResp)
+def update_student_employment(
+    stu_id: int,
     update_data: EmploymentUpdate,
     db: Session = Depends(get_db)
 ):
-    # ✅ 正确写法：调用 DAO，不是调用接口函数
-    employment = query_employment(
-        db=db,
-        emp_id=emp_id,
-        limit=1
-    )
+    emp = get_employment_by_stu_id(db, stu_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail="就业记录不存在")
 
-    if not employment:
-        return {"code": 404, "msg": "就业信息不存在"}
+    success = update_employment(db, emp, update_data)
+    if not success:
+        raise HTTPException(status_code=500, detail="更新失败")
 
-    employment = employment[0]
+    return emp
 
-    success = update_employment(db, employment, update_data)
-    if success:
-        return {"code": 200, "msg": "修改成功"}
-    else:
-        return {"code": 500, "msg": "修改失败"}
 
 # ------------------------------
-# 3. 逻辑删除（调用 DAO）
+# 4. 逻辑删除就业信息
 # ------------------------------
 @router.delete("/delete/{emp_id}")
-def delete_employment_api(
-    emp_id: int,
-    db: Session = Depends(get_db)
-):
-    # ✅ 正确写法：调用 DAO
-    employment = query_employment(
-        db=db,
-        emp_id=emp_id,
-        limit=1
-    )
+def delete_employment_api(emp_id: int, db: Session = Depends(get_db)):
+    emp = get_employment_by_emp_id(db, emp_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail="记录不存在或已删除")
 
-    if not employment:
-        return {"code": 404, "msg": "信息不存在或已删除"}
+    success = delete_employment(db, emp)
+    if not success:
+        raise HTTPException(status_code=500, detail="删除失败")
 
-    employment = employment[0]
+    return {"detail": "删除成功"}
 
-    success = delete_employment(db, employment)
-    if success:
-        return {"code": 200, "msg": "删除成功"}
-    else:
-        return {"code": 500, "msg": "删除失败"}
+
+# ------------------------------
+# 5. 恢复就业信息
+# ------------------------------
+@router.put("/restore/{emp_id}")
+def restore_emp(emp_id: int, db: Session = Depends(get_db)):
+    success = restore_employment(db, emp_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="恢复失败")
+
+    return {"detail": "恢复成功"}
