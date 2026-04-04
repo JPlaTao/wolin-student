@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -38,3 +38,29 @@ class StudentQuery(BaseModel):
     stu_id: Optional[int] = None
     stu_name: Optional[str] = None
     class_id: Optional[int] = None
+
+
+class Student(BaseModel):
+    """单个学生完整数据（用于响应）"""
+    stu_id: int
+    stu_name: str
+    class_id: int
+    native_place: str
+    graduated_school: str
+    major: str
+    admission_date: datetime
+    graduation_date: datetime
+    education: str
+    advisor_id: Optional[int]
+    age: int
+    gender: str
+    is_deleted: bool
+
+    class Config:
+        from_attributes = True  # 允许从 SQLAlchemy ORM 对象转换
+
+
+class StudentList(BaseModel):
+    """学生列表包装"""
+    list: List[Student]
+    total: int
