@@ -1,7 +1,7 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 from typing import Optional, List
-from .teacher_schema import TeacherBase
+from schemas.teacher import TeacherBase
 
 
 # ------------------------------
@@ -41,7 +41,7 @@ class ClassUpdate(BaseModel):
     start_time: Optional[datetime] = None
     head_teacher_id: Optional[int] = None
 
-    @field_validator("class_name",mode='before')
+    @field_validator("class_name", mode='before')
     def class_name_not_empty_if_provied(cls, name):
         if name is not None and not name.strip():
             raise ValueError('班级名称不能为空')
@@ -53,12 +53,14 @@ class ClassUpdate(BaseModel):
         if id is not None and id <= 0:
             raise ValueError('班主任ID必须是正整数')
 
+
 # ------------------------------
 # 返回给前端的完整班级数据
 # ------------------------------
 class ClassOut(ClassBase):
     class_id: int
     head_teacher_info: Optional[TeacherBase] = None
+
     # teachers: Optional[List[TeacherBase]] = None  # 授课老师列表
 
     class Config:

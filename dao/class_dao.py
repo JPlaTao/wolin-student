@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from model.class_model import Class  # 你的数据库模型
-from schemas.class_schemas import ClassCreate, ClassUpdate  # 上面刚写的Pydantic
+from model.class_model import Class
+from schemas.class_schemas import ClassCreate, ClassUpdate
 
 
 # ========================
