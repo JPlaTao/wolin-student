@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends,HTTPException,Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from dao import student_dao
-from schemas import response,stu_request
+from schemas import response, stu_request
 from typing import Optional
 
 router = APIRouter(prefix="/students", tags=["学生管理"])
 
 
-#创建新学生
+# 创建新学生
 @router.post("/", response_model=response.ResponseBase)
 def create_student(new_student_data: stu_request.NewStudentData,
                    db: Session = Depends(get_db)):
@@ -18,16 +18,14 @@ def create_student(new_student_data: stu_request.NewStudentData,
     )
 
 
-
-#按条件查询学生
+# 按条件查询学生
 @router.get("/", response_model=response.ListResponse)
 def get_students(
-    db: Session = Depends(get_db),
-    stu_id: Optional[int] = Query(None, description="按学生编号查询"),
-    stu_name: Optional[str] = Query(None, description="按学生姓名查询（支持模糊匹配）"),
-    class_id: Optional[int] = Query(None, description="按班级编号查询")
+        db: Session = Depends(get_db),
+        stu_id: Optional[int] = Query(None, description="按学生编号查询"),
+        stu_name: Optional[str] = Query(None, description="按学生姓名查询（支持模糊匹配）"),
+        class_id: Optional[int] = Query(None, description="按班级编号查询")
 ):
-
     students = student_dao.get_students(
         db,
         stu_id=stu_id,
@@ -40,7 +38,7 @@ def get_students(
     )
 
 
-#更新学生信息
+# 更新学生信息
 @router.put("/{stu_id}", response_model=response.ResponseBase)
 def update_student(
         stu_id: int,
@@ -57,7 +55,8 @@ def update_student(
             data=update_student
         )
 
-#删除学生(逻辑删除)
+
+# 删除学生(逻辑删除)
 @router.delete("/{stu_id}", response_model=response.ResponseBase)
 def delete_student(
         stu_id: int,

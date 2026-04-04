@@ -27,7 +27,21 @@ def create_student(new_student_data,
     db.add(new_student)
     db.commit()
     db.refresh(new_student)
-    return new_student
+    return {
+        "stu_id": new_student.stu_id,
+        "stu_name": new_student.stu_name,
+        "class_id": new_student.class_id,
+        "native_place": new_student.native_place,
+        "graduated_school": new_student.graduated_school,
+        "major": new_student.major,
+        "admission_date": new_student.admission_date,
+        "graduation_date": new_student.graduation_date,
+        "education": new_student.education,
+        "advisor_id": new_student.advisor_id,
+        "age": new_student.age,
+        "gender": new_student.gender,
+        "is_deleted": new_student.is_deleted
+    }
 
 
 # 2、查询学生信息（支持按编号、姓名、班级等条件筛选）
