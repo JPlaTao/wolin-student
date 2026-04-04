@@ -33,26 +33,25 @@ def exam_update(
         exam_data,
         db: Session
 ):
-    # 查询学生id和考核序次是否存在
+    # 基础查询 过滤学生id和考核序次
     _query = db.query(StuExamRecord).filter(
         and_(
-            StuExamRecord.is_deleted == 0,
             StuExamRecord.stu_id == stu_id,
             StuExamRecord.seq_no == seq_no
         )
-    ).first()
-
-    # 更新数据 返回查询结果
-    if not _query:
-        return f"'{stu_id=}' & '{seq_no=}' not found"
+    )
+    data = _query.first()
+    # 若有数则更新
+    if data:
+        cnt = _query.update({
+            StuExamRecord.is_deleted: 0,
+            StuExamRecord.grade: exam_data.grade,
+            StuExamRecord.exam_date: exam_data.exam_date
+        })
+        db.commit()
+        return f"'{stu_id=}' & '{seq_no=}' -> {cnt} rows updated"
     else:
-        if exam_data.grade is not None:
-            _query.grade = exam_data.grade
-        if exam_data.exam_date is not None:
-            _query.exam_date = exam_data.exam_date
-    db.commit()
-    db.refresh(_query)
-    return f"'{stu_id=}' & '{seq_no=}' updated"
+        return f"'{stu_id=}' & '{seq_no=}' not found"
 
 
 # 删除考试成绩（逻辑删除）
@@ -76,6 +75,6 @@ def exam_delete(
     db.commit()
     # 逻辑删除查询到的数据
     if cnt != 0:
-        return f"'{stu_id=}' & '{seq_no=}' deleted"
+        return f"'{stu_id=}' & '{seq_no=}' -> {cnt} rows deleted"
     else:
         return f"'{stu_id=}' & '{seq_no=}' not found"
