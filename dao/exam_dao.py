@@ -9,17 +9,22 @@ def exam_submit(
         exam_data,
         db: Session
 ):
-    _return = StuExamRecord(
+    submit = StuExamRecord(
         stu_id = exam_data.stu_id,
         seq_no = exam_data.seq_no,
         grade = exam_data.grade,
         exam_date = exam_data.exam_date,
         is_deleted = 0
     )
-    db.add(_return)
+    db.add(submit)
     db.commit()
-    db.refresh(_return)
-    return _return
+    db.refresh(submit)
+    return {
+        "stu_id": exam_data.stu_id,
+        "seq_no": exam_data.seq_no,
+        "grade": exam_data.grade,
+        "exam_date": exam_data.exam_date
+    }
 
 
 # 更新考试成绩
