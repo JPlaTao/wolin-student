@@ -20,7 +20,7 @@ async def exam_submit(
 
 
 # 修改考试成绩
-@router_exam.put("/", response_model=response.ResponseBase)
+@router_exam.put("/", response_model=response.ResponseBase, description="修改考试成绩")
 async def exam_update(
         exam_data: exam_request.UpdateExamData,
         stu_id: int = Query(description="学生编号"),
@@ -35,7 +35,7 @@ async def exam_update(
 
 
 # 删除考试成绩（逻辑删除）
-@router_exam.delete("/{stu_id}", response_model=response.ResponseBase)
+@router_exam.delete("/{stu_id}", response_model=response.ResponseBase, description="删除考试成绩(不传seq_no则删除所有stu_id的成绩)")
 async def exam_delete(
         stu_id: int,
         seq_no: Optional[int] = None,
