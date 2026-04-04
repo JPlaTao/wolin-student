@@ -1,5 +1,7 @@
 create database if not exists wolin_test1 collate utf8mb4_0900_ai_ci;
 
+use wolin_test1
+
 create table if not exists class
 (
     class_id   int auto_increment comment '班级编号'
