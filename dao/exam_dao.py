@@ -20,10 +20,10 @@ def exam_submit(
     db.commit()
     db.refresh(submit)
     return {
-        "stu_id": exam_data.stu_id,
-        "seq_no": exam_data.seq_no,
-        "grade": exam_data.grade,
-        "exam_date": exam_data.exam_date
+        "stu_id": submit.stu_id,
+        "seq_no": submit.seq_no,
+        "grade": submit.grade,
+        "exam_date": submit.exam_date
     }
 
 
