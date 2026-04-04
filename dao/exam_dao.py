@@ -41,7 +41,7 @@ def exam_update(
             StuExamRecord.stu_id == stu_id,
             StuExamRecord.seq_no == seq_no
         )
-    ).all()
+    ).first()
 
     # 更新数据 返回查询结果
     if not _query:

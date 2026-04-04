@@ -22,9 +22,9 @@ async def exam_submit(
 # 修改考试成绩
 @router_exam.put("/{stu_id}", response_model=response.ResponseBase)
 async def exam_update(
-        stu_id: int,
-        seq_no: int,
         exam_data: exam_request.UpdateExamData,
+        stu_id: int = Query(description="学生编号"),
+        seq_no: int = Query(description="考核序次"),
         db: Session = Depends(get_db)
 ):
     _return = exam_dao.exam_update(stu_id, seq_no, exam_data, db)
