@@ -20,7 +20,7 @@ async def exam_submit(
 
 
 # 修改考试成绩
-@router_exam.put("/{stu_id}", response_model=response.ResponseBase)
+@router_exam.put("/", response_model=response.ResponseBase)
 async def exam_update(
         exam_data: exam_request.UpdateExamData,
         stu_id: int = Query(description="学生编号"),
