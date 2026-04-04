@@ -58,6 +58,7 @@ def exam_update( stu_id: int, seq_no: int, exam_data, db: Session ):
     # 基础查询 过滤学生id和考核序次
     _query = db.query(StuExamRecord).filter(
             and_(
+                StuExamRecord.is_deleted == 0,
                 StuExamRecord.stu_id == stu_id,
                 StuExamRecord.seq_no == seq_no
             )
@@ -66,7 +67,6 @@ def exam_update( stu_id: int, seq_no: int, exam_data, db: Session ):
     # 若有数则更新 包括is_deleted=1的数据
     if data:
         cnt = _query.update({
-            StuExamRecord.is_deleted: 0,
             StuExamRecord.grade: exam_data.grade,
             StuExamRecord.exam_date: exam_data.exam_date
         })
