@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel,Field
 from typing import Optional
 
 class TeacherBase(BaseModel):
@@ -9,7 +9,10 @@ class TeacherBase(BaseModel):
     class Config:
         from_attributes = True  # 关键：让Pydantic支持SQLAlchemy模型
 
-
+# 响应模型
 class TeacheresUpdata(BaseModel):
-    teacher_name: str
-    role: str
+    teacher_name: str = Field(nullable=False, description="老师姓名")
+    gender: str = Field(nullable=False, description="性别：男/女")
+    phone: str = Field(nullable=False, description="11位手机号")
+    role: str = Field(nullable=False, description="角色：counselor/headteacher/lecturer")
+
