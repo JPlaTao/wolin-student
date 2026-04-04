@@ -8,22 +8,26 @@ def exam_submit(
         exam_data,
         db: Session
 ):
-    submit = StuExamRecord(
-        stu_id = exam_data.stu_id,
-        seq_no = exam_data.seq_no,
-        grade = exam_data.grade,
-        exam_date = exam_data.exam_date,
-        is_deleted = 0
-    )
-    db.add(submit)
-    db.commit()
-    db.refresh(submit)
-    return {
-        "stu_id": submit.stu_id,
-        "seq_no": submit.seq_no,
-        "grade": submit.grade,
-        "exam_date": submit.exam_date
-    }
+    try:
+        submit = StuExamRecord(
+            stu_id = exam_data.stu_id,
+            seq_no = exam_data.seq_no,
+            grade = exam_data.grade,
+            exam_date = exam_data.exam_date,
+            is_deleted = 0
+        )
+        db.add(submit)
+        db.commit()
+        db.refresh(submit)
+        return {
+            "message": "success",
+            "stu_id": submit.stu_id,
+            "seq_no": submit.seq_no,
+            "grade": submit.grade,
+            "exam_date": submit.exam_date
+        }
+    except Exception as e:
+        return { "message": f"{e}" }
 
 
 # 更新考试成绩
@@ -41,7 +45,7 @@ def exam_update(
         )
     )
     data = _query.first()
-    # 若有数则更新
+    # 若有数则更新 包括is_deleted=1的数据
     if data:
         cnt = _query.update({
             StuExamRecord.is_deleted: 0,

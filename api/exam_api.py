@@ -16,8 +16,10 @@ async def exam_submit(
         db: Session = Depends(get_db)
 ):
     _return = exam_dao.exam_submit(exam_data, db)
-    return response.ResponseBase(data=_return)
+    if _return["message"] == "success":
+        return response.ResponseBase(data=_return)
 
+    raise HTTPException(status_code=400, detail=_return)
 
 # 修改考试成绩
 @router_exam.put("/", response_model=response.ResponseBase, description="修改考试成绩")
