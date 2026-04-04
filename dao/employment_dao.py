@@ -18,7 +18,7 @@ def get_employment_by_class_id(db: Session, class_id: int):
 # 3. 更新就业信息
 def update_employment(db: Session, employment: Employment, update_data):
     try:
-        update_dict = update_data.dict(exclude_unset=True)
+        update_dict = update_data.model_dump(exclude_unset=True)
         update_dict.pop("stu_id", None)  # 禁止修改学生ID
         update_dict.pop("class_id", None)# 禁止修改班级ID
         for key, value in update_dict.items():
@@ -55,7 +55,7 @@ def create_empty_employment(db: Session, stu_id: int, stu_name: str, class_id: i
         is_deleted=False
     )
     db.add(emp)
-    return True
+    return emp
 # 6.根据emp_id查单条（删除用）
 def get_employment_by_emp_id(db: Session, emp_id: int):
     return db.query(Employment).filter(
