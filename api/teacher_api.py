@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from model.schemas import TeacheresUpdata
 from database import get_db
 from dao import teacher_dao as dao
 from pydantic import ValidationError
+
+from schemas.teacher import TeacheresUpdata
 
 router = APIRouter(
     prefix="/teacher",

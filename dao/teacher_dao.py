@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from model.teachers import Teacher
-from model.schemas import TeacheresUpdata
+from schemas.teacher import TeacheresUpdata
 
 
 # 新增老师
@@ -55,7 +55,7 @@ def delete_teacher(db: Session, teacher_id: int):
 # 查询班主任管理的班级
 def get_head_classes(db: Session, teacher_id: int):
     teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
-    return teacher.head_classes if teacher else None
+    return teacher.class_as_head if teacher else None
 
 
 # 查询讲师教授的班级
@@ -80,8 +80,8 @@ def get_my_students(db: Session, teacher_id: int):
         return {"msg": "老师不存在"}
 
     # 有绑定学生 → 返回列表
-    if teacher.my_student:
-        return teacher.my_student
+    if teacher.students:
+        return teacher.students
 
     # 没有 → 返回提示
     return {"msg": "该顾问暂无负责学生"}

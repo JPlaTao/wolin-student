@@ -1,7 +1,7 @@
 from sqlalchemy import ForeignKey, Table, Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
-from class_model import class_teacher
+from model.class_model import class_teacher
 
 # class_teachers = Table(
 #     'class_teacher',
