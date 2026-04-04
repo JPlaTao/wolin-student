@@ -68,16 +68,14 @@ def exam_delete(
             StuExamRecord.stu_id == stu_id
         )
     )
-    # 判断seq_no的传入值再执行
+    # seq_no不为空时追加过滤条件
     if seq_no is not None:
-        _query = _query.filter(StuExamRecord.seq_no == seq_no).first()
-    else:
-        _query = _query.all()
+        _query = _query.filter(StuExamRecord.seq_no == seq_no)
+    # 更新逻辑删除字段并拿到更新数量
+    cnt = _query.update({StuExamRecord.is_deleted: 1})
+    db.commit()
     # 逻辑删除查询到的数据
-    if not _query:
-        return f"'{stu_id=}' & '{seq_no=}' not found"
-    else:
-        _query.is_deleted = 1
-        db.commit()
-        db.refresh(_query)
+    if cnt != 0:
         return f"'{stu_id=}' & '{seq_no=}' deleted"
+    else:
+        return f"'{stu_id=}' & '{seq_no=}' not found"
