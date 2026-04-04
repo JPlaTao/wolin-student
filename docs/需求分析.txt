@@ -1,0 +1,75 @@
+需求分析
+	1. 接口
+		1. 学生基本信息管理模块
+			1. 创建新学生
+				/student/create
+			2. 查询学生信息
+				/student/query
+			3. 更新学生信息
+				/student/update
+			4. 逻辑删除
+				/student/delete
+		2. 学生考核成绩管理
+			1. 录入考核成绩
+				/score/create
+			2. 成绩修改
+				/score/update
+			3. 成绩删除
+				/score/delete
+		3. 学生就业管理
+			1. 学生就业状态添加
+				/emp/create
+			2. 查询学生就业信息
+				/emp/query
+			3. 修改学生就业信息
+				/emp/update
+			4. 删除学生信息
+				/emp/delete
+		4. 班级管理模块
+			1. 班级创建
+				/class/create
+			2. 班级查询
+				/class/query
+			3. 班级修改
+				/class/update
+			4. 班级删除
+				/class/delete
+		5. 老师管理
+			1. 老师创建
+				/teacher/create
+			2. 老师查询
+				/teacher/query
+			3. 老师修改
+				/teacher/update
+			4. 老师删除
+				/teacher/delete
+		6. 统计分析
+			1. 基本信息统计
+			
+			
+			
+			
+			
+			
+			
+需要规定的
+	1. API返回的格式
+		respons -> 字典, 
+		{
+			code: 200,
+			message:'成功'
+			data : any
+		}
+	2. 命名
+		api
+			xxx_api
+		dao
+			xxx_dao
+		model
+			xxx
+		schemas
+			
+				
+				
+				
+				
