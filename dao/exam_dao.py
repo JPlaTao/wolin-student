@@ -4,45 +4,63 @@ from model.exam_model import StuExamRecord
 
 
 # 按考核序次录⼊考核成绩（学⽣编号、考核序次、成绩）
-def exam_submit(
-        exam_data,
-        db: Session
-):
-    try:
-        submit = StuExamRecord(
-            stu_id = exam_data.stu_id,
-            seq_no = exam_data.seq_no,
-            grade = exam_data.grade,
-            exam_date = exam_data.exam_date,
-            is_deleted = 0
-        )
-        db.add(submit)
+def exam_submit( exam_data, db: Session ):
+    # 若有被删除的数据 则更新数据并将is_deleted置为0
+    _query = db.query(StuExamRecord).filter(
+            and_(
+                StuExamRecord.is_deleted == 1,
+                StuExamRecord.stu_id == exam_data.stu_id,
+                StuExamRecord.seq_no == exam_data.seq_no
+            )
+    )
+    data = _query.first()
+    if data:
+        _query.update({
+            StuExamRecord.is_deleted: 0,
+            StuExamRecord.grade: exam_data.grade,
+            StuExamRecord.exam_date: exam_data.exam_date
+        })
         db.commit()
-        db.refresh(submit)
         return {
-            "message": "success",
-            "stu_id": submit.stu_id,
-            "seq_no": submit.seq_no,
-            "grade": submit.grade,
-            "exam_date": submit.exam_date
+                "message": "success",
+                "stu_id": StuExamRecord.stu_id,
+                "seq_no": StuExamRecord.seq_no,
+                "grade": StuExamRecord.grade,
+                "exam_date": StuExamRecord.exam_date
         }
-    except Exception as e:
-        return { "message": f"{e}" }
+    # 无则新增数据
+    else:
+        try:
+            submit = StuExamRecord(
+                stu_id = exam_data.stu_id,
+                seq_no = exam_data.seq_no,
+                grade = exam_data.grade,
+                exam_date = exam_data.exam_date,
+                is_deleted = 0
+            )
+            db.add(submit)
+            db.commit()
+            db.refresh(submit)
+            return {
+                "message": "success",
+                "stu_id": submit.stu_id,
+                "seq_no": submit.seq_no,
+                "grade": submit.grade,
+                "exam_date": submit.exam_date
+            }
+        # 捕获异常 如外键约束&主键冲突
+        except Exception as e:
+            return { "message": f"{e}" }
 
 
 # 更新考试成绩
-def exam_update(
-        stu_id: int,
-        seq_no: int,
-        exam_data,
-        db: Session
-):
+def exam_update( stu_id: int, seq_no: int, exam_data, db: Session ):
     # 基础查询 过滤学生id和考核序次
     _query = db.query(StuExamRecord).filter(
-        and_(
-            StuExamRecord.stu_id == stu_id,
-            StuExamRecord.seq_no == seq_no
-        )
+            and_(
+                StuExamRecord.stu_id == stu_id,
+                StuExamRecord.seq_no == seq_no
+            )
     )
     data = _query.first()
     # 若有数则更新 包括is_deleted=1的数据
@@ -66,10 +84,10 @@ def exam_delete(
 ):
     # 先构建基础查询(不执行)
     _query = db.query(StuExamRecord).filter(
-        and_(
-            StuExamRecord.is_deleted == 0,
-            StuExamRecord.stu_id == stu_id
-        )
+            and_(
+                StuExamRecord.is_deleted == 0,
+                StuExamRecord.stu_id == stu_id
+            )
     )
     # seq_no不为空时追加过滤条件
     if seq_no is not None:

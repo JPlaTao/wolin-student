@@ -21,6 +21,7 @@ async def exam_submit(
 
     raise HTTPException(status_code=400, detail=_return)
 
+
 # 修改考试成绩
 @router_exam.put("/", response_model=response.ResponseBase, description="修改考试成绩")
 async def exam_update(
