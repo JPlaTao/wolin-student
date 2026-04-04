@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
 
@@ -7,11 +7,11 @@ from datetime import date
 class NewExamData(BaseModel):
     stu_id: int
     seq_no: int
-    grade: Optional[int] = None
+    grade: int = Field(default=0, ge=0, le=100, description="考试分数(0~100分)")
     exam_date: Optional[date] = None
 
 
 # 修改考试成绩的请求体
 class UpdateExamData(BaseModel):
-    grade: Optional[int] = None
+    grade: int = Field(default=0, ge=0, le=100, description="考试分数(0~100分)")
     exam_date: Optional[date] = None
