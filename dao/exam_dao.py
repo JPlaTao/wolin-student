@@ -23,10 +23,10 @@ def exam_submit( exam_data, db: Session ):
         db.commit()
         return {
                 "message": "success",
-                "stu_id": StuExamRecord.stu_id,
-                "seq_no": StuExamRecord.seq_no,
-                "grade": StuExamRecord.grade,
-                "exam_date": StuExamRecord.exam_date
+                "stu_id": exam_data.stu_id,
+                "seq_no": exam_data.seq_no,
+                "grade": exam_data.grade,
+                "exam_date": exam_data.exam_date
         }
     # 无则新增数据
     else:
