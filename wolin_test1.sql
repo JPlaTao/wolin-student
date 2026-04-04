@@ -69,10 +69,10 @@ create table if not exists employment
 
 create table if not exists stu_exam_record
 (
-    record_id  int auto_increment comment '自增ID（主键）'
-        primary key,
-    stu_id     int           not null comment '学生编号',
-    seq_no     int           not null comment '考核序次',
+--     record_id  int auto_increment comment '自增ID（主键）'
+--         primary key,
+    stu_id     int           PRIMARY KEY comment '学生编号',
+    seq_no     int           PRIMARY KEY comment '考核序次',
     grade      int           null comment '考核成绩',
     exam_date  date          null comment '考核日期',
     is_deleted int default 0 null comment '逻辑删除',
@@ -157,9 +157,9 @@ CREATE TABLE employment
 -- 6. 考试记录表
 CREATE TABLE stu_exam_record
 (
-    record_id  INT AUTO_INCREMENT COMMENT '自增ID（主键）' PRIMARY KEY,
-    stu_id     INT  NOT NULL COMMENT '学生编号',
-    seq_no     INT  NOT NULL COMMENT '考核序次',
+--     record_id  INT AUTO_INCREMENT COMMENT '自增ID（主键）' PRIMARY KEY,
+    stu_id     INT  PRIMARY KEY COMMENT '学生编号',
+    seq_no     INT  PRIMARY KEY COMMENT '考核序次',
     grade      INT  NULL COMMENT '考核成绩',
     exam_date  DATE NULL COMMENT '考核日期',
     is_deleted INT  NULL DEFAULT 0 COMMENT '逻辑删除',
