@@ -70,7 +70,7 @@
                 <a href="#" @click.prevent="activeTab = 'dashboard'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-chart-line w-5"></i><span>数据看板</span></a>
                 <a href="#" @click.prevent="activeTab = 'query'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'query' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-comment-dots w-5"></i><span>智能问答</span></a>
                 <a href="#" @click.prevent="activeTab = 'statistics'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'statistics' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-chart-simple w-5"></i><span>高级统计</span></a>
-<!--                <a href="#" @click.prevent="activeTab = 'management'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'management' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-database w-5"></i><span>数据管理</span></a>-->
+                <a href="#" @click.prevent="activeTab = 'management'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'management' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-database w-5"></i><span>数据管理</span></a>
             </nav>
             <div class="p-4 border-t border-slate-700 text-xs text-slate-500 text-center"><button @click="logout" class="text-red-400 hover:text-red-300"><i class="fas fa-sign-out-alt"></i> 退出登录</button></div>
         </aside>
@@ -127,21 +127,21 @@
             </div>
 
             <!-- 数据管理 -->
-<!--            <div v-if="activeTab === 'management'" class="space-y-6">-->
-<!--                <el-tabs v-model="mgmtTab" class="custom-tabs">-->
-<!--                    <el-tab-pane label="学生管理" name="student">-->
-<!--                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openStudentDialog(null)">新增学生</el-button></div>-->
-<!--                        <el-table :data="students" stripe><el-table-column prop="stu_id" label="学号" width="80"></el-table-column><el-table-column prop="stu_name" label="姓名"></el-table-column><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="age" label="年龄"></el-table-column><el-table-column label="操作" width="150"><template #default="scope"><el-button size="small" @click="openStudentDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteStudent(scope.row.stu_id)">删除</el-button></template></el-table-column></el-table>-->
-<!--                    </el-tab-pane>-->
-<!--                    <el-tab-pane label="班级管理" name="class">-->
-<!--                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openClassDialog(null)">新增班级</el-button></div>-->
-<!--                        <el-table :data="classes" stripe><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="class_name" label="班级名称"></el-table-column><el-table-column prop="head_teacher_id" label="班主任ID"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openClassDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteClass(scope.row.class_id)">删除</el-button></template></el-table-column></el-table>-->
-<!--                    </el-tab-pane>-->
-<!--                    <el-tab-pane label="教师管理" name="teacher">-->
-<!--                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openTeacherDialog(null)">新增教师</el-button></div>-->
-<!--                        <el-table :data="teachers" stripe><el-table-column prop="teacher_id" label="教师ID"></el-table-column><el-table-column prop="teacher_name" label="姓名"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="role" label="角色"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openTeacherDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteTeacher(scope.row.teacher_id)">删除</el-button></template></el-table-column></el-table>-->
-<!--                    </el-tab-pane>-->
-<!--                </el-tabs>-->
+            <div v-if="activeTab === 'management'" class="space-y-6">
+                <el-tabs v-model="mgmtTab" class="custom-tabs">
+                    <el-tab-pane label="学生管理" name="student">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openStudentDialog(null)">新增学生</el-button></div>
+                        <el-table :data="students" stripe><el-table-column prop="stu_id" label="学号" width="80"></el-table-column><el-table-column prop="stu_name" label="姓名"></el-table-column><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="age" label="年龄"></el-table-column><el-table-column label="操作" width="150"><template #default="scope"><el-button size="small" @click="openStudentDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteStudent(scope.row.stu_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="班级管理" name="class">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openClassDialog(null)">新增班级</el-button></div>
+                        <el-table :data="classes" stripe><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="class_name" label="班级名称"></el-table-column><el-table-column prop="head_teacher_id" label="班主任ID"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openClassDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteClass(scope.row.class_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="教师管理" name="teacher">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openTeacherDialog(null)">新增教师</el-button></div>
+                        <el-table :data="teachers" stripe><el-table-column prop="teacher_id" label="教师ID"></el-table-column><el-table-column prop="teacher_name" label="姓名"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="role" label="角色"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openTeacherDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteTeacher(scope.row.teacher_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                </el-tabs>
 
                 <!-- 学生表单对话框 -->
                 <el-dialog v-model="studentDialogVisible" title="学生信息" width="500px">
