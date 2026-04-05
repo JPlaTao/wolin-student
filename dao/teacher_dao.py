@@ -57,6 +57,7 @@ def get_head_classes(db: Session, teacher_id: int):
     teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
     return teacher.class_as_head if teacher else None
 
+# test
 
 # 查询讲师教授的班级
 def get_teach_classes(db: Session, teacher_id: int):
