@@ -40,8 +40,12 @@ try:
 except Exception as e:
     print(f"向量知识库加载失败: {e}")
 
+
 class QueryRequest(BaseModel):
     question: str
+
+# 定义记忆
+memory = []
 
 SCHEMA_DESC = """
 数据库表结构：
@@ -105,31 +109,62 @@ def classify_intent(question: str):
     knowledge_keywords = ["为什么", "什么原因", "解释", "说明", "含义", "规则", "定义", "不准", "误差", "限制", "注意"]
     if any(kw in question for kw in knowledge_keywords):
         return "knowledge"
-    sql_keywords = ["查询", "多少", "几个", "平均", "最高", "最低", "排名", "列表", "统计", "每个", "各个", "薪资", "年龄", "成绩", "学生", "班级", "老师", "就业", "考试"]
+    sql_keywords = ["查询", "多少", "几个", "平均", "最高", "最低", "排名", "列表", "统计", "每个", "各个", "薪资",
+                    "年龄", "成绩", "学生", "班级", "老师", "就业", "考试"]
     if any(kw in question for kw in sql_keywords):
         return "sql"
     return "chat"
+
 
 def generate_sql(question, retry=False):
     system_msg = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。"
     if retry:
         system_msg += " 上一次生成的SQL执行失败，请修正。只输出修正后的SQL语句。"
+
+    # 将问题添加入记忆
+    memory.extend(
+        [
+            {
+                "role": "system",
+                "content": system_msg
+            },
+            {
+                "role": "user",
+                "content": f"根据以下数据库结构：\n{SCHEMA_DESC}\n\n用户问题：{question}\n请输出SQL语句："
+            }
+        ]
+    )
     response = client.chat.completions.create(
         model="deepseek-chat",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": f"根据以下数据库结构：\n{SCHEMA_DESC}\n\n用户问题：{question}\n请输出SQL语句："}
-        ],
+        messages=memory,
         temperature=0.1,
     )
     sql = response.choices[0].message.content.strip()
     sql = re.sub(r'^```sql\s*', '', sql)
     sql = re.sub(r'\s*```$', '', sql)
+
+    # 记住回答
+    memory.append(
+        {
+            "role": "assistant",
+            "content": sql
+        }
+    )
+
     return sql
+
 
 @router.post("/natural")
 def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
     question = req.question
+
+    # 记住问题
+    memory.append(
+        {
+            "role": "user",
+            "content": question
+        }
+    )
     intent = classify_intent(question)
 
     # 1. 知识库问题（优先使用向量检索）
@@ -158,23 +193,53 @@ def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
             context = docs_content[:20000] if docs_content else "暂无文档。"
 
         try:
+            # 将问题添加入记忆
+            memory.extend({
+                {
+                    "role": "system",
+                    "content": "你是一个严格基于文档的问答助手。你必须只根据下面「文档内容」中的信息回答用户问题。如果文档内容中没有明确的答案，请直接回复「根据现有文档，无法回答该问题」。不要使用你自己的知识补充任何内容。"
+                },
+                {
+                    "role": "user",
+                    "content": f"文档内容：\n{context}\n\n用户问题：{question}"
+                }
+            })
             response = client.chat.completions.create(
                 model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "你是一个严格基于文档的问答助手。你必须只根据下面「文档内容」中的信息回答用户问题。如果文档内容中没有明确的答案，请直接回复「根据现有文档，无法回答该问题」。不要使用你自己的知识补充任何内容。"},
-                    {"role": "user", "content": f"文档内容：\n{context}\n\n用户问题：{question}"}
-                ],
+                messages=memory,
                 temperature=0.1,
             )
             answer = response.choices[0].message.content
-            return {"type": "answer", "question": question, "answer": answer}
+
+            # 将回答添加入记忆
+            memory.append(
+                {
+                    "role": "assistant",
+                    "content": answer
+                }
+            )
+            return {
+                "type": "answer",
+                "question": question,
+                "answer": answer
+            }
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI 回答失败: {str(e)}")
 
     # 2. SQL 数据查询
     elif intent == "sql":
         try:
+
+            # 将问题添加进记忆
+            memory.append(
+                {
+                    "role": "user",
+                    "content": question
+                }
+            )
+
             sql = generate_sql(question, retry=False)
+
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI 生成 SQL 失败: {str(e)}")
         if not sql.strip().lower().startswith("select"):
@@ -184,7 +249,20 @@ def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
             rows = result.fetchall()
             columns = result.keys()
             data = [dict(zip(columns, row)) for row in rows]
-            return {"type": "sql", "question": question, "sql": sql, "data": data, "count": len(data)}
+            memory.append(
+                {
+                    "role": "assistant",
+                    "content": sql
+                }
+            )
+            # print(memory)
+            return {
+                "type": "sql",
+                "question": question,
+                "sql": sql,
+                "data": data,
+                "count": len(data)
+            }
         except Exception as e:
             try:
                 sql_corrected = generate_sql(question, retry=True)
@@ -194,22 +272,54 @@ def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
                 rows = result.fetchall()
                 columns = result.keys()
                 data = [dict(zip(columns, row)) for row in rows]
-                return {"type": "sql", "question": question, "sql": sql_corrected, "data": data, "count": len(data)}
+                memory.append(
+                    {
+                        "role": "assistant",
+                        "content": data
+                    }
+                )
+                # print(memory)
+                return {
+                    "type": "sql",
+                    "question": question,
+                    "sql": sql_corrected,
+                    "data": data,
+                    "count": len(data)
+                }
             except Exception as e2:
-                raise HTTPException(status_code=500, detail=f"SQL 执行失败: {str(e)}\n原始 SQL: {sql}\n修正后 SQL: {sql_corrected}")
+                raise HTTPException(status_code=500,
+                                    detail=f"SQL 执行失败: {str(e)}\n原始 SQL: {sql}\n修正后 SQL: {sql_corrected}")
 
     # 3. 闲聊/通用对话
     else:
         try:
+
+            #将问题添加入记忆
+            memory.extend([
+                {
+                    "role": "system",
+                    "content": "你是一个友好的助手，可以和学生管理系统相关的用户闲聊。回答要简洁、自然、有趣。"
+                },
+                {
+                    "role": "user",
+                    "content": question
+                }
+            ])
             response = client.chat.completions.create(
                 model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "你是一个友好的助手，可以和学生管理系统相关的用户闲聊。回答要简洁、自然、有趣。"},
-                    {"role": "user", "content": question}
-                ],
+                messages=memory,
                 temperature=0.7,
             )
             answer = response.choices[0].message.content
+
+            # 将回答添加入记忆
+            memory.append(
+                {
+                    "role": "assistant",
+                    "content": answer
+                }
+            )
+
             return {"type": "answer", "question": question, "answer": answer}
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI 回答失败: {str(e)}")
