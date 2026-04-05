@@ -35,9 +35,9 @@ class StudentUpdate(BaseModel):
 
 class StudentQuery(BaseModel):
     """查询学生参数（Query 参数用，可选）"""
-    stu_id: Optional[int] = None
-    stu_name: Optional[str] = None
-    class_id: Optional[int] = None
+    stu_id: Optional[int] = Field(None, description="按学生编号查询")
+    stu_name: Optional[str] = Field(None, description="按学生姓名查询（支持模糊匹配）")
+    class_id: Optional[int] = Field(None, description="按班级编号查询")
 
 
 class Student(BaseModel):

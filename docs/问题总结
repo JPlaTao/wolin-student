@@ -1,0 +1,104 @@
+# 问题总结
+
+## 代码问题
+
+### 1. 数据库凭证硬编码
+
+位置：database.py 第4行
+
+问题：SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:123456@localhost/wolin_test1" 将密码明文写在代码中，存在安全风险，且无法在不同环境（开发/测试/生产）间灵活切换。
+
+建议：使用环境变量或配置文件（如 .env + python-dotenv），例如：
+
+python
+import os
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:123456@localhost/wolin_test1")
+### 2. 班级表缺少逻辑删除，且删除操作为物理删除
+位置：model/class_model.py、dao/class_dao.py
+
+问题：
+
+
+
+Class 模型没有 is_deleted 字段，删除班级时会直接从数据库物理删除。
+
+物理删除会导致关联的学生（stu_basic_info.class_id 外键）因约束而删除失败，或需先删除学生，易造成数据丢失。
+
+建议：
+
+为 Class 添加 is_deleted = Column(Boolean, default=False)。
+
+修改 delete_class 为逻辑删除（设置 is_deleted=True），并确保所有查询自动过滤 is_deleted=False。
+
+3. 学生表使用静态年龄字段，而非出生日期
+    位置：model/student.py 中的 age 字段
+
+问题：age 存储的是创建时的年龄，不会随时间自动更新，导致统计数据（如“30岁以上学生”）不准确。
+
+建议：替换为 birth_date = Column(Date, nullable=False)，需要年龄时动态计算（或使用数据库生成列）。
+
+4. 学生更新接口使用了错误的 Schema
+    位置：api/student_api.py 第40行左右
+
+问题：update_student 端点使用 StudentCreate 作为请求体，要求客户端传递所有字段（包括必填项），不符合“部分更新”的语义。应该使用 StudentUpdate（所有字段可选）。
+
+建议：将参数类型改为 update_data: StudentUpdate，并调整 DAO 层逻辑。
+
+5. Pydantic 验证器缺少 return 语句
+    位置：schemas/class_schemas.py 中的 head_teacher_id_positive 验证器
+
+问题：验证器函数没有 return 值，导致该字段验证后变成 None，破坏数据。
+
+示例：
+
+python
+@field_validator('head_teacher_id')
+def head_teacher_id_positive(cls, id):
+​    if id <= 0:
+​        raise ValueError('班主任ID必须是正整数')
+​    return id   # ← 缺少这一行
+建议：所有验证器都必须返回处理后的值。
+
+6. teacher_dao.update_teacher 使用了已弃用的 .dict()
+    位置：dao/teacher_dao.py 第30行左右
+
+问题：在 Pydantic v2 中，.dict() 已被替换为 .model_dump()。当前代码可能导致属性无法正确更新。
+
+建议：改为 teacher.model_dump(exclude_unset=True)。
+
+7. 成绩表复合主键可能引发重复插入异常
+    位置：model/exam_model.py
+
+问题：主键为 (stu_id, seq_no)，但 exam_submit 直接执行 db.add()，若同一学生同一序次已存在记录，会抛出 IntegrityError。
+
+建议：在插入前检查是否存在，若存在则更新或返回友好错误。
+
+时间: 26-04-05 
+
+
+
+## 项目问题
+
+### 1. 最开始时项目需求不够明确
+
+
+
+### 2. 规范不够清晰
+
+1. 命名
+
+   1. 各层的模块名
+   2. 通用字段的值 eg. is_deleted 应该是布尔还是0|1
+
+2. 方法参数规范
+
+   1. db如何传入 是用依赖还是手动传 依赖的使用
+
+   2. 参数顺序, 通用参数放在后面还是前面,
+
+      > db:Session = Depends(get_db )应该放在第一个还是最后一个
+      >
+      > 有多个依赖时, 顺序应该是怎样的
+
+
+

@@ -8,8 +8,10 @@ from schemas.student import StudentCreate
 # 顾问编号、年龄、性别）
 
 # new_student_data 要声明类型
-def create_student(new_student_data : StudentCreate,
-                   db: Session):
+def create_student(
+        new_student_data: StudentCreate,
+        db: Session
+):
     """创建新学生"""
     # 将传入的数据转换为数据库模型
     new_student = StuBasicInfo(
@@ -28,21 +30,7 @@ def create_student(new_student_data : StudentCreate,
     db.add(new_student)
     db.commit()
     db.refresh(new_student)
-    return {
-        "stu_id": new_student.stu_id,
-        "stu_name": new_student.stu_name,
-        "class_id": new_student.class_id,
-        "native_place": new_student.native_place,
-        "graduated_school": new_student.graduated_school,
-        "major": new_student.major,
-        "admission_date": new_student.admission_date,
-        "graduation_date": new_student.graduation_date,
-        "education": new_student.education,
-        "advisor_id": new_student.advisor_id,
-        "age": new_student.age,
-        "gender": new_student.gender,
-        "is_deleted": new_student.is_deleted
-    }
+    return new_student
 
 
 # 2、查询学生信息（支持按编号、姓名、班级等条件筛选）
@@ -54,7 +42,7 @@ def get_students(
     # 默认全表扫描
     result = db.query(StuBasicInfo).filter(StuBasicInfo.is_deleted == False)
 
-    #stu_id: 按学生编号查询
+    # stu_id: 按学生编号查询
     if stu_id is not None:
         result = result.filter(StuBasicInfo.stu_id == stu_id)
 
@@ -86,23 +74,21 @@ def get_students(
         for i in students_temp
     ]
 
-
-
     return students
+
 
 # 更新学生信息
 def update_student(db: Session, stu_id: int, update_data):
     # 查找未删除的学生
     result = db.query(StuBasicInfo).filter(
         and_(
-        StuBasicInfo.is_deleted == False,
-        StuBasicInfo.stu_id == stu_id)
-    ).first()  # ← 加上 .first()
-
+            StuBasicInfo.is_deleted == False,
+            StuBasicInfo.stu_id == stu_id)
+    ).first()
 
     if not result:
-        return '不存在这个学生'
-    else :
+        return False
+    else:
         if update_data.stu_name is not None:
             result.stu_name = update_data.stu_name
         if update_data.class_id is not None:
@@ -128,7 +114,7 @@ def update_student(db: Session, stu_id: int, update_data):
 
     db.commit()
     db.refresh(result)
-    return '更新成功'
+    return True
 
 
 # 逻辑删除学生
@@ -136,14 +122,13 @@ def delete_student(db: Session, stu_id: int):
     # 查找未删除的学生
     result = db.query(StuBasicInfo).filter(
         and_(
-        StuBasicInfo.is_deleted == False,
-        StuBasicInfo.stu_id == stu_id)
+            StuBasicInfo.is_deleted == False,
+            StuBasicInfo.stu_id == stu_id)
     ).first()  # ← 加上 .first()
-
 
     if not result:
         return '不存在这个学生或已被删除'
-    else :
+    else:
         result.is_deleted = True
 
     db.commit()

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
+from dao.employment_dao import create_empty_employment
 from database import get_db
 from dao import student_dao
-from schemas.student import StudentCreate, StudentUpdate, Student
+from schemas.student import StudentCreate, StudentUpdate, Student, StudentQuery
 from schemas import response
 from typing import Optional
 
@@ -11,11 +13,22 @@ router = APIRouter(prefix="/students", tags=["学生管理"])
 
 # 创建新学生
 @router.post("/", response_model=response.ResponseBase)
-def create_student(new_student_data: StudentCreate,
-                   db: Session = Depends(get_db)):
+def create_student(
+        new_student_data: StudentCreate,
+        db: Session = Depends(get_db)
+):
     new_student = student_dao.create_student(new_student_data, db)
+
+    student_respond = Student.model_validate(new_student)
+    # 级联创建就业信息 空记录
+    create_empty_employment(
+        db,
+        student_respond.stu_id,
+        student_respond.stu_name,
+        student_respond.class_id,
+    )
     return response.ResponseBase(
-        data=new_student
+        data=student_respond
     )
 
 
@@ -49,7 +62,7 @@ def update_student(
     # 调用更新方法
     is_update_student = student_dao.update_student(db, stu_id, update_data)
 
-    if is_update_student == '不存在这个学生':
+    if is_update_student:
         raise HTTPException(status_code=400, detail="没有这个学生")
     else:
         return response.ResponseBase(
