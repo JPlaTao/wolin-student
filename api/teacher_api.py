@@ -89,25 +89,29 @@ def get_head_classes(teacher_id: int, db: Session = Depends(get_db)):
     if isinstance(data, str):
         code = 404 if data == "老师不存在" else 400
         return ResponseBase(code=code, message=data, data=None)
+    # 返回统一响应模型到前端
     return ResponseBase(data=data)
 
 
 @router.get("/{teacher_id}/teach_classes", response_model=ResponseBase)
 def get_head_classes(teacher_id: int, db: Session = Depends(get_db)):
-    # ✅ 直接查班级，不查老师！
+    # 调用dao.查询讲师所教的班
     data = dao.get_teach_classes(db, teacher_id)
-
-    # 判断是否是提示文字（老师不存在/无班级）
+    # 判断是否是提示文字
     if isinstance(data, str):
         code = 404 if data == "老师不存在" else 400
         return ResponseBase(code=code, message=data, data=None)
+    # 返回统一响应模型到前端
     return ResponseBase(data=data)
 
 
 @router.get("/{teacher_id}/my_students", response_model=ResponseBase)
 def get_my_students(teacher_id: int, db: Session = Depends(get_db)):
+    # 调用dao.查询顾问所带的学生
     data = dao.get_my_students(db, teacher_id)
+    # 判断是否是提示文字
     if isinstance(data, str):
         code = 404 if data == "老师不存在" else 400
         return ResponseBase(code=code, message=data, data=None)
+    # 返回统一响应模型到前端
     return ResponseBase(data=data)
