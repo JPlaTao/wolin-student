@@ -1,8 +1,9 @@
-from sqlalchemy import ForeignKey, Table, Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 from model.class_model import class_teacher
 
+# 多对多连接class表需要的中间表
 # class_teachers = Table(
 #     'class_teacher',
 #     Base.metadata,
@@ -12,11 +13,11 @@ from model.class_model import class_teacher
 
 
 class Teacher(Base):
-    __tablename__ = "teacher"
+    __tablename__ = "teacher"# 表名
     teacher_id = Column(Integer, primary_key=True, autoincrement=True)
     teacher_name = Column(String(30), comment="姓名")
-    gender = Column(String(10), comment='男/女')  # =============
-    phone = Column(String(20), comment='电话号码')  # ==============
+    gender = Column(String(10), comment='男/女')
+    phone = Column(String(20), comment='电话号码')
     role = Column(String(20), comment="角色：counselor顾问/headteacher班主任/lecturer讲师")
     is_deleted = Column(Boolean, default=False, comment="逻辑删除：0-未删除，1-已删除")
 

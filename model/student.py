@@ -24,7 +24,7 @@ class StuBasicInfo(Base):
 
     # 学生所在的班级, 一对多 外键指向班级表中的一个班级
     class_id = Column(Integer, ForeignKey("class.class_id"), nullable=False)
-
+    # 学生与班级对应的关系
     class_ = relationship("Class", back_populates="students")
 
     class Config:
