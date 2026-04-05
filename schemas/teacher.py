@@ -1,7 +1,6 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, Field
 
-
+# ===================== 基础教师数据模型 =====================
 class TeacherBase(BaseModel):
     teacher_id: int
     teacher_name: str
@@ -9,9 +8,9 @@ class TeacherBase(BaseModel):
     phone: str
     role: str
 
+    # 配置项：允许这个模型 从 SQLAlchemy 数据库对象 直接转换
     class Config:
-        from_attributes = True  # 允许从 SQLAlchemy ORM 对象转换
-
+        from_attributes = True
 
 # 响应模型
 class TeacheresUpdata(BaseModel):
