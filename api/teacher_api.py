@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas.teacher import TeacheresUpdata
 from database import get_db
 from dao import teacher_dao as dao
 from pydantic import ValidationError
+
+from schemas.teacher import TeacheresUpdata
 
 router = APIRouter(
     prefix="/teacher",
@@ -54,7 +55,7 @@ def delete_teacher(teacher_id: int, db: Session = Depends(get_db)):
 
 # ========================================================
 @router.get("/{teacher_id}/head_classes")
-def get_head_classes(teacher_id: int,teacher: TeacheresUpdata, db: Session = Depends(get_db)):
+def get_head_classes(teacher_id: int, db: Session = Depends(get_db)):
     teacher = dao.get_teacher(db, teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="老师不存在或已删除")

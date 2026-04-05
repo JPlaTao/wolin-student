@@ -1,12 +1,14 @@
 from sqlalchemy.orm import Session
 from model.employment import Employment
 
+
 # 1. 根据学生ID查就业信息
 def get_employment_by_stu_id(db: Session, stu_id: int):
     return db.query(Employment).filter(
         Employment.stu_id == stu_id,
         Employment.is_deleted == False
     ).first()
+
 
 # 2. 根据班级ID查全班就业信息
 def get_employment_by_class_id(db: Session, class_id: int):
@@ -15,12 +17,13 @@ def get_employment_by_class_id(db: Session, class_id: int):
         Employment.is_deleted == False
     ).all()
 
+
 # 3. 更新就业信息
 def update_employment(db: Session, employment: Employment, update_data):
     try:
-        update_dict = update_data.dict(exclude_unset=True)
+        update_dict = update_data.model_dump(exclude_unset=True)
         update_dict.pop("stu_id", None)  # 禁止修改学生ID
-        update_dict.pop("class_id", None)# 禁止修改班级ID
+        update_dict.pop("class_id", None)  # 禁止修改班级ID
         for key, value in update_dict.items():
             if hasattr(employment, key):
                 setattr(employment, key, value)
@@ -32,6 +35,7 @@ def update_employment(db: Session, employment: Employment, update_data):
         print("更新失败")
         return False
 
+
 # 4. 逻辑删除就业信息
 def delete_employment(db: Session, employment: Employment):
     try:
@@ -42,8 +46,14 @@ def delete_employment(db: Session, employment: Employment):
         db.rollback()
         return False
 
+
 # 5. 创建空就业记录（学生模块调用）
-def create_empty_employment(db: Session, stu_id: int, stu_name: str, class_id: int):
+def create_empty_employment(
+        db: Session,
+        stu_id: int,
+        stu_name: str,
+        class_id: int
+):
     emp = Employment(
         stu_id=stu_id,
         stu_name=stu_name,
@@ -55,13 +65,18 @@ def create_empty_employment(db: Session, stu_id: int, stu_name: str, class_id: i
         is_deleted=False
     )
     db.add(emp)
-    return True
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
 # 6.根据emp_id查单条（删除用）
 def get_employment_by_emp_id(db: Session, emp_id: int):
     return db.query(Employment).filter(
         Employment.emp_id == emp_id,
         Employment.is_deleted == False
     ).first()
+
 
 # 恢复就业信息（取消逻辑删除）
 # ================================

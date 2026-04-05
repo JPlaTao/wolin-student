@@ -1,59 +1,79 @@
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from model.exam_model import StuExamRecord
-from typing import Optional
 
 
 # 按考核序次录⼊考核成绩（学⽣编号、考核序次、成绩）
-def exam_submit(
-        exam_data,
-        db: Session
-):
-    submit = StuExamRecord(
-        stu_id = exam_data.stu_id,
-        seq_no = exam_data.seq_no,
-        grade = exam_data.grade,
-        exam_date = exam_data.exam_date,
-        is_deleted = 0
+def exam_submit( exam_data, db: Session ):
+    # 若有被删除的数据 则更新数据并将is_deleted置为0
+    _query = db.query(StuExamRecord).filter(
+            and_(
+                StuExamRecord.is_deleted == 1,
+                StuExamRecord.stu_id == exam_data.stu_id,
+                StuExamRecord.seq_no == exam_data.seq_no
+            )
     )
-    db.add(submit)
-    db.commit()
-    db.refresh(submit)
-    return {
-        "stu_id": submit.stu_id,
-        "seq_no": submit.seq_no,
-        "grade": submit.grade,
-        "exam_date": submit.exam_date
-    }
+    data = _query.first()
+    if data:
+        _query.update({
+            StuExamRecord.is_deleted: 0,
+            StuExamRecord.grade: exam_data.grade,
+            StuExamRecord.exam_date: exam_data.exam_date
+        })
+        db.commit()
+        return {
+                "message": "success",
+                "stu_id": exam_data.stu_id,
+                "seq_no": exam_data.seq_no,
+                "grade": exam_data.grade,
+                "exam_date": exam_data.exam_date
+        }
+    # 无则新增数据
+    else:
+        try:
+            submit = StuExamRecord(
+                stu_id = exam_data.stu_id,
+                seq_no = exam_data.seq_no,
+                grade = exam_data.grade,
+                exam_date = exam_data.exam_date,
+                is_deleted = 0
+            )
+            db.add(submit)
+            db.commit()
+            db.refresh(submit)
+            return {
+                "message": "success",
+                "stu_id": submit.stu_id,
+                "seq_no": submit.seq_no,
+                "grade": submit.grade,
+                "exam_date": submit.exam_date
+            }
+        # 捕获异常 如外键约束&主键冲突
+        except Exception as e:
+            return { "message": f"{e}" }
 
 
 # 更新考试成绩
-def exam_update(
-        stu_id: int,
-        seq_no: int,
-        exam_data,
-        db: Session
-):
-    # 查询学生id和考核序次是否存在
+def exam_update( stu_id: int, seq_no: int, exam_data, db: Session ):
+    # 基础查询 过滤学生id和考核序次
     _query = db.query(StuExamRecord).filter(
-        and_(
-            StuExamRecord.is_deleted == 0,
-            StuExamRecord.stu_id == stu_id,
-            StuExamRecord.seq_no == seq_no
-        )
-    ).all()
-
-    # 更新数据 返回查询结果
-    if not _query:
-        return f"'{stu_id=}' & '{seq_no=}' not found"
+            and_(
+                StuExamRecord.is_deleted == 0,
+                StuExamRecord.stu_id == stu_id,
+                StuExamRecord.seq_no == seq_no
+            )
+    )
+    data = _query.first()
+    # 若有数则更新 包括is_deleted=1的数据
+    if data:
+        cnt = _query.update({
+            StuExamRecord.grade: exam_data.grade,
+            StuExamRecord.exam_date: exam_data.exam_date
+        })
+        db.commit()
+        return f"'{stu_id=}' & '{seq_no=}' -> {cnt} rows updated"
     else:
-        if exam_data.grade is not None:
-            _query.grade = exam_data.grade
-        if exam_data.exam_date is not None:
-            _query.exam_date = exam_data.exam_date
-    db.commit()
-    db.refresh(_query)
-    return f"'{stu_id=}' & '{seq_no=}' updated"
+        return f"'{stu_id=}' & '{seq_no=}' not found"
 
 
 # 删除考试成绩（逻辑删除）
@@ -62,27 +82,21 @@ def exam_delete(
         seq_no: int | None,
         db: Session
 ):
-    # 取对应考试序次/所有考试序次的数据
-    if seq_no is not None:
-        _query = db.query(StuExamRecord).filter(
-            and_(
-                StuExamRecord.is_deleted == 0,
-                StuExamRecord.stu_id == stu_id,
-                StuExamRecord.seq_no == seq_no
-            )
-        ).all
-    else:
-        _query = db.query(StuExamRecord).filter(
+    # 先构建基础查询(不执行)
+    _query = db.query(StuExamRecord).filter(
             and_(
                 StuExamRecord.is_deleted == 0,
                 StuExamRecord.stu_id == stu_id
             )
-        ).all
+    )
+    # seq_no不为空时追加过滤条件
+    if seq_no is not None:
+        _query = _query.filter(StuExamRecord.seq_no == seq_no)
+    # 更新逻辑删除字段并拿到更新数量
+    cnt = _query.update({StuExamRecord.is_deleted: 1})
+    db.commit()
     # 逻辑删除查询到的数据
-    if not _query:
-        return f"'{stu_id=}' & '{seq_no=}' not found"
+    if cnt != 0:
+        return f"'{stu_id=}' & '{seq_no=}' -> {cnt} rows deleted"
     else:
-        _query.is_deleted = 1
-        db.commit()
-        db.refresh(_query)
-        return f"'{stu_id=}' & '{seq_no=}' deleted"
+        return f"'{stu_id=}' & '{seq_no=}' not found"
