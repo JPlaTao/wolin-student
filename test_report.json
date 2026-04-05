@@ -1,0 +1,207 @@
+{
+  "start_time": "2026-04-05T14:53:52.972059",
+  "end_time": "2026-04-05T14:53:53.689400",
+  "total_tests": 33,
+  "passed_tests": 33,
+  "failed_tests": 0,
+  "tests": [
+    {
+      "name": "test_root",
+      "description": "测试根路径",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_create_student",
+      "description": "测试创建学生",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_students",
+      "description": "测试获取学生列表",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_update_student",
+      "description": "测试更新学生信息",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_delete_student",
+      "description": "测试删除学生",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_all_classes",
+      "description": "测试获取所有班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_single_class",
+      "description": "测试获取单个班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_create_class",
+      "description": "测试创建班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_update_class",
+      "description": "测试更新班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_delete_class",
+      "description": "测试删除班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_restore_class",
+      "description": "测试恢复班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_all_teachers",
+      "description": "测试获取所有老师",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_single_teacher",
+      "description": "测试获取单个老师",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_create_teacher",
+      "description": "测试新增老师",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_update_teacher",
+      "description": "测试修改老师",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_delete_teacher",
+      "description": "测试删除老师",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_head_classes",
+      "description": "测试获取老师管理的班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_teach_classes",
+      "description": "测试获取老师教授的班级",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_my_students",
+      "description": "测试获取老师的学生",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_submit_exam",
+      "description": "测试提交考试成绩",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_update_exam",
+      "description": "测试修改考试成绩",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_delete_exam",
+      "description": "测试删除考试成绩",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_student_employment",
+      "description": "测试获取单个学生就业信息",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_get_class_employment",
+      "description": "测试获取班级所有就业信息",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_update_employment",
+      "description": "测试更新学生就业信息",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_test_endpoint",
+      "description": "测试统计接口连通性",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_age_stat",
+      "description": "测试30岁以上学生统计",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_class_gender",
+      "description": "测试班级男女比例",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_class_average",
+      "description": "测试班级平均分排名",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_fail_list",
+      "description": "测试不及格学生名单",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_top_salary",
+      "description": "测试薪资TOP5",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_company_stat",
+      "description": "测试各公司就业人数统计",
+      "status": "PASSED",
+      "error": null
+    },
+    {
+      "name": "test_dashboard",
+      "description": "测试数据总览",
+      "status": "PASSED",
+      "error": null
+    }
+  ]
+}
