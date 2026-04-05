@@ -1,15 +1,15 @@
 {
-  "start_time": "2026-04-05T14:53:52.972059",
-  "end_time": "2026-04-05T14:53:53.689400",
+  "start_time": "2026-04-05T19:36:26.979306",
+  "end_time": "2026-04-05T19:36:31.848594",
   "total_tests": 33,
-  "passed_tests": 33,
-  "failed_tests": 0,
+  "passed_tests": 24,
+  "failed_tests": 9,
   "tests": [
     {
       "name": "test_root",
       "description": "测试根路径",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert {'message': '学生管理系统运行成功！访问 /docs 查看接口，前端请访问 /static/index.html'} == {'message': '学生管理系统运行成功！访问 /docs 查看接口'}\n  \n  Differing items:\n  {'message': '学生管理系统运行成功！访问 /docs 查看接口，前端请访问 /static/index.html'} != {'message': '学生管理系统运行成功！访问 /docs 查看接口'}\n  \n  Full diff:\n    {\n  -     'message': '学生管理系统运行成功！访问 /docs 查看接口',\n  +     'message': '学生管理系统运行成功！访问 /docs 查看接口，前端请访问 /static/index.html',\n  ?                                         +++++++++++++++++++++++++\n    }"
     },
     {
       "name": "test_create_student",
@@ -158,50 +158,50 @@
     {
       "name": "test_test_endpoint",
       "description": "测试统计接口连通性",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_age_stat",
       "description": "测试30岁以上学生统计",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_class_gender",
       "description": "测试班级男女比例",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_class_average",
       "description": "测试班级平均分排名",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_fail_list",
       "description": "测试不及格学生名单",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_top_salary",
       "description": "测试薪资TOP5",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_company_stat",
       "description": "测试各公司就业人数统计",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     },
     {
       "name": "test_dashboard",
       "description": "测试数据总览",
-      "status": "PASSED",
-      "error": null
+      "status": "FAILED",
+      "error": "assert 404 == 200\n +  where 404 = <Response [404 Not Found]>.status_code"
     }
   ]
 }
