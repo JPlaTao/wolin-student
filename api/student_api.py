@@ -37,7 +37,7 @@ def create_student(
 def get_students(
         db: Session = Depends(get_db),
         stu_id: Optional[int] = Query(None, description="按学生编号查询"),
-        stu_name: Optional[str] = Query(None, description="按学生姓名查询（支持模糊匹配）"),
+        stu_name: Optional[str] = Query(None, description="按学生姓名查询"),
         class_id: Optional[int] = Query(None, description="按班级编号查询")
 ):
     students = student_dao.get_students(
@@ -62,12 +62,13 @@ def update_student(
     # 调用更新方法
     is_update_student = student_dao.update_student(db, stu_id, update_data)
 
-    if is_update_student:
+    if not is_update_student:
         raise HTTPException(status_code=400, detail="没有这个学生")
-    else:
-        return response.ResponseBase(
-            data=update_student
-        )
+
+    is_update_student = Student.model_validate(is_update_student)
+    return response.ResponseBase(
+        data=is_update_student
+    )
 
 
 # 删除学生(逻辑删除)
@@ -81,7 +82,8 @@ def delete_student(
 
     if is_delete_student == '不存在这个学生或已被删除':
         raise HTTPException(status_code=400, detail="没有这个学生或已被删除")
-    else:
-        return response.ResponseBase(
-            data=delete_student
-        )
+    # is_delete_student = Student.model_validate(is_delete_student)
+    return response.ResponseBase(
+        message=is_delete_student,
+        data=None
+    )

@@ -114,7 +114,7 @@ def update_student(db: Session, stu_id: int, update_data):
 
     db.commit()
     db.refresh(result)
-    return True
+    return result
 
 
 # 逻辑删除学生
@@ -128,8 +128,8 @@ def delete_student(db: Session, stu_id: int):
 
     if not result:
         return '不存在这个学生或已被删除'
-    else:
-        result.is_deleted = True
+
+    result.is_deleted = True
 
     db.commit()
     db.refresh(result)
