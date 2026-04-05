@@ -14,7 +14,6 @@ from api import (
     auth_api      # 新增认证模块
 )
 from knowledge_base import build_knowledge_base
-import model.user   # 确保 User 表被创建
 
 # 创建所有表（包括 users）
 Base.metadata.create_all(bind=engine)
