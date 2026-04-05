@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>沃林学生管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
+        .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.5); }
+        .chat-bubble-user { background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 18px 18px 4px 18px; }
+        .chat-bubble-ai { background: #334155; border-radius: 18px 18px 18px 4px; }
+        .modal-mask { position: fixed; z-index: 9998; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; }
+        .modal-container { width: 400px; background: #1e293b; border-radius: 16px; padding: 24px; box-shadow: 0 20px 25px -12px rgba(0,0,0,0.5); }
+        .el-dialog { background: #1e293b !important; }
+        .el-dialog__title { color: white !important; }
+        .el-form-item__label { color: #cbd5e1 !important; }
+        .el-input__inner { background: #334155 !important; border-color: #475569 !important; color: white !important; }
+        .el-table { background: transparent !important; color: #e2e8f0 !important; }
+        .el-table th { background: #0f172a !important; color: white !important; }
+        .el-table tr { background: #1e293b !important; }
+        .el-table td { border-bottom-color: #334155 !important; }
+        .el-pagination { background: transparent !important; }
+        .el-pagination button, .el-pagination .el-pagination__total { color: #cbd5e1 !important; }
+        /* 自定义表格样式 */
+        .result-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .result-table th, .result-table td { border: 1px solid #475569; padding: 8px 12px; text-align: left; }
+        .result-table th { background-color: #1e293b; color: #f1f5f9; font-weight: 600; }
+        .result-table tr:nth-child(even) { background-color: #0f172a; }
+        .result-table tr:nth-child(odd) { background-color: #1e293b; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- 登录/注册模态框 -->
+    <div v-if="!isLoggedIn" class="modal-mask">
+        <div class="modal-container">
+            <h2 class="text-2xl font-bold text-white mb-4">{{ authMode === 'login' ? '登录' : '注册' }}</h2>
+            <input type="text" v-model="authUsername" placeholder="用户名" class="w-full mb-3 px-4 py-2 rounded bg-slate-700 text-white border border-slate-600">
+            <input type="password" v-model="authPassword" placeholder="密码" class="w-full mb-4 px-4 py-2 rounded bg-slate-700 text-white border border-slate-600">
+            <button @click="submitAuth" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded text-white font-semibold">{{ authMode === 'login' ? '登录' : '注册' }}</button>
+            <p class="text-center text-slate-400 mt-3 text-sm">
+                <span v-if="authMode === 'login'">没有账号？ <a href="#" @click.prevent="authMode='register'" class="text-blue-400">立即注册</a></span>
+                <span v-else>已有账号？ <a href="#" @click.prevent="authMode='login'" class="text-blue-400">去登录</a></span>
+            </p>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div v-else class="flex h-screen overflow-hidden">
+        <aside class="w-72 bg-slate-800/50 backdrop-blur-md border-r border-slate-700 flex flex-col shadow-2xl z-10">
+            <div class="p-6 border-b border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-graduation-cap text-white text-xl"></i></div>
+                    <div><h1 class="text-xl font-bold text-white">沃林学生管理系统</h1><p class="text-xs text-slate-400 mt-0.5">智能数据分析平台</p></div>
+                </div>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a href="#" @click.prevent="activeTab = 'dashboard'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-chart-line w-5"></i><span>数据看板</span></a>
+                <a href="#" @click.prevent="activeTab = 'query'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'query' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-comment-dots w-5"></i><span>智能问答</span></a>
+                <a href="#" @click.prevent="activeTab = 'statistics'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'statistics' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-chart-simple w-5"></i><span>高级统计</span></a>
+                <a href="#" @click.prevent="activeTab = 'management'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'management' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-database w-5"></i><span>数据管理</span></a>
+            </nav>
+            <div class="p-4 border-t border-slate-700 text-xs text-slate-500 text-center"><button @click="logout" class="text-red-400 hover:text-red-300"><i class="fas fa-sign-out-alt"></i> 退出登录</button></div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-6">
+            <!-- 数据看板 -->
+            <div v-if="activeTab === 'dashboard'" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">学生总数</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.studentCount }}</p></div><i class="fas fa-users text-4xl text-blue-500/60"></i></div></div>
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">班级数量</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.classCount }}</p></div><i class="fas fa-school text-4xl text-emerald-500/60"></i></div></div>
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">平均年龄</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.avgAge }}</p></div><i class="fas fa-calendar-alt text-4xl text-amber-500/60"></i></div></div>
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">就业率</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.employmentRate }}%</p></div><i class="fas fa-briefcase text-4xl text-rose-500/60"></i></div></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3"><i class="fas fa-venus-mars text-pink-400"></i> 班级男女比例</h3><div id="genderChart" style="height: 350px;"></div></div>
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3"><i class="fas fa-chart-line text-green-400"></i> 各班平均成绩排名</h3><div id="scoreChart" style="height: 350px;"></div></div>
+                </div>
+                <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3"><i class="fas fa-dollar-sign text-yellow-400"></i> 薪资前五名</h3><div class="overflow-x-auto"><table class="min-w-full text-left text-sm text-slate-300"><thead class="bg-slate-700/50"><tr><th class="py-2 px-3">姓名</th><th>班级</th><th>薪资(元)</th><th>公司</th></tr></thead><tbody><tr v-for="emp in dashboard.topSalary" :key="emp.stu_name"><td class="py-2 px-3">{{ emp.stu_name }}</td><td>{{ emp.class_name }}</td><td>{{ emp.salary }}</td><td>{{ emp.company }}</td></tr></tbody></table></div></div>
+            </div>
+
+            <!-- 智能问答 -->
+            <div v-if="activeTab === 'query'" class="max-w-4xl mx-auto">
+                <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden flex flex-col h-[75vh]">
+                    <div class="p-4 border-b border-slate-700 bg-slate-800/60"><h2 class="text-xl font-semibold text-white"><i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手</h2><p class="text-slate-400 text-sm mt-1">支持自然语言查询数据，也可以问业务问题</p></div>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
+                        <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-slate-200'" class="max-w-[80%] px-4 py-2 shadow-md">
+                                <div v-if="msg.type === 'sql'">
+                                    <p class="whitespace-pre-wrap">{{ msg.content }}</p>
+                                    <details class="mt-2 text-xs text-slate-300"><summary>查看SQL</summary><code class="block bg-black/30 p-2 rounded mt-1">{{ msg.sql }}</code></details>
+                                </div>
+                                <div v-else-if="msg.type === 'html'" v-html="msg.content"></div>
+                                <div v-else>{{ msg.content }}</div>
+                            </div>
+                        </div>
+                        <div v-if="isLoading" class="flex justify-start"><div class="chat-bubble-ai px-4 py-2"><i class="fas fa-spinner fa-pulse"></i> 思考中...</div></div>
+                    </div>
+                    <div class="p-4 border-t border-slate-700 bg-slate-800/60">
+                        <div class="flex gap-2">
+                            <input type="text" v-model="currentQuestion" @keyup.enter="sendQuestion" class="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：学生有多少人？ 或者 每个班级的平均分？ 或者 为什么年龄统计不准？">
+                            <button @click="sendQuestion" class="bg-blue-600 hover:bg-blue-700 transition px-5 py-2 rounded-xl text-white font-medium"><i class="fas fa-paper-plane"></i> 发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 高级统计 -->
+            <div v-if="activeTab === 'statistics'" class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3">📊 薪资分布区间</h3><div id="salaryDistChart" style="height: 320px;"></div></div>
+                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3">⏱️ 班级平均就业时长（天）</h3><div id="durationChart" style="height: 320px;"></div></div>
+                </div>
+                <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3">📈 每次考试班级平均分排名</h3><div id="examSeqChart" style="height: 400px;"></div></div>
+            </div>
+
+            <!-- 数据管理 -->
+            <div v-if="activeTab === 'management'" class="space-y-6">
+                <el-tabs v-model="mgmtTab" class="custom-tabs">
+                    <el-tab-pane label="学生管理" name="student">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openStudentDialog(null)">新增学生</el-button></div>
+                        <el-table :data="students" stripe><el-table-column prop="stu_id" label="学号" width="80"></el-table-column><el-table-column prop="stu_name" label="姓名"></el-table-column><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="age" label="年龄"></el-table-column><el-table-column label="操作" width="150"><template #default="scope"><el-button size="small" @click="openStudentDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteStudent(scope.row.stu_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="班级管理" name="class">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openClassDialog(null)">新增班级</el-button></div>
+                        <el-table :data="classes" stripe><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="class_name" label="班级名称"></el-table-column><el-table-column prop="head_teacher_id" label="班主任ID"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openClassDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteClass(scope.row.class_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="教师管理" name="teacher">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openTeacherDialog(null)">新增教师</el-button></div>
+                        <el-table :data="teachers" stripe><el-table-column prop="teacher_id" label="教师ID"></el-table-column><el-table-column prop="teacher_name" label="姓名"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="role" label="角色"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openTeacherDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteTeacher(scope.row.teacher_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                </el-tabs>
+
+                <!-- 学生表单对话框 -->
+                <el-dialog v-model="studentDialogVisible" title="学生信息" width="500px">
+                    <el-form :model="studentForm" label-width="100px"><el-form-item label="姓名"><el-input v-model="studentForm.stu_name"></el-input></el-form-item><el-form-item label="班级ID"><el-input v-model="studentForm.class_id" type="number"></el-input></el-form-item><el-form-item label="性别"><el-select v-model="studentForm.gender"><el-option label="男" value="男"></el-option><el-option label="女" value="女"></el-option></el-select></el-form-item><el-form-item label="年龄"><el-input v-model="studentForm.age" type="number"></el-input></el-form-item></el-form>
+                    <template #footer><el-button @click="studentDialogVisible = false">取消</el-button><el-button type="primary" @click="saveStudent">保存</el-button></template>
+                </el-dialog>
+                <el-dialog v-model="classDialogVisible" title="班级信息" width="500px">
+                    <el-form :model="classForm" label-width="100px"><el-form-item label="班级名称"><el-input v-model="classForm.class_name"></el-input></el-form-item><el-form-item label="班主任ID"><el-input v-model="classForm.head_teacher_id" type="number"></el-input></el-form-item><el-form-item label="开课时间"><el-date-picker v-model="classForm.start_time" type="datetime" placeholder="选择日期时间"></el-date-picker></el-form-item></el-form>
+                    <template #footer><el-button @click="classDialogVisible = false">取消</el-button><el-button type="primary" @click="saveClass">保存</el-button></template>
+                </el-dialog>
+                <el-dialog v-model="teacherDialogVisible" title="教师信息" width="500px">
+                    <el-form :model="teacherForm" label-width="100px"><el-form-item label="姓名"><el-input v-model="teacherForm.teacher_name"></el-input></el-form-item><el-form-item label="性别"><el-select v-model="teacherForm.gender"><el-option label="男" value="男"></el-option><el-option label="女" value="女"></el-option></el-select></el-form-item><el-form-item label="角色"><el-input v-model="teacherForm.role"></el-input></el-form-item><el-form-item label="电话"><el-input v-model="teacherForm.phone"></el-input></el-form-item></el-form>
+                    <template #footer><el-button @click="teacherDialogVisible = false">取消</el-button><el-button type="primary" @click="saveTeacher">保存</el-button></template>
+                </el-dialog>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted, watch, nextTick } = Vue;
+    const app = createApp({
+        setup() {
+            // 认证相关
+            const isLoggedIn = ref(false);
+            const authMode = ref('login');
+            const authUsername = ref('');
+            const authPassword = ref('');
+            const activeTab = ref('dashboard');
+            const mgmtTab = ref('student');
+            const dashboard = ref({ studentCount: 0, classCount: 0, avgAge: 0, employmentRate: 0, topSalary: [] });
+            const chatMessages = ref([{ id: 1, role: 'ai', type: 'text', content: '你好！我是智能助手，可以问数据问题（如“学生有多少人？”）或业务问题（如“为什么年龄统计不准？”）。' }]);
+            const currentQuestion = ref('');
+            const isLoading = ref(false);
+            const chatContainer = ref(null);
+            const students = ref([]);
+            const classes = ref([]);
+            const teachers = ref([]);
+            const studentDialogVisible = ref(false);
+            const classDialogVisible = ref(false);
+            const teacherDialogVisible = ref(false);
+            const studentForm = ref({ stu_name: '', class_id: '', gender: '男', age: '' });
+            const classForm = ref({ class_name: '', head_teacher_id: '', start_time: '' });
+            const teacherForm = ref({ teacher_name: '', gender: '男', role: '', phone: '' });
+            let editingStudentId = null, editingClassId = null, editingTeacherId = null;
+            let genderChart = null, scoreChart = null, salaryChart = null, durationChart = null, examSeqChart = null;
+
+            const setAuthToken = (token) => { if (token) axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; else delete axios.defaults.headers.common['Authorization']; };
+            const submitAuth = async () => {
+                try {
+                    if (authMode.value === 'login') {
+                        const res = await axios.post('/auth/login', { username: authUsername.value, password: authPassword.value });
+                        localStorage.setItem('access_token', res.data.access_token);
+                        setAuthToken(res.data.access_token);
+                        isLoggedIn.value = true;
+                        await refreshDashboard();
+                        await loadManagementData();
+                    } else {
+                        await axios.post('/auth/register', { username: authUsername.value, password: authPassword.value });
+                        alert('注册成功，请登录');
+                        authMode.value = 'login';
+                    }
+                } catch (err) { alert(err.response?.data?.detail || '操作失败'); }
+            };
+            const logout = () => { localStorage.removeItem('access_token'); setAuthToken(null); isLoggedIn.value = false; };
+            const checkLogin = () => { const token = localStorage.getItem('access_token'); if (token) { setAuthToken(token); isLoggedIn.value = true; } };
+            const loadDashboardData = async () => { try { const res = await axios.get('/statistics/dashboard'); const data = res.data.data; dashboard.value.studentCount = data.total_students; dashboard.value.classCount = data.total_classes; dashboard.value.avgAge = data.avg_age; dashboard.value.employmentRate = data.employment_rate; dashboard.value.topSalary = data.top_salary; } catch (err) { console.error(err); } };
+            const renderDashboardCharts = async () => {
+                try {
+                    const genderRes = await axios.get('/statistics/classes/gender-stat');
+                    const scoreRes = await axios.get('/statistics/advanced/class-avg-score-rank');
+                    await nextTick();
+                    if (genderChart) genderChart.dispose(); if (scoreChart) scoreChart.dispose();
+                    genderChart = echarts.init(document.getElementById('genderChart'));
+                    scoreChart = echarts.init(document.getElementById('scoreChart'));
+                    genderChart.setOption({ tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, legend: { data: ['男生', '女生'], textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: genderRes.data.data.map(c => c.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '人数' }, series: [{ name: '男生', type: 'bar', data: genderRes.data.data.map(c => c.male), color: '#3b82f6' }, { name: '女生', type: 'bar', data: genderRes.data.data.map(c => c.female), color: '#ec489a' }] });
+                    scoreChart.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: scoreRes.data.data.map(d => d.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series: [{ type: 'bar', data: scoreRes.data.data.map(d => d.avg_score), color: '#10b981' }] });
+                } catch (err) { console.error(err); }
+            };
+            const refreshDashboard = async () => { await loadDashboardData(); await renderDashboardCharts(); };
+            const renderAdvancedCharts = async () => {
+                try {
+                    const [salaryRes, durationRes, examSeqRes] = await Promise.all([axios.get('/statistics/advanced/salary-distribution'), axios.get('/statistics/employment/avg-duration-per-class'), axios.get('/statistics/score/class-avg-per-exam')]);
+                    await nextTick();
+                    if (salaryChart) salaryChart.dispose(); if (durationChart) durationChart.dispose(); if (examSeqChart) examSeqChart.dispose();
+                    salaryChart = echarts.init(document.getElementById('salaryDistChart'));
+                    durationChart = echarts.init(document.getElementById('durationChart'));
+                    examSeqChart = echarts.init(document.getElementById('examSeqChart'));
+                    salaryChart.setOption({ tooltip: { trigger: 'item' }, legend: { textStyle: { color: '#ccc' } }, series: [{ type: 'pie', radius: '55%', data: salaryRes.data.data.map(d => ({ name: d.range, value: d.count })), label: { color: '#fff' } }] });
+                    durationChart.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: durationRes.data.data.map(d => d.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '天数' }, series: [{ type: 'line', data: durationRes.data.data.map(d => d.avg_duration_days), smooth: true, lineStyle: { color: '#f59e0b', width: 3 } }] });
+                    const data = examSeqRes.data.data;
+                    const exams = Object.keys(data);
+                    const classNames = [...new Set(exams.flatMap(e => data[e].map(c => c.class_name)))];
+                    const series = classNames.map(cn => ({ name: cn, type: 'line', data: exams.map(e => { const item = data[e].find(d => d.class_name === cn); return item ? item.avg_grade : null; }), smooth: true }));
+                    examSeqChart.setOption({ tooltip: { trigger: 'axis' }, legend: { data: classNames, textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: exams, axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series });
+                } catch (err) { console.error(err); }
+            };
+            const loadManagementData = async () => { try { const studentRes = await axios.get('/students'); students.value = studentRes.data.data || []; const classRes = await axios.get('/class/'); classes.value = classRes.data; const teacherRes = await axios.get('/teacher/'); teachers.value = teacherRes.data; } catch (err) { console.error(err); } };
+            const openStudentDialog = (row) => { if (row) { editingStudentId = row.stu_id; studentForm.value = { ...row }; } else { editingStudentId = null; studentForm.value = { stu_name: '', class_id: '', gender: '男', age: '' }; } studentDialogVisible.value = true; };
+            const saveStudent = async () => { try { if (editingStudentId) await axios.put(`/students/${editingStudentId}`, studentForm.value); else await axios.post('/students/', studentForm.value); await loadManagementData(); studentDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
+            const deleteStudent = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/students/${id}`); await loadManagementData(); } };
+            const openClassDialog = (row) => { if (row) { editingClassId = row.class_id; classForm.value = { ...row }; } else { editingClassId = null; classForm.value = { class_name: '', head_teacher_id: '', start_time: '' }; } classDialogVisible.value = true; };
+            const saveClass = async () => { try { if (editingClassId) await axios.put(`/class/${editingClassId}`, classForm.value); else await axios.post('/class/', classForm.value); await loadManagementData(); classDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
+            const deleteClass = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/class/${id}`); await loadManagementData(); } };
+            const openTeacherDialog = (row) => { if (row) { editingTeacherId = row.teacher_id; teacherForm.value = { ...row }; } else { editingTeacherId = null; teacherForm.value = { teacher_name: '', gender: '男', role: '', phone: '' }; } teacherDialogVisible.value = true; };
+            const saveTeacher = async () => { try { if (editingTeacherId) await axios.put(`/teacher/${editingTeacherId}`, teacherForm.value); else await axios.post('/teacher/', teacherForm.value); await loadManagementData(); teacherDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
+            const deleteTeacher = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/teacher/${id}`); await loadManagementData(); } };
+
+            // 优化后的 sendQuestion 函数（表格渲染优化）
+            const sendQuestion = async () => {
+                if (!currentQuestion.value.trim()) return;
+                const question = currentQuestion.value;
+                chatMessages.value.push({ id: Date.now(), role: 'user', type: 'text', content: question });
+                currentQuestion.value = '';
+                isLoading.value = true;
+                await nextTick();
+                if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                try {
+                    const res = await axios.post('/query/natural', { question });
+                    const result = res.data;
+                    if (result.type === 'sql') {
+                        const data = result.data;
+                        const count = result.count;
+                        let formattedContent = '';
+                        if (count === 0) {
+                            formattedContent = '未查询到相关数据。';
+                        } else if (count === 1 && Object.keys(data[0]).length === 1) {
+                            const key = Object.keys(data[0])[0];
+                            let value = data[0][key];
+                            if (key === 'count' || key === 'total' || key === 'num') {
+                                if (question.includes('学生')) formattedContent = `共有 ${value} 名学生。`;
+                                else if (question.includes('老师')) formattedContent = `共有 ${value} 名老师。`;
+                                else if (question.includes('班级')) formattedContent = `共有 ${value} 个班级。`;
+                                else formattedContent = `共有 ${value} 条记录。`;
+                            } else if (key === 'avg_grade' || key === 'avg_score') {
+                                formattedContent = `平均分为 ${value} 分。`;
+                            } else if (key === 'age') {
+                                formattedContent = `年龄为 ${value} 岁。`;
+                            } else {
+                                formattedContent = `${key}：${value}`;
+                            }
+                        } else if (count === 1) {
+                            const item = data[0];
+                            const parts = Object.entries(item).map(([k, v]) => {
+                                if (k === 'avg_grade' || k === 'avg_score') return `平均分 ${v}`;
+                                if (k === 'age') return `年龄 ${v} 岁`;
+                                return `${k}：${v}`;
+                            });
+                            formattedContent = `查询结果：${parts.join('，')}。`;
+                        } else {
+                            // 多条记录：生成标准列式表格
+                            let tableHtml = '<table class="result-table"><thead><tr>';
+                            const headers = Object.keys(data[0]);
+                            headers.forEach(h => {
+                                tableHtml += `<th>${h}</th>`;
+                            });
+                            tableHtml += '</tr></thead><tbody>';
+                            data.slice(0, 10).forEach(row => {
+                                tableHtml += '<tr>';
+                                headers.forEach(h => {
+                                    tableHtml += `<td>${row[h]}</td>`;
+                                });
+                                tableHtml += '</tr>';
+                            });
+                            tableHtml += '</tbody></table>';
+                            if (count > 10) {
+                                tableHtml += `<p class="text-xs text-slate-400 mt-2">共 ${count} 条记录，仅显示前 10 条。</p>`;
+                            }
+                            formattedContent = tableHtml;
+                        }
+                        chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'html', content: formattedContent, sql: result.sql });
+                    } else {
+                        chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'text', content: result.answer });
+                    }
+                } catch (err) {
+                    chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'text', content: `错误：${err.response?.data?.detail || err.message}` });
+                } finally {
+                    isLoading.value = false;
+                    await nextTick();
+                    if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                }
+            };
+
+            watch(activeTab, async (newVal) => {
+                if (newVal === 'dashboard') await refreshDashboard();
+                else if (newVal === 'statistics') await renderAdvancedCharts();
+                else if (newVal === 'management') await loadManagementData();
+            });
+            onMounted(async () => { checkLogin(); if (isLoggedIn.value) { await refreshDashboard(); await loadManagementData(); } });
+            return { isLoggedIn, authMode, authUsername, authPassword, submitAuth, logout, activeTab, mgmtTab, dashboard, chatMessages, currentQuestion, isLoading, sendQuestion, chatContainer, students, classes, teachers, studentDialogVisible, classDialogVisible, teacherDialogVisible, studentForm, classForm, teacherForm, openStudentDialog, saveStudent, deleteStudent, openClassDialog, saveClass, deleteClass, openTeacherDialog, saveTeacher, deleteTeacher };
+        }
+    });
+    app.use(ElementPlus);
+    app.mount('#app');
+</script>
+</body>
+</html>

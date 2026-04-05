@@ -1,10 +1,13 @@
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:123456@localhost/wolin_test1"
+load_dotenv()
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    url=os.getenv("SQLALCHEMY_DATABASE_URL"),
     pool_size=5,
     pool_recycle=3600
 )

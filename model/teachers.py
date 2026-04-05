@@ -25,4 +25,4 @@ class Teacher(Base):
     # # 关联班主任(一对多)
     class_as_head = relationship('Class', foreign_keys='Class.head_teacher_id', back_populates='head_teacher_info')
     # # 关联学生表(一对多)
-    students = relationship('StuBasicInfo', foreign_keys='StuBasicInfo.advisor_id', back_populates='counselor')
+    students = relationship('StuBasicInfo', foreign_keys='StuBasicInfo.advisor_id', back_populates='counselors')
