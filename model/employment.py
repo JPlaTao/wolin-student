@@ -11,7 +11,9 @@ class Employment(Base):
         comment="学生ID（外键关联学生表）"
     )
     stu_name = Column(String(20), nullable=False)
-    class_id = Column(Integer, nullable=False)
+    class_id = Column(Integer, ForeignKey("class.class_id"),
+                      nullable=False,
+                      comment="班级ID（外键关联学生表）")
     open_time = Column(Date, comment="就业开放时间")
     offer_time = Column(Date, comment="offer下发时间")
     company = Column(String(50), comment="就业公司")
