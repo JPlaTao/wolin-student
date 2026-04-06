@@ -54,4 +54,4 @@ def root():
     return {"message": "学生管理系统运行成功！访问 /docs 查看接口，前端请访问 /static/index.html"}
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=8080)
+    uvicorn.run(app, host='127.0.0.1', port=8080)
