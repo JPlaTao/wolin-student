@@ -22,18 +22,45 @@ def get_all_class(db: Session, include_deleted: bool = False):
     if not include_deleted:
         query = query.filter(Class.is_deleted == False)
 
-    classes = query.all()  # ← 修复：移出if块
+    classes = query.all()  # 修复：移出if块
     return [class_to_dict(c) for c in classes]
 
 
 # 根据ID查询单个班级
 def get_class_by_id(db: Session, class_id: int, include_deleted: bool = False):
     query = db.query(Class).filter(Class.class_id == class_id)
+
+    #  默认过滤：只查未被软删除的数据
     if not include_deleted:
         query = query.filter(Class.is_deleted == False)
 
-    cls = query.first()  # ← 修复：移出if块
+    cls = query.first()
     return class_to_dict(cls) if cls else None
+
+
+# 查询讲师教授的班级
+def get_class_teacher(db: Session, class_id: int):
+    # 查看班级
+    cls = db.query(Class).filter(
+        Class.class_id == class_id,
+        Class.is_deleted == False
+    ).first()
+    # 如果班级不存在
+    if not cls:
+        return []
+
+    teachers = cls.teachers
+
+    # 是讲师拿到他所教的班级
+    return [
+        {
+            # "class_id": cls.class_id,
+            # "class_name": cls.class_name,
+            # "head_teacher_id": cls.head_teacher_id,
+            "teacher_id": teacher.teacher_id,
+            "teacher_name": teacher.teacher_name
+        } for teacher in cls.teachers
+    ]
 
 
 # 创建班级
@@ -80,12 +107,12 @@ def delete_class(db: Session, class_id: int, hard_delete: bool = False):
     ).first()
 
     if not db_class:
-        return False  # ← 注意：API层需要判断这个False
+        return False  # 注意：API层需要判断这个False
 
     if hard_delete:
         db.execute(
             class_teacher.delete().where(class_teacher.c.class_id == class_id)
-        )
+        )  # execute（）执行批量 SQL 语句，可删整张关联表数据
         db.delete(db_class)
     else:
         db_class.is_deleted = True
@@ -106,7 +133,7 @@ def restore_class(db: Session, class_id: int):
     ).first()
 
     if not db_class:
-        return None  # ← 统一返回None表示失败
+        return None  # 统一返回None表示失败
 
     db_class.is_deleted = False
     db.commit()
