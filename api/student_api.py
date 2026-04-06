@@ -19,16 +19,16 @@ def create_student(
 ):
     new_student = student_dao.create_student(new_student_data, db)
 
-    student_respond = Student.model_validate(new_student)
+    #student_respond = Student.model_validate(new_student)
     # 级联创建就业信息 空记录
     create_empty_employment(
         db,
-        student_respond.stu_id,
-        student_respond.stu_name,
-        student_respond.class_id,
+        new_student['stu_id'],
+        new_student['stu_name'],
+        new_student['class_id'],
     )
     return response.ResponseBase(
-        data=student_respond
+        data=new_student
     )
 
 
@@ -56,7 +56,7 @@ def get_students(
 @router.put("/{stu_id}", response_model=response.ResponseBase)
 def update_student(
         stu_id: int,
-        update_data: StudentCreate,  # 请求体
+        update_data: StudentUpdate,  # 请求体
         db: Session = Depends(get_db)
 ):
     # 调用更新方法
@@ -65,7 +65,7 @@ def update_student(
     if not is_update_student:
         raise HTTPException(status_code=400, detail="没有这个学生")
 
-    is_update_student = Student.model_validate(is_update_student)
+    # is_update_student = Student.model_validate(is_update_student)
     return response.ResponseBase(
         data=is_update_student
     )
@@ -82,7 +82,6 @@ def delete_student(
 
     if is_delete_student == '不存在这个学生或已被删除':
         raise HTTPException(status_code=400, detail="没有这个学生或已被删除")
-    # is_delete_student = Student.model_validate(is_delete_student)
     return response.ResponseBase(
         message=is_delete_student,
         data=None
