@@ -61,7 +61,6 @@ def update_teacher(teacher_id: int, teacher: TeacheresUpdata, db: Session = Depe
         return ResponseBase(code=404, message="老师不存在或已删除", data=None)
     # 查到了
     return ResponseBase(
-        message="修改成功",
         data=data
     )
 
