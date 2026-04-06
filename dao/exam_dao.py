@@ -1,7 +1,6 @@
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from model.exam_model import StuExamRecord
-import re
 
 
 # 按考核序次录⼊考核成绩（学⽣编号、考核序次、成绩）
@@ -49,12 +48,13 @@ def exam_submit( exam_data, db: Session ):
                 "grade": submit.grade,
                 "exam_date": submit.exam_date
             }
-        # 捕获异常 如外键约束&主键冲突
+        # 捕获异常 如主键冲突/外键约束
         except Exception as e:
-            parse_e = str(e).lower()
-            if re.search("duplicate entry", parse_e):
+            pk_e = "duplicate entry"
+            fk_e = "foreign key constraint fails"
+            if pk_e in str(e).lower():
                 return { "message": "提交失败：该学生的此次考核记录已存在，请勿重复提交。" }
-            elif re.search("foreign key constraint fails", parse_e):
+            elif fk_e in str(e).lower():
                 return { "message": "提交失败：该学生编号不存在，请先创建学生信息。" }
             else:
                 return { "message": f"{e}" }
