@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session  ####
 from model.teachers import Teacher
+from model.class_model import Class
 from schemas.teacher import TeacheresUpdata
 
 
@@ -47,8 +48,6 @@ def get_teacher(db: Session, teacher_id: int = None, teacher_name: str = None):
         "phone": teacher.phone,
         "role": teacher.role
     }
-
-
 
     # teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
     # # 如果老师不存在或者已删除
@@ -107,6 +106,53 @@ def delete_teacher(db: Session, teacher_id: int):
         db.commit()  # 提交保存
         return True  # 删除成功
     return False  # 不存在
+
+# 讲师绑定班级
+def bind_teacher_to_class(db: Session, teacher_id: int, class_ids: list):
+    # 1. 查询讲师是否存在（未删除）
+    teacher = db.query(Teacher).filter(
+        Teacher.teacher_id == teacher_id,
+        Teacher.is_deleted == False,
+        Teacher.role == "lecturer"  # 确保是讲师角色
+    ).first()
+    if not teacher:
+        return None  # 讲师不存在/不是讲师，返回None
+
+    # 2. 查询要绑定的班级（未删除）
+    classes = db.query(Class).filter(
+        Class.class_id.in_(class_ids),  # 批量查询多个班级
+        Class.is_deleted == False
+    ).all()
+    if not classes:
+        return None  # 班级不存在，返回None
+    # 3. 绑定讲师和班级（ORM自动操作中间表）
+    teacher.teach_classes = classes  # 直接赋值，SQLAlchemy会自动更新中间表
+    db.commit()  # 提交数据库修改
+    db.refresh(teacher)  # 刷新讲师对象，获取最新关联数据
+    return teacher
+
+# 讲师解绑班级
+def unbind_teacher_from_class(db: Session, teacher_id: int, class_id: int):
+    # 1. 查询讲师是否存在（未删除）
+    teacher = db.query(Teacher).filter(
+        Teacher.teacher_id == teacher_id,
+        Teacher.is_deleted == False,
+        Teacher.role == "lecturer"
+    ).first()
+    if not teacher:
+        return False
+    # 找到要解除的班级
+    target_class = None
+    for cls in teacher.teach_classes:
+        if cls.class_id == class_id and not cls.is_deleted:
+            target_class = cls
+            break
+    if not target_class:
+        return False
+    # 从讲师的班级列表中移除该班级
+    teacher.teach_classes.remove(target_class)
+    db.commit()
+    return True
 
 
 # ==========================================================
