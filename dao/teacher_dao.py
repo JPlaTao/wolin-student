@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session####
+from sqlalchemy.orm import Session  ####
 from model.teachers import Teacher
 from schemas.teacher import TeacheresUpdata
 
@@ -11,18 +11,18 @@ def create_teacher(db: Session, teacher: TeacheresUpdata):
         gender=teacher.gender,
         phone=teacher.phone,
         role=teacher.role,
-        is_deleted=False  # 固定值，和你数据库一致
+        is_deleted=False  # 固定
     )
-    db.add(db_teacher)       # 加载到数据库会话
-    db.commit()              # 提交到数据库
-    db.refresh(db_teacher)   # 刷新==========
+    db.add(db_teacher)  # 加载到数据库会话
+    db.commit()  # 提交到数据库
+    db.refresh(db_teacher)  # 刷新==========
     return {
         "teacher_id": db_teacher.teacher_id,
         "teacher_name": db_teacher.teacher_name,
         "gender": db_teacher.gender,
         "phone": db_teacher.phone,
         "role": db_teacher.role
-    }   # 把新增成功的老师数据变成字典的形式返回
+    }  # 把新增成功的老师数据变成字典的形式返回
 
 
 # 查询单个老师
@@ -38,7 +38,7 @@ def get_teacher(db: Session, teacher_id: int):
         "gender": teacher.gender,
         "phone": teacher.phone,
         "role": teacher.role
-    }# 返回老师字典信息
+    }  # 返回老师字典信息
 
 
 # 查询所有未删除的老师
@@ -52,7 +52,7 @@ def get_all_teachers(db: Session):
             "role": i.role,
             "gender": i.gender
         } for i in data
-    ] # 遍历拿到每个老师的数据重新赋值转换成列表嵌套字典,通过api返回到前端
+    ]  # 遍历拿到每个老师的数据重新赋值:列表表达式,通过api返回到前端
 
 
 # 修改老师
@@ -63,9 +63,9 @@ def update_teacher(db: Session, teacher_id: int, teacher: TeacheresUpdata):
     if not db_teacher:
         return None
     # 把前端传过来的数据, 更新到数据库对象里
-    for key, value in teacher.model_dump(exclude_unset=True).items():
+    for key, value in teacher.model_dump().items():
         setattr(db_teacher, key, value)
-    db.commit()             # 提交保存修改
+    db.commit()  # 提交保存修改
     db.refresh(db_teacher)  # 刷新数据
     return {
         "teacher_id": db_teacher.teacher_id,
@@ -73,7 +73,7 @@ def update_teacher(db: Session, teacher_id: int, teacher: TeacheresUpdata):
         "gender": db_teacher.gender,
         "phone": db_teacher.phone,
         "role": db_teacher.role
-    }# 返回老师字典信息
+    }  # 返回老师字典信息
 
 
 # 删除老师（逻辑删除，不是真删）
@@ -144,7 +144,7 @@ def get_my_students(db: Session, teacher_id: int):
     # 是顾问但无学生
     if not teacher.students:
         return "该顾问暂无负责的学生"
-     # 有学生
+    # 有学生
     return [
         {
             "stu_id": s.stu_id,
