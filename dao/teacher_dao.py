@@ -103,7 +103,8 @@ def get_head_classes(db: Session, teacher_id: int):
         {
             "class_id": c.class_id,
             "class_name": c.class_name,
-            "head_teacher_id": c.head_teacher_id
+            "head_teacher_id": c.head_teacher_id,
+            "haed_teacher_name": teacher.teacher_name
         } for c in teacher.class_as_head
     ]
 
@@ -118,12 +119,14 @@ def get_teach_classes(db: Session, teacher_id: int):
     # 如果老师不是讲师
     if teacher.role != "lecturer":
         return "该老师不是讲师"
+
     # 是讲师拿到他所教的班级
     return [
         {
             "class_id": c.class_id,
             "class_name": c.class_name,
-            "head_teacher_id": c.head_teacher_id
+            "head_teacher_id": teacher.teacher_id,
+            "teacher_name": teacher.teacher_name
         } for c in teacher.teach_classes
     ]
 
@@ -146,6 +149,7 @@ def get_my_students(db: Session, teacher_id: int):
         {
             "stu_id": s.stu_id,
             "stu_name": s.stu_name,
-            "class_id": s.class_id
+            "class_id": s.class_id,
+            "counselor_name": teacher.teacher_name
         } for s in teacher.students
     ]
