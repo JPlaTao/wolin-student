@@ -48,9 +48,16 @@ def exam_submit( exam_data, db: Session ):
                 "grade": submit.grade,
                 "exam_date": submit.exam_date
             }
-        # 捕获异常 如外键约束&主键冲突
+        # 捕获异常 如主键冲突/外键约束
         except Exception as e:
-            return { "message": f"{e}" }
+            pk_e = "duplicate entry"
+            fk_e = "foreign key constraint fails"
+            if pk_e in str(e).lower():
+                return { "message": "提交失败：该学生的此次考核记录已存在，请勿重复提交。" }
+            elif fk_e in str(e).lower():
+                return { "message": "提交失败：该学生编号不存在，请先创建学生信息。" }
+            else:
+                return { "message": f"{e}" }
 
 
 # 更新考试成绩

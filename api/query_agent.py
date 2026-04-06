@@ -43,6 +43,14 @@ class QueryRequest(BaseModel):
 
 # 全局记忆（修复：每次只保留最新10轮，防止过长报错）
 memory = []
+MAX_MASSAGE = 12
+
+
+def add_memory(role, content):
+    memory.append({"role": role, "content": content})
+    if len(memory) > MAX_MASSAGE:
+        del memory[0]
+
 
 SCHEMA_DESC = """
 数据库表结构：
@@ -129,9 +137,26 @@ def generate_sql(question, retry=False):
     return sql
 
 
+# ===================== 自然语言回答结果 =====================
+def generate_natural_answer(question, data):
+    """把SQL查询结果转成自然语言（修复：回答不对的核心）"""
+    prompt = f"""
+用户问题：{question}
+查询结果：{data}
+请用自然语言、简洁、准确地回答用户，不要输出多余内容。
+"""
+    messages = [
+        {"role": "system", "content": "你是学生管理系统智能助手，根据查询结果回答问题。"},
+        {"role": "user", "content": prompt}
+    ]
+    resp = client.chat.completions.create(model="deepseek-chat", messages=messages, temperature=0.3)
+    return resp.choices[0].message.content.strip()
+
+
 @router.post("/natural")
 def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
     question = req.question
+    add_memory("user", question)
     intent = classify_intent(question)
 
     # ===================== 知识库问答 =====================
@@ -168,55 +193,35 @@ def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
     # ===================== SQL 查询 =====================
     elif intent == "sql":
         try:
-            sql = generate_sql(question, retry=False)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"生成SQL失败: {str(e)}")
+            sql = generate_sql(question)
+            if not sql.lower().startswith("select"):
+                raise HTTPException(status_code=400, detail="仅支持 SELECT 查询")
 
-        if not sql.strip().lower().startswith("select"):
-            raise HTTPException(status_code=400, detail="仅支持 SELECT 查询")
-
-        try:
             res = db.execute(text(sql))
             rows = res.fetchall()
             cols = res.keys()
             data = [dict(zip(cols, r)) for r in rows]
+
+            natural_answer = generate_natural_answer(question, data)
+            add_memory("assistant", natural_answer)
+
             return {
                 "type": "sql",
                 "question": question,
                 "sql": sql,
                 "data": data,
+                "natural_answer": natural_answer,  # 前端直接显示这个
                 "count": len(data)
             }
         except Exception as e:
-            try:
-                sql2 = generate_sql(question, retry=True)
-                res = db.execute(text(sql2))
-                rows = res.fetchall()
-                cols = res.keys()
-                data = [dict(zip(cols, r)) for r in rows]
-                return {
-                    "type": "sql",
-                    "question": question,
-                    "sql": sql2,
-                    "data": data,
-                    "count": len(data)
-                }
-            except Exception as e2:
-                raise HTTPException(status_code=500, detail=f"SQL错误: {str(e2)}")
-
+            raise HTTPException(status_code=500, detail=f"查询失败：{str(e)}")
     # ===================== 普通闲聊 =====================
     else:
-        try:
-            messages = [
-                {"role": "system", "content": "你是友好助手，简洁自然回答。"},
-                {"role": "user", "content": question}
-            ]
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=messages,
-                temperature=0.7
-            )
-            answer = response.choices[0].message.content
-            return {"type": "answer", "question": question, "answer": answer}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"AI失败: {str(e)}")
+        messages = [
+            {"role": "system", "content": "你是学生管理系统助手，支持上下文对话。"},
+            *memory  # 传入全部记忆
+        ]
+        response = client.chat.completions.create(model="deepseek-chat", messages=messages, temperature=0.7)
+        answer = response.choices[0].message.content
+        add_memory("assistant", answer)
+        return {"type": "answer", "question": question, "answer": answer}
