@@ -26,19 +26,41 @@ def create_teacher(db: Session, teacher: TeacheresUpdata):
 
 
 # 查询单个老师
-def get_teacher(db: Session, teacher_id: int):
-    # 查询和匹配teacher_id
-    teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
-    # 如果老师不存在
+def get_teacher(db: Session, teacher_id: int = None, teacher_name: str = None):
+    teacher = db.query(Teacher).filter(Teacher.is_deleted == False)
+    # 按 ID 查询
+    if teacher_id is not None:
+        teacher = teacher.filter(Teacher.teacher_id == teacher_id)
+    # 按 姓名 查询
+    if teacher_name is not None:
+        teacher = teacher.filter(Teacher.teacher_name == teacher_name)
+    # 获取单个老师
+    teacher = teacher.first()
+    # 没查到返回 None
     if not teacher:
         return None
+    # 查到了，返回字典
     return {
         "teacher_id": teacher.teacher_id,
         "teacher_name": teacher.teacher_name,
         "gender": teacher.gender,
         "phone": teacher.phone,
         "role": teacher.role
-    }  # 返回老师字典信息
+    }
+
+
+
+    # teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
+    # # 如果老师不存在或者已删除
+    # if not teacher:
+    #     return None
+    # return {
+    #     "teacher_id": teacher.teacher_id,
+    #     "teacher_name": teacher.teacher_name,
+    #     "gender": teacher.gender,
+    #     "phone": teacher.phone,
+    #     "role": teacher.role
+    # }  # 返回老师字典信息
 
 
 # 查询所有未删除的老师

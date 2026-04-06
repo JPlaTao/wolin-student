@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from dao import teacher_dao as dao
@@ -26,21 +26,40 @@ def create_teacher(teacher: TeacheresUpdata, db: Session = Depends(get_db)):
 
 
 # 查询单个老师
-@router.get("/{teacher_id}", response_model=ResponseBase)
-def get_teacher(teacher_id: int, db: Session = Depends(get_db)):
-    # 校验前端返回的teacher_id是否为int类型 自动获取数据库连接（Session）
-    # 调用 dao，根据ID查老师
-    data = dao.get_teacher(db, teacher_id)
-    # 如果没查到 → 返回404
-    if not data:
-        return ResponseBase(code=404, message="老师不存在", data=None)
-    return ResponseBase(
-        data=data
+# @router.get("/{teacher_id}", response_model=ResponseBase)
+@router.get("/single", response_model=ResponseBase)
+def get_teacher(
+    db: Session = Depends(get_db),
+    teacher_id: int = Query(None, description="按老师编号查询"),
+    teacher_name: str = Query(None, description="按老师姓名查询"),
+):
+    # 调用单个老师查询
+    teacher = dao.get_teacher(
+        db,
+        teacher_id=teacher_id,
+        teacher_name=teacher_name
     )
+    # 查不到
+    if not teacher:
+        return ResponseBase(code=404, message="老师不存在", data=None)
+
+    # 查到 → 正常返回
+    return ResponseBase(data=teacher)
+
+# def get_teacher(teacher_id: int, db: Session = Depends(get_db)):
+#     # 校验前端返回的teacher_id是否为int类型 自动获取数据库连接（Session）
+#     # 调用 dao，根据ID查老师
+#     data = dao.get_teacher(db, teacher_id)
+#     # 如果没查到 → 返回404
+#     if not data:
+#         return ResponseBase(code=404, message="老师不存在", data=None)
+#     return ResponseBase(
+#         data=data
+#     )
 
 
 # 查询所有老师
-@router.get("/", response_model=ListResponse)
+@router.get("/all", response_model=ListResponse)
 def get_all_teachers(db: Session = Depends(get_db)):
     # 调用 DAO，获取所有老师列表
     data = dao.get_all_teachers(db)
