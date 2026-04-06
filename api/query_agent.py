@@ -194,7 +194,7 @@ def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
 
         try:
             # 将问题添加入记忆
-            memory.extend({
+            memory.extend([{
                 {
                     "role": "system",
                     "content": "你是一个严格基于文档的问答助手。你必须只根据下面「文档内容」中的信息回答用户问题。如果文档内容中没有明确的答案，请直接回复「根据现有文档，无法回答该问题」。不要使用你自己的知识补充任何内容。"
@@ -203,7 +203,7 @@ def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
                     "role": "user",
                     "content": f"文档内容：\n{context}\n\n用户问题：{question}"
                 }
-            })
+            }])
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 messages=memory,
