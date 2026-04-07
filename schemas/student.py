@@ -64,3 +64,4 @@ class StudentList(BaseModel):
     """学生列表包装"""
     list: List[Student]
     total: int
+

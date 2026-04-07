@@ -2,7 +2,9 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from model.student import StuBasicInfo
 from model.teachers import Teacher
+from model.class_model import Class
 from schemas.student import StudentCreate
+from fastapi import HTTPException
 
 # 校验老师是否是counselor
 def is_teacher_counselor(counselor_id,db: Session):
@@ -11,7 +13,18 @@ def is_teacher_counselor(counselor_id,db: Session):
     ).all()
     counselor_id_list = [c[0] for c in counselor_ids]
     if counselor_id not in counselor_id_list:
-        raise ValueError(f"教师 ID {counselor_id} 不存在或不是counselor角色")
+        raise HTTPException(status_code=400, detail=f"教师 ID {counselor_id} 不存在或不是counselor角色")
+        # raise ValueError(f"教师 ID {counselor_id} 不存在或不是counselor角色")
+
+# 校验class_id是否存在
+def is_classes_exist(class_id,db: Session):
+    class_ids = db.query(Class.class_id).all()
+    class_id_list = [c[0] for c in class_ids]
+    if class_id not in class_id_list:
+        raise HTTPException(status_code=400, detail=f"班级 ID {class_id} 不存在")
+
+
+
 
 
 #规范返回数据,主要目的是不展示is_deleted字段
@@ -55,6 +68,8 @@ def format_student_data(students_query_result):
 
 
 
+
+
 # 1、创建新学生记录（学生编号、学生班级、学生姓名、籍贯、毕业院校、专业、入学时间、毕业时间、学历、
 # 顾问编号、年龄、性别）
 
@@ -65,6 +80,8 @@ def create_student(
 ):
     # 校验老师是否是counselor
     is_teacher_counselor(new_student_data.advisor_id, db)
+    # 校验班级是否存在
+    is_classes_exist(new_student_data.class_id, db)
     """创建新学生"""
     # 将传入的数据转换为数据库模型
     new_student = StuBasicInfo(
@@ -129,7 +146,9 @@ def update_student(db: Session, stu_id: int, update_data):
         if update_data.stu_name is not None:
             result.stu_name = update_data.stu_name
         if update_data.class_id is not None:
+            is_classes_exist(update_data.class_id,db)
             result.class_id = update_data.class_id
+
         if update_data.native_place is not None:
             result.native_place = update_data.native_place
         if update_data.graduated_school is not None:
