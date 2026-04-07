@@ -8,7 +8,7 @@ from schemas.response import ResponseBase, ListResponse
 from schemas.emp_schemas import EmploymentUpdate, EmploymentResp
 # 数据库依赖
 from database import get_db
-# 按需导入dao函数
+# 导入dao函数
 from dao.employment_dao import *
 
 
