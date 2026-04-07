@@ -8,7 +8,7 @@ from dao.class_dao import (
     update_class,
     delete_class,
     restore_class,
-    get_class_teacher
+    get_class_teachers
 )
 from schemas.class_schemas import ClassCreate, ClassUpdate
 from schemas.response import ResponseBase
@@ -58,11 +58,11 @@ def read_one_class(
 
 # 根据班级ID查授课老师
 @router.get("/{class_id}/teachers", response_model=ResponseBase)
-def get_class_teachers(
+def get_teachers(
         class_id: int,
         db: Session = Depends(get_db)
 ):
-    teacher_list = get_class_teacher(db, class_id)
+    teacher_list = get_class_teachers(db, class_id)
 
     if not teacher_list:
         raise HTTPException(status_code=404, detail="班级不存在或暂无教师授课老师")

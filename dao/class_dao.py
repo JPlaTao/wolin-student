@@ -39,7 +39,7 @@ def get_class_by_id(db: Session, class_id: int, include_deleted: bool = False):
 
 
 # 查询讲师教授的班级
-def get_class_teacher(db: Session, class_id: int):
+def get_class_teachers(db: Session, class_id: int):
     # 查看班级
     cls = db.query(Class).filter(
         Class.class_id == class_id,
@@ -49,18 +49,20 @@ def get_class_teacher(db: Session, class_id: int):
     if not cls:
         return []
 
-    teachers = cls.teachers
 
-    # 是讲师拿到他所教的班级
-    return [
-        {
-            # "class_id": cls.class_id,
-            # "class_name": cls.class_name,
-            # "head_teacher_id": cls.head_teacher_id,
-            "teacher_id": teacher.teacher_id,
-            "teacher_name": teacher.teacher_name
-        } for teacher in cls.teachers
-    ]
+    # 拿到他所教的班级
+    return {
+        "class_id": cls.class_id,
+        "class_name": cls.class_name,
+        "head_teacher_id": cls.head_teacher_id,
+        "head_teacher_name": cls.head_teacher_info.teacher_name if cls.head_teacher_info else None,
+        "teachers": [
+            {
+                "teacher_id": teacher.teacher_id,
+                "teacher_name": teacher.teacher_name
+            } for teacher in cls.teachers
+        ]
+    }
 
 
 # 创建班级
