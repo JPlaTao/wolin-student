@@ -56,6 +56,56 @@ def format_student_data(students_query_result):
         }
 
 
+# 校验老师是否是counselor
+def is_teacher_counselor(counselor_id,db: Session):
+    counselor_ids = db.query(Teacher.teacher_id).filter(
+        Teacher.role == 'counselor'
+    ).all()
+    counselor_id_list = [c[0] for c in counselor_ids]
+    if counselor_id not in counselor_id_list:
+        raise ValueError(f"教师 ID {counselor_id} 不存在或不是counselor角色")
+
+
+#规范返回数据,主要目的是不展示is_deleted字段
+def format_student_data(students_query_result):
+    # 判断是否是列表（多条数据）
+    if isinstance(students_query_result, list):
+        # 多条数据：转换成列表套字典
+        return [
+            {
+                "stu_id": i.stu_id,
+                "stu_name": i.stu_name,
+                "class_id": i.class_id,
+                "native_place": i.native_place,
+                "graduated_school": i.graduated_school,
+                "major": i.major,
+                "admission_date": i.admission_date,
+                "graduation_date": i.graduation_date,
+                "education": i.education,
+                "advisor_id": i.advisor_id,
+                "age": i.age,
+                "gender": i.gender
+            }
+            for i in students_query_result
+        ]
+    else:
+        # 单条数据：转换成字典
+        return {
+            "stu_id": students_query_result.stu_id,
+            "stu_name": students_query_result.stu_name,
+            "class_id": students_query_result.class_id,
+            "native_place": students_query_result.native_place,
+            "graduated_school": students_query_result.graduated_school,
+            "major": students_query_result.major,
+            "admission_date": students_query_result.admission_date,
+            "graduation_date": students_query_result.graduation_date,
+            "education": students_query_result.education,
+            "advisor_id": students_query_result.advisor_id,
+            "age": students_query_result.age,
+            "gender": students_query_result.gender
+        }
+
+
 
 # 1、创建新学生记录（学生编号、学生班级、学生姓名、籍贯、毕业院校、专业、入学时间、毕业时间、学历、
 # 顾问编号、年龄、性别）

@@ -29,4 +29,4 @@ class Class(Base):
     students = relationship("StuBasicInfo", back_populates="class_")
 
     def __repr__(self):
-        return f"<Class(class_id={self.class_id}, name='{self.class_name}',head_teacher_id='{self.head_teacher_id}')>"
+        return f"<Class(class_id={self.class_id}, name='{self.class_name}')>"

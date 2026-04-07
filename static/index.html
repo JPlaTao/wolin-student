@@ -13,32 +13,647 @@
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 10px; }
-        .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.5); }
-        .chat-bubble-user { background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 18px 18px 4px 18px; }
-        .chat-bubble-ai { background: #334155; border-radius: 18px 18px 18px 4px; }
-        .modal-mask { position: fixed; z-index: 9998; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; }
-        .modal-container { width: 400px; background: #1e293b; border-radius: 16px; padding: 24px; box-shadow: 0 20px 25px -12px rgba(0,0,0,0.5); }
-        .el-dialog { background: #1e293b !important; }
-        .el-dialog__title { color: white !important; }
-        .el-form-item__label { color: #cbd5e1 !important; }
-        .el-input__inner { background: #334155 !important; border-color: #475569 !important; color: white !important; }
-        .el-table { background: transparent !important; color: #e2e8f0 !important; }
-        .el-table th { background: #0f172a !important; color: white !important; }
-        .el-table tr { background: #1e293b !important; }
-        .el-table td { border-bottom-color: #334155 !important; }
-        .el-pagination { background: transparent !important; }
-        .el-pagination button, .el-pagination .el-pagination__total { color: #cbd5e1 !important; }
-        /* 自定义表格样式 */
-        .result-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-        .result-table th, .result-table td { border: 1px solid #475569; padding: 8px 12px; text-align: left; }
-        .result-table th { background-color: #1e293b; color: #f1f5f9; font-weight: 600; }
-        .result-table tr:nth-child(even) { background-color: #0f172a; }
-        .result-table tr:nth-child(odd) { background-color: #1e293b; }
+        /* 全局重置和基础样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #16213e;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #16213e;
+        }
+
+        /* 侧边栏样式 */
+        .sidebar {
+            width: 280px;
+            background: rgba(22, 33, 62, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        /* 侧边栏头部 */
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0f3460, #1a1a2e);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .logo-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .logo-text p {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 2px;
+        }
+
+        /* 侧边栏导航 */
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: #a0aec0;
+            text-decoration: none;
+            margin-bottom: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover {
+            background: rgba(15, 52, 96, 0.5);
+            color: #ffffff;
+            transform: translateX(4px);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, #0f3460, #16213e);
+            color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-item i {
+            font-size: 18px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* 侧边栏底部 */
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid #0f3460;
+        }
+
+        .logout-btn {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #ff4757;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 71, 87, 0.1);
+        }
+
+        /* 主内容区域 */
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            height: 100vh;
+        }
+
+        /* 数据看板卡片 */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(26, 26, 46, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #0f3460;
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            border-color: #0f3460;
+        }
+
+        .stat-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-info h3 {
+            font-size: 14px;
+            color: #a0aec0;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .stat-info p {
+            font-size: 32px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .stat-icon {
+            font-size: 40px;
+            opacity: 0.7;
+        }
+
+        /* 图表卡片 */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: rgba(26, 26, 46, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #0f3460;
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .chart-card:hover {
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .chart-header i {
+            font-size: 20px;
+            color: #4cc9f0;
+        }
+
+        .chart-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        /* 智能问答界面 */
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(26, 26, 46, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #0f3460;
+            border-radius: 16px;
+            overflow: hidden;
+            height: 70vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #0f3460;
+            background: rgba(22, 33, 62, 0.9);
+        }
+
+        .chat-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .chat-header p {
+            font-size: 14px;
+            color: #a0aec0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.ai {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #0f3460, #16213e);
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai .message-content {
+            background: rgba(15, 52, 96, 0.5);
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-input {
+            padding: 20px;
+            border-top: 1px solid #0f3460;
+            background: rgba(22, 33, 62, 0.9);
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            background: rgba(26, 26, 46, 0.8);
+            border: 1px solid #0f3460;
+            border-radius: 25px;
+            padding: 12px 20px;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: #4cc9f0;
+            box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.2);
+        }
+
+        /* 数据管理界面 */
+        .management-section {
+            background: rgba(26, 26, 46, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #0f3460;
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: #4cc9f0;
+            color: #1a1a2e;
+        }
+
+        .btn-primary:hover {
+            background: #4361ee;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(76, 201, 240, 0.3);
+        }
+
+        .btn-danger {
+            background: #ff4757;
+            color: #ffffff;
+        }
+
+        .btn-danger:hover {
+            background: #ff3742;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(255, 71, 87, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(15, 52, 96, 0.5);
+            color: #ffffff;
+            border: 1px solid #0f3460;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(15, 52, 96, 0.8);
+            transform: translateY(-1px);
+        }
+
+        /* 表格样式 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .data-table th {
+            background: #16213e;
+            color: #ffffff;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #0f3460;
+        }
+
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #0f3460;
+            color: #a0aec0;
+        }
+
+        .data-table tr {
+            background: rgba(26, 26, 46, 0.8);
+            transition: background 0.3s ease;
+        }
+
+        .data-table tr:nth-child(even) {
+            background: rgba(22, 33, 62, 0.8);
+        }
+
+        .data-table tr:hover {
+            background: rgba(15, 52, 96, 0.5);
+        }
+
+        /* 标签页样式 */
+        .tabs {
+            margin-bottom: 24px;
+        }
+
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid #0f3460;
+            margin-bottom: 20px;
+        }
+
+        .tab-item {
+            padding: 12px 24px;
+            color: #a0aec0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-item:hover {
+            color: #ffffff;
+        }
+
+        .tab-item.active {
+            color: #4cc9f0;
+            border-bottom-color: #4cc9f0;
+        }
+
+        /* 模态框样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid #0f3460;
+            border-radius: 16px;
+            padding: 32px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            margin-bottom: 24px;
+        }
+
+        .modal-header h3 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #a0aec0;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            background: rgba(22, 33, 62, 0.8);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: #ffffff;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4cc9f0;
+            box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.2);
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 32px;
+        }
+
+        /* 加载状态 */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid #0f3460;
+            border-top: 2px solid #4cc9f0;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Element Plus 样式覆盖 */
+        .el-dialog {
+            background: rgba(26, 26, 46, 0.95) !important;
+            border-radius: 16px !important;
+            border: 1px solid #0f3460 !important;
+        }
+
+        .el-dialog__title {
+            color: #ffffff !important;
+            font-weight: 600 !important;
+        }
+
+        .el-form-item__label {
+            color: #a0aec0 !important;
+        }
+
+        .el-input__inner {
+            background: rgba(22, 33, 62, 0.8) !important;
+            border-color: #0f3460 !important;
+            color: #ffffff !important;
+        }
+
+        .el-input__inner:focus {
+            border-color: #4cc9f0 !important;
+        }
+
+        .el-table {
+            background: transparent !important;
+        }
+
+        .el-table th {
+            background: #16213e !important;
+            color: #ffffff !important;
+        }
+
+        .el-table tr {
+            background: rgba(26, 26, 46, 0.8) !important;
+        }
+
+        .el-table tr.el-table__row--striped {
+            background: rgba(22, 33, 62, 0.8) !important;
+        }
+
+        .el-table tr:hover {
+            background: rgba(15, 52, 96, 0.5) !important;
+        }
+
+        .el-table td {
+            color: #a0aec0 !important;
+        }
+
+        .el-button {
+            border-radius: 8px !important;
+        }
+
+        .el-button--primary {
+            background: #4cc9f0 !important;
+            border-color: #4cc9f0 !important;
+            color: #1a1a2e !important;
+        }
+
+        .el-button--danger {
+            background: #ff4757 !important;
+            border-color: #ff4757 !important;
+            color: #ffffff !important;
+        }
+
+        .el-tabs__header {
+            border-bottom-color: #0f3460 !important;
+        }
+
+        .el-tabs__item {
+            color: #a0aec0 !important;
+        }
+
+        .el-tabs__item.is-active {
+            color: #4cc9f0 !important;
+        }
+
+        .el-tabs__active-bar {
+            background-color: #4cc9f0 !important;
+        }
     </style>
 </head>
 <body>
@@ -59,45 +674,48 @@
 
     <!-- 主界面 -->
     <div v-else class="flex h-screen overflow-hidden">
-        <aside class="w-72 bg-slate-800/50 backdrop-blur-md border-r border-slate-700 flex flex-col shadow-2xl z-10">
-            <div class="p-6 border-b border-slate-700">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-graduation-cap text-white text-xl"></i></div>
-                    <div><h1 class="text-xl font-bold text-white">沃林学生管理系统</h1><p class="text-xs text-slate-400 mt-0.5">智能数据分析平台</p></div>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <div class="logo-icon"><i class="fas fa-graduation-cap text-white text-xl"></i></div>
+                    <div class="logo-text"><h1>沃林学生管理系统</h1><p>智能数据分析平台</p></div>
                 </div>
             </div>
-            <nav class="flex-1 p-4 space-y-2">
-                <a href="#" @click.prevent="activeTab = 'dashboard'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-chart-line w-5"></i><span>数据看板</span></a>
-                <a href="#" @click.prevent="activeTab = 'query'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'query' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-comment-dots w-5"></i><span>智能问答</span></a>
-                <a href="#" @click.prevent="activeTab = 'statistics'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'statistics' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-chart-simple w-5"></i><span>高级统计</span></a>
-<!--                <a href="#" @click.prevent="activeTab = 'management'" :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'management' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-700']"><i class="fas fa-database w-5"></i><span>数据管理</span></a>-->
+            <nav class="sidebar-nav">
+                <a href="#" @click.prevent="activeTab = 'dashboard'" :class="['nav-item', activeTab === 'dashboard' ? 'active' : '']"><i class="fas fa-chart-line"></i><span>数据看板</span></a>
+                <a href="#" @click.prevent="activeTab = 'query'" :class="['nav-item', activeTab === 'query' ? 'active' : '']"><i class="fas fa-comment-dots"></i><span>智能问答</span></a>
+                <a href="#" @click.prevent="activeTab = 'statistics'" :class="['nav-item', activeTab === 'statistics' ? 'active' : '']"><i class="fas fa-chart-simple"></i><span>高级统计</span></a>
+                <a href="#" @click.prevent="activeTab = 'management'" :class="['nav-item', activeTab === 'management' ? 'active' : '']"><i class="fas fa-database"></i><span>数据管理</span></a>
             </nav>
-            <div class="p-4 border-t border-slate-700 text-xs text-slate-500 text-center"><button @click="logout" class="text-red-400 hover:text-red-300"><i class="fas fa-sign-out-alt"></i> 退出登录</button></div>
+            <div class="sidebar-footer"><button @click="logout" class="logout-btn"><i class="fas fa-sign-out-alt"></i> 退出登录</button></div>
         </aside>
 
-        <main class="flex-1 overflow-y-auto p-6">
+        <main class="main-content">
             <!-- 数据看板 -->
             <div v-if="activeTab === 'dashboard'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">学生总数</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.studentCount }}</p></div><i class="fas fa-users text-4xl text-blue-500/60"></i></div></div>
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">班级数量</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.classCount }}</p></div><i class="fas fa-school text-4xl text-emerald-500/60"></i></div></div>
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">平均年龄</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.avgAge }}</p></div><i class="fas fa-calendar-alt text-4xl text-amber-500/60"></i></div></div>
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700 card-hover"><div class="flex items-center justify-between"><div><p class="text-slate-400 text-sm">就业率</p><p class="text-3xl font-bold text-white mt-1">{{ dashboard.employmentRate }}%</p></div><i class="fas fa-briefcase text-4xl text-rose-500/60"></i></div></div>
+                <div class="dashboard-grid">
+                    <div class="stat-card"><div class="stat-content"><div class="stat-info"><h3>学生总数</h3><p>{{ dashboard.studentCount }}</p></div><i class="fas fa-users text-4xl text-blue-400 stat-icon"></i></div></div>
+                    <div class="stat-card"><div class="stat-content"><div class="stat-info"><h3>班级数量</h3><p>{{ dashboard.classCount }}</p></div><i class="fas fa-school text-4xl text-green-400 stat-icon"></i></div></div>
+                    <div class="stat-card"><div class="stat-content"><div class="stat-info"><h3>平均年龄</h3><p>{{ dashboard.avgAge }}</p></div><i class="fas fa-calendar-alt text-4xl text-yellow-400 stat-icon"></i></div></div>
+                    <div class="stat-card"><div class="stat-content"><div class="stat-info"><h3>就业率</h3><p>{{ dashboard.employmentRate }}%</p></div><i class="fas fa-briefcase text-4xl text-red-400 stat-icon"></i></div></div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3"><i class="fas fa-venus-mars text-pink-400"></i> 班级男女比例</h3><div id="genderChart" style="height: 350px;"></div></div>
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3"><i class="fas fa-chart-line text-green-400"></i> 各班平均成绩排名</h3><div id="scoreChart" style="height: 350px;"></div></div>
+                <div class="chart-grid">
+                    <div class="chart-card"><div class="chart-header"><i class="fas fa-venus-mars"></i><h3>班级男女比例</h3></div><div id="genderChart" style="height: 350px;"></div></div>
+                    <div class="chart-card"><div class="chart-header"><i class="fas fa-chart-line"></i><h3>各班平均成绩排名</h3></div><div id="scoreChart" style="height: 350px;"></div></div>
                 </div>
-                <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3"><i class="fas fa-dollar-sign text-yellow-400"></i> 薪资前五名</h3><div class="overflow-x-auto"><table class="min-w-full text-left text-sm text-slate-300"><thead class="bg-slate-700/50"><tr><th class="py-2 px-3">姓名</th><th>班级</th><th>薪资(元)</th><th>公司</th></tr></thead><tbody><tr v-for="emp in dashboard.topSalary" :key="emp.stu_name"><td class="py-2 px-3">{{ emp.stu_name }}</td><td>{{ emp.class_name }}</td><td>{{ emp.salary }}</td><td>{{ emp.company }}</td></tr></tbody></table></div></div>
+                <div class="chart-card"><div class="chart-header"><i class="fas fa-dollar-sign"></i><h3>薪资前五名</h3></div><div class="overflow-x-auto"><table class="data-table"><thead><tr><th>姓名</th><th>班级</th><th>薪资(元)</th><th>公司</th></tr></thead><tbody><tr v-for="emp in dashboard.topSalary" :key="emp.stu_name"><td>{{ emp.stu_name }}</td><td>{{ emp.class_name }}</td><td>{{ emp.salary }}</td><td>{{ emp.company }}</td></tr></tbody></table></div></div>
             </div>
 
             <!-- 智能问答 -->
             <div v-if="activeTab === 'query'" class="max-w-4xl mx-auto">
-                <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl border border-slate-700 overflow-hidden flex flex-col h-[75vh]">
-                    <div class="p-4 border-b border-slate-700 bg-slate-800/60"><h2 class="text-xl font-semibold text-white"><i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手</h2><p class="text-slate-400 text-sm mt-1">支持自然语言查询数据，也可以问业务问题</p></div>
-                    <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
-                        <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
-                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-slate-200'" class="max-w-[80%] px-4 py-2 shadow-md">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <h2>AI 智能助手</h2>
+                        <p>支持自然语言查询数据，也可以问业务问题</p>
+                    </div>
+                    <div class="chat-messages" ref="chatContainer">
+                        <div v-for="msg in chatMessages" :key="msg.id" :class="['message', msg.role === 'user' ? 'user' : 'ai']">
+                            <div class="message-content">
                                 <div v-if="msg.type === 'sql'">
                                     <p class="whitespace-pre-wrap">{{ msg.content }}</p>
                                     <details class="mt-2 text-xs text-slate-300"><summary>查看SQL</summary><code class="block bg-black/30 p-2 rounded mt-1">{{ msg.sql }}</code></details>
@@ -106,42 +724,56 @@
                                 <div v-else>{{ msg.content }}</div>
                             </div>
                         </div>
-                        <div v-if="isLoading" class="flex justify-start"><div class="chat-bubble-ai px-4 py-2"><i class="fas fa-spinner fa-pulse"></i> 思考中...</div></div>
+                        <div v-if="isLoading" class="message ai"><div class="message-content"><i class="fas fa-spinner fa-pulse"></i> 思考中...</div></div>
                     </div>
-                    <div class="p-4 border-t border-slate-700 bg-slate-800/60">
-                        <div class="flex gap-2">
-                            <input type="text" v-model="currentQuestion" @keyup.enter="sendQuestion" class="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如：学生有多少人？ 或者 每个班级的平均分？ 或者 为什么年龄统计不准？">
-                            <button @click="sendQuestion" class="bg-blue-600 hover:bg-blue-700 transition px-5 py-2 rounded-xl text-white font-medium"><i class="fas fa-paper-plane"></i> 发送</button>
-                        </div>
+                    <div class="chat-input">
+                        <input type="text" v-model="currentQuestion" @keyup.enter="sendQuestion" placeholder="例如：学生有多少人？ 或者 每个班级的平均分？ 或者 为什么年龄统计不准？">
+                        <button @click="sendQuestion" class="btn btn-primary"><i class="fas fa-paper-plane"></i> 发送</button>
                     </div>
                 </div>
             </div>
 
             <!-- 高级统计 -->
             <div v-if="activeTab === 'statistics'" class="space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3">📊 薪资分布区间</h3><div id="salaryDistChart" style="height: 320px;"></div></div>
-                    <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3">⏱️ 班级平均就业时长（天）</h3><div id="durationChart" style="height: 320px;"></div></div>
+                <div class="chart-grid">
+                    <div class="chart-card"><div class="chart-header"><i class="fas fa-chart-pie"></i><h3>薪资分布区间</h3></div><div id="salaryDistChart" style="height: 320px;"></div></div>
+                    <div class="chart-card"><div class="chart-header"><i class="fas fa-clock"></i><h3>班级平均就业时长（天）</h3></div><div id="durationChart" style="height: 320px;"></div></div>
                 </div>
-                <div class="bg-slate-800/40 backdrop-blur-sm rounded-2xl p-5 border border-slate-700"><h3 class="text-white font-semibold mb-3">📈 每次考试班级平均分排名</h3><div id="examSeqChart" style="height: 400px;"></div></div>
+                <div class="chart-card"><div class="chart-header"><i class="fas fa-chart-line"></i><h3>每次考试班级平均分排名</h3></div><div id="examSeqChart" style="height: 400px;"></div></div>
             </div>
 
             <!-- 数据管理 -->
-<!--            <div v-if="activeTab === 'management'" class="space-y-6">-->
-<!--                <el-tabs v-model="mgmtTab" class="custom-tabs">-->
-<!--                    <el-tab-pane label="学生管理" name="student">-->
-<!--                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openStudentDialog(null)">新增学生</el-button></div>-->
-<!--                        <el-table :data="students" stripe><el-table-column prop="stu_id" label="学号" width="80"></el-table-column><el-table-column prop="stu_name" label="姓名"></el-table-column><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="age" label="年龄"></el-table-column><el-table-column label="操作" width="150"><template #default="scope"><el-button size="small" @click="openStudentDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteStudent(scope.row.stu_id)">删除</el-button></template></el-table-column></el-table>-->
-<!--                    </el-tab-pane>-->
-<!--                    <el-tab-pane label="班级管理" name="class">-->
-<!--                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openClassDialog(null)">新增班级</el-button></div>-->
-<!--                        <el-table :data="classes" stripe><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="class_name" label="班级名称"></el-table-column><el-table-column prop="head_teacher_id" label="班主任ID"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openClassDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteClass(scope.row.class_id)">删除</el-button></template></el-table-column></el-table>-->
-<!--                    </el-tab-pane>-->
-<!--                    <el-tab-pane label="教师管理" name="teacher">-->
-<!--                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openTeacherDialog(null)">新增教师</el-button></div>-->
-<!--                        <el-table :data="teachers" stripe><el-table-column prop="teacher_id" label="教师ID"></el-table-column><el-table-column prop="teacher_name" label="姓名"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="role" label="角色"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openTeacherDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteTeacher(scope.row.teacher_id)">删除</el-button></template></el-table-column></el-table>-->
-<!--                    </el-tab-pane>-->
-<!--                </el-tabs>-->
+            <div v-if="activeTab === 'management'" class="management-section">
+                <div class="section-header">
+                    <h2>数据管理</h2>
+                </div>
+                <el-tabs v-model="mgmtTab">
+                    <el-tab-pane label="学生管理" name="student">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openStudentDialog(null)">新增学生</el-button></div>
+                        <el-table :data="students" stripe><el-table-column prop="stu_id" label="学号" width="80"></el-table-column><el-table-column prop="stu_name" label="姓名"></el-table-column><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="gender" label="性别"></el-table-column><el-table-column prop="age" label="年龄"></el-table-column><el-table-column label="操作" width="150"><template #default="scope"><el-button size="small" @click="openStudentDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteStudent(scope.row.stu_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="班级管理" name="class">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openClassDialog(null)">新增班级</el-button></div>
+                        <el-table :data="classes" stripe><el-table-column prop="class_id" label="班级ID"></el-table-column><el-table-column prop="class_name" label="班级名称"></el-table-column><el-table-column prop="head_teacher_id" label="班主任ID"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openClassDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteClass(scope.row.class_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="教师管理" name="teacher">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openTeacherDialog(null)">新增教师</el-button></div>
+                        <el-table :data="teachers" stripe><el-table-column prop="teacher_id" label="教师ID"></el-table-column><el-table-column prop="teacher_name" label="姓名"></el-table-column><el-table-column prop="role" label="角色"></el-table-column><el-table-column prop="phone" label="电话"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openTeacherDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteTeacher(scope.row.teacher_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="学生成绩管理" name="exam">
+                        <div class="mb-4 flex justify-end"><el-button type="primary" @click="openExamDialog(null)">提交成绩</el-button></div>
+                        <el-table :data="exams" stripe><el-table-column prop="stu_id" label="学生ID"></el-table-column><el-table-column prop="stu_name" label="学生姓名"></el-table-column><el-table-column prop="seq_no" label="考核序次"></el-table-column><el-table-column prop="grade" label="成绩"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openExamDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteExam(scope.row.stu_id, scope.row.seq_no)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                    <el-tab-pane label="就业信息管理" name="employment">
+                        <div class="mb-4 flex justify-between">
+                            <div>
+                                <el-input v-model="employmentClassId" placeholder="班级ID" style="width: 150px; margin-right: 10px;"></el-input>
+                                <el-button @click="loadEmploymentData">查询班级就业信息</el-button>
+                            </div>
+                        </div>
+                        <el-table :data="employments" stripe><el-table-column prop="emp_id" label="就业ID"></el-table-column><el-table-column prop="stu_id" label="学生ID"></el-table-column><el-table-column prop="stu_name" label="学生姓名"></el-table-column><el-table-column prop="company" label="公司"></el-table-column><el-table-column prop="salary" label="薪资"></el-table-column><el-table-column prop="position" label="职位"></el-table-column><el-table-column label="操作"><template #default="scope"><el-button size="small" @click="openEmploymentDialog(scope.row)">编辑</el-button><el-button size="small" type="danger" @click="deleteEmployment(scope.row.emp_id)">删除</el-button></template></el-table-column></el-table>
+                    </el-tab-pane>
+                </el-tabs>
 
                 <!-- 学生表单对话框 -->
                 <el-dialog v-model="studentDialogVisible" title="学生信息" width="500px">
@@ -153,8 +785,16 @@
                     <template #footer><el-button @click="classDialogVisible = false">取消</el-button><el-button type="primary" @click="saveClass">保存</el-button></template>
                 </el-dialog>
                 <el-dialog v-model="teacherDialogVisible" title="教师信息" width="500px">
-                    <el-form :model="teacherForm" label-width="100px"><el-form-item label="姓名"><el-input v-model="teacherForm.teacher_name"></el-input></el-form-item><el-form-item label="性别"><el-select v-model="teacherForm.gender"><el-option label="男" value="男"></el-option><el-option label="女" value="女"></el-option></el-select></el-form-item><el-form-item label="角色"><el-input v-model="teacherForm.role"></el-input></el-form-item><el-form-item label="电话"><el-input v-model="teacherForm.phone"></el-input></el-form-item></el-form>
+                    <el-form :model="teacherForm" label-width="100px"><el-form-item label="姓名"><el-input v-model="teacherForm.teacher_name"></el-input></el-form-item><el-form-item label="角色"><el-input v-model="teacherForm.role"></el-input></el-form-item><el-form-item label="电话"><el-input v-model="teacherForm.phone"></el-input></el-form-item></el-form>
                     <template #footer><el-button @click="teacherDialogVisible = false">取消</el-button><el-button type="primary" @click="saveTeacher">保存</el-button></template>
+                </el-dialog>
+                <el-dialog v-model="examDialogVisible" title="学生成绩" width="500px">
+                    <el-form :model="examForm" label-width="100px"><el-form-item label="学生ID"><el-input v-model="examForm.stu_id" type="number"></el-input></el-form-item><el-form-item label="学生姓名"><el-input v-model="examForm.stu_name"></el-input></el-form-item><el-form-item label="考核序次"><el-input v-model="examForm.seq_no" type="number"></el-input></el-form-item><el-form-item label="成绩"><el-input v-model="examForm.grade" type="number"></el-input></el-form-item></el-form>
+                    <template #footer><el-button @click="examDialogVisible = false">取消</el-button><el-button type="primary" @click="saveExam">保存</el-button></template>
+                </el-dialog>
+                <el-dialog v-model="employmentDialogVisible" title="就业信息" width="500px">
+                    <el-form :model="employmentForm" label-width="100px"><el-form-item label="学生ID"><el-input v-model="employmentForm.stu_id" type="number"></el-input></el-form-item><el-form-item label="学生姓名"><el-input v-model="employmentForm.stu_name"></el-input></el-form-item><el-form-item label="公司"><el-input v-model="employmentForm.company"></el-input></el-form-item><el-form-item label="职位"><el-input v-model="employmentForm.position"></el-input></el-form-item><el-form-item label="薪资"><el-input v-model="employmentForm.salary" type="number"></el-input></el-form-item><el-form-item label="入职时间"><el-date-picker v-model="employmentForm.start_date" type="date" placeholder="选择日期"></el-date-picker></el-form-item></el-form>
+                    <template #footer><el-button @click="employmentDialogVisible = false">取消</el-button><el-button type="primary" @click="saveEmployment">保存</el-button></template>
                 </el-dialog>
             </div>
         </main>
@@ -185,8 +825,15 @@
             const teacherDialogVisible = ref(false);
             const studentForm = ref({ stu_name: '', class_id: '', gender: '男', age: '' });
             const classForm = ref({ class_name: '', head_teacher_id: '', start_time: '' });
-            const teacherForm = ref({ teacher_name: '', gender: '男', role: '', phone: '' });
-            let editingStudentId = null, editingClassId = null, editingTeacherId = null;
+            const teacherForm = ref({ teacher_name: '', role: '', phone: '' });
+            const exams = ref([]);
+            const employments = ref([]);
+            const examDialogVisible = ref(false);
+            const employmentDialogVisible = ref(false);
+            const examForm = ref({ stu_id: '', stu_name: '', seq_no: '', grade: '' });
+            const employmentForm = ref({ stu_id: '', stu_name: '', company: '', position: '', salary: '', start_date: '' });
+            const employmentClassId = ref('');
+            let editingStudentId = null, editingClassId = null, editingTeacherId = null, editingExamId = null, editingEmploymentId = null;
             let genderChart = null, scoreChart = null, salaryChart = null, durationChart = null, examSeqChart = null;
 
             const setAuthToken = (token) => { if (token) axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; else delete axios.defaults.headers.common['Authorization']; };
@@ -239,16 +886,23 @@
                     examSeqChart.setOption({ tooltip: { trigger: 'axis' }, legend: { data: classNames, textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: exams, axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series });
                 } catch (err) { console.error(err); }
             };
-            const loadManagementData = async () => { try { const studentRes = await axios.get('/students'); students.value = studentRes.data.data || []; const classRes = await axios.get('/class/'); classes.value = classRes.data; const teacherRes = await axios.get('/teacher/'); teachers.value = teacherRes.data; } catch (err) { console.error(err); } };
+            const loadManagementData = async () => { try { const studentRes = await axios.get('/students'); students.value = studentRes.data.data || []; const classRes = await axios.get('/class/'); classes.value = Object.values(classRes.data.data || {}); const teacherRes = await axios.get('/teacher/'); teachers.value = teacherRes.data.data || []; } catch (err) { console.error(err); } };
             const openStudentDialog = (row) => { if (row) { editingStudentId = row.stu_id; studentForm.value = { ...row }; } else { editingStudentId = null; studentForm.value = { stu_name: '', class_id: '', gender: '男', age: '' }; } studentDialogVisible.value = true; };
             const saveStudent = async () => { try { if (editingStudentId) await axios.put(`/students/${editingStudentId}`, studentForm.value); else await axios.post('/students/', studentForm.value); await loadManagementData(); studentDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
             const deleteStudent = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/students/${id}`); await loadManagementData(); } };
             const openClassDialog = (row) => { if (row) { editingClassId = row.class_id; classForm.value = { ...row }; } else { editingClassId = null; classForm.value = { class_name: '', head_teacher_id: '', start_time: '' }; } classDialogVisible.value = true; };
             const saveClass = async () => { try { if (editingClassId) await axios.put(`/class/${editingClassId}`, classForm.value); else await axios.post('/class/', classForm.value); await loadManagementData(); classDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
             const deleteClass = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/class/${id}`); await loadManagementData(); } };
-            const openTeacherDialog = (row) => { if (row) { editingTeacherId = row.teacher_id; teacherForm.value = { ...row }; } else { editingTeacherId = null; teacherForm.value = { teacher_name: '', gender: '男', role: '', phone: '' }; } teacherDialogVisible.value = true; };
+            const openTeacherDialog = (row) => { if (row) { editingTeacherId = row.teacher_id; const { gender, ...rest } = row; teacherForm.value = { ...rest }; } else { editingTeacherId = null; teacherForm.value = { teacher_name: '', role: '', phone: '' }; } teacherDialogVisible.value = true; };
             const saveTeacher = async () => { try { if (editingTeacherId) await axios.put(`/teacher/${editingTeacherId}`, teacherForm.value); else await axios.post('/teacher/', teacherForm.value); await loadManagementData(); teacherDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
             const deleteTeacher = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/teacher/${id}`); await loadManagementData(); } };
+            const openExamDialog = (row) => { if (row) { editingExamId = row.stu_id; examForm.value = { ...row }; } else { editingExamId = null; examForm.value = { stu_id: '', stu_name: '', seq_no: '', grade: '' }; } examDialogVisible.value = true; };
+            const saveExam = async () => { try { if (editingExamId) await axios.put('/exam/', examForm.value, { params: { stu_id: examForm.value.stu_id, seq_no: examForm.value.seq_no } }); else await axios.post('/exam/', examForm.value); await loadManagementData(); examDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
+            const deleteExam = async (stuId, seqNo) => { if (confirm('确定删除？')) { await axios.delete(`/exam/${stuId}`, { params: { seq_no: seqNo } }); await loadManagementData(); } };
+            const loadEmploymentData = async () => { try { if (employmentClassId.value) { const res = await axios.get(`/employment/class/${employmentClassId.value}`); employments.value = res.data.data || []; } else { const res = await axios.get('/employment/query'); employments.value = res.data.data || []; } } catch (err) { console.error(err); } };
+            const openEmploymentDialog = (row) => { if (row) { editingEmploymentId = row.emp_id; employmentForm.value = { ...row }; } else { editingEmploymentId = null; employmentForm.value = { stu_id: '', stu_name: '', company: '', position: '', salary: '', start_date: '' }; } employmentDialogVisible.value = true; };
+            const saveEmployment = async () => { try { if (editingEmploymentId) await axios.put(`/employment/students/${employmentForm.value.stu_id}`, employmentForm.value); else await axios.put(`/employment/students/${employmentForm.value.stu_id}`, employmentForm.value); await loadEmploymentData(); employmentDialogVisible.value = false; } catch (err) { alert('保存失败'); } };
+            const deleteEmployment = async (id) => { if (confirm('确定删除？')) { await axios.delete(`/employment/delete/${id}`); await loadEmploymentData(); } };
 
             // 优化后的 sendQuestion 函数（表格渲染优化）
             const sendQuestion = async () => {
@@ -328,10 +982,14 @@
             watch(activeTab, async (newVal) => {
                 if (newVal === 'dashboard') await refreshDashboard();
                 else if (newVal === 'statistics') await renderAdvancedCharts();
-                else if (newVal === 'management') await loadManagementData();
+                else if (newVal === 'management') {
+                    await loadManagementData();
+                    // 加载就业信息
+                    await loadEmploymentData();
+                }
             });
             onMounted(async () => { checkLogin(); if (isLoggedIn.value) { await refreshDashboard(); await loadManagementData(); } });
-            return { isLoggedIn, authMode, authUsername, authPassword, submitAuth, logout, activeTab, mgmtTab, dashboard, chatMessages, currentQuestion, isLoading, sendQuestion, chatContainer, students, classes, teachers, studentDialogVisible, classDialogVisible, teacherDialogVisible, studentForm, classForm, teacherForm, openStudentDialog, saveStudent, deleteStudent, openClassDialog, saveClass, deleteClass, openTeacherDialog, saveTeacher, deleteTeacher };
+            return { isLoggedIn, authMode, authUsername, authPassword, submitAuth, logout, activeTab, mgmtTab, dashboard, chatMessages, currentQuestion, isLoading, sendQuestion, chatContainer, students, classes, teachers, exams, employments, studentDialogVisible, classDialogVisible, teacherDialogVisible, examDialogVisible, employmentDialogVisible, studentForm, classForm, teacherForm, examForm, employmentForm, employmentClassId, openStudentDialog, saveStudent, deleteStudent, openClassDialog, saveClass, deleteClass, openTeacherDialog, saveTeacher, deleteTeacher, openExamDialog, saveExam, deleteExam, loadEmploymentData, openEmploymentDialog, saveEmployment, deleteEmployment };
         }
     });
     app.use(ElementPlus);

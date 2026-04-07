@@ -8,15 +8,9 @@ from schemas.response import ResponseBase, ListResponse
 from schemas.emp_schemas import EmploymentUpdate, EmploymentResp
 # 数据库依赖
 from database import get_db
-# 按需导入dao函数
-from dao.employment_dao import (
-    get_employment_by_stu_id,
-    get_employment_by_class_id,
-    update_employment,
-    delete_employment,
-    restore_employment,
-    get_employment_by_emp_id
-)
+# 导入dao函数
+from dao.employment_dao import *
+
 
 router = APIRouter(prefix="/employment", tags=["就业管理模块"])
 
@@ -51,11 +45,45 @@ def get_class_employment(class_id: int, db: Session = Depends(get_db)):
         total=len(list_data)
     )
 
+# ------------------------------
+# 3. 多条件查询就业信息（学生编号 + 公司名 + 工资范围）
+# ------------------------------
+@router.get("/query", response_model=ListResponse)
+def query_employment(
+    stu_id: int = None,       # 学生编号（可选）
+    company: str = None,      # 公司名称（模糊查询，可选）
+    min_salary: int = None,   # 最低工资（可选）
+    max_salary: int = None,   # 最高工资（可选）
+    db: Session = Depends(get_db)
+):
+    # 基础查询：未删除的记录
+    query = db.query(Employment).filter(Employment.is_deleted == False)
 
+    # 拼接查询条件
+    if stu_id is not None:
+        query = query.filter(Employment.stu_id == stu_id)
+    if company is not None:
+        # 公司名模糊匹配
+        query = query.filter(Employment.company.like(f"%{company}%"))
+    if min_salary is not None:
+        query = query.filter(Employment.salary >= min_salary)
+    if max_salary is not None:
+        query = query.filter(Employment.salary <= max_salary)
+
+    # 执行查询
+    data = query.all()
+    list_data = [EmploymentResp.model_validate(item) for item in data]
+
+    return ListResponse(
+        code=200,
+        message="查询成功",
+        data=list_data,
+        total=len(list_data)
+    )
 # ------------------------------
-# 3. 更新学生就业信息
+# 4. 更新学生就业信息
 # ------------------------------
-@router.post("/students/{stu_id}", response_model=ResponseBase)
+@router.put("/students/{stu_id}", response_model=ResponseBase)
 def update_student_employment(
         stu_id: int,
         update_data: EmploymentUpdate,
@@ -78,7 +106,7 @@ def update_student_employment(
 
 
 # ------------------------------
-# 4. 逻辑删除就业信息
+# 5. 逻辑删除就业信息
 # ------------------------------
 @router.delete("/delete/{emp_id}", response_model=ResponseBase)
 def delete_employment_api(emp_id: int, db: Session = Depends(get_db)):
@@ -98,7 +126,7 @@ def delete_employment_api(emp_id: int, db: Session = Depends(get_db)):
 
 
 # ------------------------------
-# 5. 恢复就业信息
+# 6. 恢复就业信息
 # ------------------------------
 @router.put("/restore/{emp_id}", response_model=ResponseBase)
 def restore_emp(emp_id: int, db: Session = Depends(get_db)):

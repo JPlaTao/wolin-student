@@ -1,5 +1,6 @@
-from sqlalchemy.orm import Session####
+from sqlalchemy.orm import Session  ####
 from model.teachers import Teacher
+from model.class_model import Class
 from schemas.teacher import TeacheresUpdata
 
 
@@ -11,34 +12,54 @@ def create_teacher(db: Session, teacher: TeacheresUpdata):
         gender=teacher.gender,
         phone=teacher.phone,
         role=teacher.role,
-        is_deleted=False  # 固定值，和你数据库一致
+        is_deleted=False  # 固定
     )
-    db.add(db_teacher)       # 加载到数据库会话
-    db.commit()              # 提交到数据库
-    db.refresh(db_teacher)   # 刷新==========
+    db.add(db_teacher)  # 加载到数据库会话
+    db.commit()  # 提交到数据库
+    db.refresh(db_teacher)  # 刷新==========
     return {
         "teacher_id": db_teacher.teacher_id,
         "teacher_name": db_teacher.teacher_name,
         "gender": db_teacher.gender,
         "phone": db_teacher.phone,
         "role": db_teacher.role
-    }   # 把新增成功的老师数据变成字典的形式返回
+    }  # 把新增成功的老师数据变成字典的形式返回
 
 
 # 查询单个老师
-def get_teacher(db: Session, teacher_id: int):
-    # 查询和匹配teacher_id
-    teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
-    # 如果老师不存在
+def get_teacher(db: Session, teacher_id: int = None, teacher_name: str = None):
+    teacher = db.query(Teacher).filter(Teacher.is_deleted == False)
+    # 按 ID 查询
+    if teacher_id is not None:
+        teacher = teacher.filter(Teacher.teacher_id == teacher_id)
+    # 按 姓名 查询
+    if teacher_name is not None:
+        teacher = teacher.filter(Teacher.teacher_name == teacher_name)
+    # 获取单个老师
+    teacher = teacher.first()
+    # 没查到返回 None
     if not teacher:
         return None
+    # 查到了，返回字典
     return {
         "teacher_id": teacher.teacher_id,
         "teacher_name": teacher.teacher_name,
         "gender": teacher.gender,
         "phone": teacher.phone,
         "role": teacher.role
-    }# 返回老师字典信息
+    }
+
+    # teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
+    # # 如果老师不存在或者已删除
+    # if not teacher:
+    #     return None
+    # return {
+    #     "teacher_id": teacher.teacher_id,
+    #     "teacher_name": teacher.teacher_name,
+    #     "gender": teacher.gender,
+    #     "phone": teacher.phone,
+    #     "role": teacher.role
+    # }  # 返回老师字典信息
 
 
 # 查询所有未删除的老师
@@ -52,7 +73,7 @@ def get_all_teachers(db: Session):
             "role": i.role,
             "gender": i.gender
         } for i in data
-    ] # 遍历拿到每个老师的数据重新赋值转换成列表嵌套字典,通过api返回到前端
+    ]  # 遍历拿到每个老师的数据重新赋值:列表表达式,通过api返回到前端
 
 
 # 修改老师
@@ -63,9 +84,9 @@ def update_teacher(db: Session, teacher_id: int, teacher: TeacheresUpdata):
     if not db_teacher:
         return None
     # 把前端传过来的数据, 更新到数据库对象里
-    for key, value in teacher.model_dump(exclude_unset=True).items():
+    for key, value in teacher.model_dump().items():
         setattr(db_teacher, key, value)
-    db.commit()             # 提交保存修改
+    db.commit()  # 提交保存修改
     db.refresh(db_teacher)  # 刷新数据
     return {
         "teacher_id": db_teacher.teacher_id,
@@ -73,7 +94,7 @@ def update_teacher(db: Session, teacher_id: int, teacher: TeacheresUpdata):
         "gender": db_teacher.gender,
         "phone": db_teacher.phone,
         "role": db_teacher.role
-    }# 返回老师字典信息
+    }  # 返回老师字典信息
 
 
 # 删除老师（逻辑删除，不是真删）
@@ -85,6 +106,53 @@ def delete_teacher(db: Session, teacher_id: int):
         db.commit()  # 提交保存
         return True  # 删除成功
     return False  # 不存在
+
+# 讲师绑定班级
+def bind_teacher_to_class(db: Session, teacher_id: int, class_ids: list):
+    # 1. 查询讲师是否存在（未删除）
+    teacher = db.query(Teacher).filter(
+        Teacher.teacher_id == teacher_id,
+        Teacher.is_deleted == False,
+        Teacher.role == "lecturer"  # 确保是讲师角色
+    ).first()
+    if not teacher:
+        return None  # 讲师不存在/不是讲师，返回None
+
+    # 2. 查询要绑定的班级（未删除）
+    classes = db.query(Class).filter(
+        Class.class_id.in_(class_ids),  # 批量查询多个班级
+        Class.is_deleted == False
+    ).all()
+    if not classes:
+        return None  # 班级不存在，返回None
+    # 3. 绑定讲师和班级（ORM自动操作中间表）
+    teacher.teach_classes = classes  # 直接赋值，SQLAlchemy会自动更新中间表
+    db.commit()  # 提交数据库修改
+    db.refresh(teacher)  # 刷新讲师对象，获取最新关联数据
+    return teacher
+
+# 讲师解绑班级
+def unbind_teacher_from_class(db: Session, teacher_id: int, class_id: int):
+    # 1. 查询讲师是否存在（未删除）
+    teacher = db.query(Teacher).filter(
+        Teacher.teacher_id == teacher_id,
+        Teacher.is_deleted == False,
+        Teacher.role == "lecturer"
+    ).first()
+    if not teacher:
+        return False
+    # 找到要解除的班级
+    target_class = None
+    for cls in teacher.teach_classes:
+        if cls.class_id == class_id and not cls.is_deleted:
+            target_class = cls
+            break
+    if not target_class:
+        return False
+    # 从讲师的班级列表中移除该班级
+    teacher.teach_classes.remove(target_class)
+    db.commit()
+    return True
 
 
 # ==========================================================
@@ -103,7 +171,8 @@ def get_head_classes(db: Session, teacher_id: int):
         {
             "class_id": c.class_id,
             "class_name": c.class_name,
-            "head_teacher_id": c.head_teacher_id
+            "head_teacher_id": c.head_teacher_id,
+            "haed_teacher_name": teacher.teacher_name
         } for c in teacher.class_as_head
     ]
 
@@ -118,12 +187,14 @@ def get_teach_classes(db: Session, teacher_id: int):
     # 如果老师不是讲师
     if teacher.role != "lecturer":
         return "该老师不是讲师"
+
     # 是讲师拿到他所教的班级
     return [
         {
             "class_id": c.class_id,
             "class_name": c.class_name,
-            "head_teacher_id": c.head_teacher_id
+            "head_teacher_id": teacher.teacher_id,
+            "teacher_name": teacher.teacher_name
         } for c in teacher.teach_classes
     ]
 
@@ -141,11 +212,12 @@ def get_my_students(db: Session, teacher_id: int):
     # 是顾问但无学生
     if not teacher.students:
         return "该顾问暂无负责的学生"
-     # 有学生
+    # 有学生
     return [
         {
             "stu_id": s.stu_id,
             "stu_name": s.stu_name,
-            "class_id": s.class_id
+            "class_id": s.class_id,
+            "counselor_name": teacher.teacher_name
         } for s in teacher.students
     ]
