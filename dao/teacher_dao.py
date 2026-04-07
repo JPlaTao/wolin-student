@@ -1,10 +1,11 @@
-from sqlalchemy.orm import Session  ####
+from sqlalchemy.orm import Session
 from model.teachers import Teacher
 from model.class_model import Class
 from schemas.teacher import TeacheresUpdata
 
 
 # 新增老师的功能
+# 加上校验
 def create_teacher(db: Session, teacher: TeacheresUpdata):
     # 创建一个变量对象, 把前端数据赋值进去
     db_teacher = Teacher(
@@ -28,15 +29,15 @@ def create_teacher(db: Session, teacher: TeacheresUpdata):
 
 # 查询单个老师
 def get_teacher(db: Session, teacher_id: int = None, teacher_name: str = None):
-    teacher = db.query(Teacher).filter(Teacher.is_deleted == False)
+    query = db.query(Teacher).filter(Teacher.is_deleted == False)
     # 按 ID 查询
     if teacher_id is not None:
-        teacher = teacher.filter(Teacher.teacher_id == teacher_id)
+        query = query.filter(Teacher.teacher_id == teacher_id)
     # 按 姓名 查询
     if teacher_name is not None:
-        teacher = teacher.filter(Teacher.teacher_name == teacher_name)
+        query = query.filter(Teacher.teacher_name == teacher_name)
     # 获取单个老师
-    teacher = teacher.first()
+    teacher = query.first()
     # 没查到返回 None
     if not teacher:
         return None
@@ -48,18 +49,6 @@ def get_teacher(db: Session, teacher_id: int = None, teacher_name: str = None):
         "phone": teacher.phone,
         "role": teacher.role
     }
-
-    # teacher = db.query(Teacher).filter(Teacher.teacher_id == teacher_id, Teacher.is_deleted == False).first()
-    # # 如果老师不存在或者已删除
-    # if not teacher:
-    #     return None
-    # return {
-    #     "teacher_id": teacher.teacher_id,
-    #     "teacher_name": teacher.teacher_name,
-    #     "gender": teacher.gender,
-    #     "phone": teacher.phone,
-    #     "role": teacher.role
-    # }  # 返回老师字典信息
 
 
 # 查询所有未删除的老师
@@ -73,7 +62,7 @@ def get_all_teachers(db: Session):
             "role": i.role,
             "gender": i.gender
         } for i in data
-    ]  # 遍历拿到每个老师的数据重新赋值:列表表达式,通过api返回到前端
+    ]  # 遍历拿到每个老师的数据重新赋值:列表表达式[],通过api返回到前端
 
 
 # 修改老师
@@ -84,7 +73,7 @@ def update_teacher(db: Session, teacher_id: int, teacher: TeacheresUpdata):
     if not db_teacher:
         return None
     # 把前端传过来的数据, 更新到数据库对象里
-    for key, value in teacher.model_dump().items():
+    for key, value in teacher.model_dump(exclude_unset=True).items():
         setattr(db_teacher, key, value)
     db.commit()  # 提交保存修改
     db.refresh(db_teacher)  # 刷新数据
@@ -106,6 +95,7 @@ def delete_teacher(db: Session, teacher_id: int):
         db.commit()  # 提交保存
         return True  # 删除成功
     return False  # 不存在
+
 
 # 讲师绑定班级
 def bind_teacher_to_class(db: Session, teacher_id: int, class_ids: list):
@@ -131,6 +121,7 @@ def bind_teacher_to_class(db: Session, teacher_id: int, class_ids: list):
     db.refresh(teacher)  # 刷新讲师对象，获取最新关联数据
     return teacher
 
+
 # 讲师解绑班级
 def unbind_teacher_from_class(db: Session, teacher_id: int, class_id: int):
     # 1. 查询讲师是否存在（未删除）
@@ -142,12 +133,12 @@ def unbind_teacher_from_class(db: Session, teacher_id: int, class_id: int):
     if not teacher:
         return False
     # 找到要解除的班级
-    target_class = None
-    for cls in teacher.teach_classes:
-        if cls.class_id == class_id and not cls.is_deleted:
-            target_class = cls
-            break
-    if not target_class:
+    target_class = db.query(Class).filter(
+        Class.class_id == class_id,
+        Class.is_deleted == False,
+    ).first()
+    # 如果这个班级没有在关联的中间表里
+    if target_class not in teacher.teach_classes:
         return False
     # 从讲师的班级列表中移除该班级
     teacher.teach_classes.remove(target_class)
