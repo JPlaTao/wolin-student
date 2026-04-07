@@ -2,6 +2,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import HTMLResponse
+
 from database import engine, Base
 from api import (
     student_api,
@@ -49,9 +51,19 @@ app.include_router(statistics_api.router)
 app.include_router(query_agent.router)
 app.include_router(auth_api.router)   # 认证路由
 
-@app.get("/")
+
+@app.get("/", response_class=HTMLResponse)
 def root():
-    return {"message": "学生管理系统运行成功！访问 /docs 查看接口，前端请访问 /static/index.html"}
+    return """
+    <!DOCTYPE html>
+    <html>
+    <body>
+        <h1>学生管理系统运行成功！</h1>
+        <p><a href="/docs" target="_blank">Swagger 文档</a></p>
+        <p><a href="/static/index.html" target="_blank">前端界面</a></p>
+    </body>
+    </html>
+    """
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=8080)
+    uvicorn.run(app, host='127.0.0.1', port=8080)
