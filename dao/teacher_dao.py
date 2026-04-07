@@ -96,6 +96,7 @@ def delete_teacher(db: Session, teacher_id: int):
         return True  # 删除成功
     return False  # 不存在
 
+
 # 讲师绑定班级
 def bind_teacher_to_class(db: Session, teacher_id: int, class_ids: list):
     # 1. 查询讲师是否存在（未删除）
@@ -120,6 +121,7 @@ def bind_teacher_to_class(db: Session, teacher_id: int, class_ids: list):
     db.refresh(teacher)  # 刷新讲师对象，获取最新关联数据
     return teacher
 
+
 # 讲师解绑班级
 def unbind_teacher_from_class(db: Session, teacher_id: int, class_id: int):
     # 1. 查询讲师是否存在（未删除）
@@ -131,12 +133,12 @@ def unbind_teacher_from_class(db: Session, teacher_id: int, class_id: int):
     if not teacher:
         return False
     # 找到要解除的班级
-    target_class = None
-    for cls in teacher.teach_classes:
-        if cls.class_id == class_id and not cls.is_deleted:
-            target_class = cls
-            break
-    if not target_class:
+    target_class = db.query(Class).filter(
+        Class.class_id == class_id,
+        Class.is_deleted == False,
+    ).first()
+    # 如果这个班级没有在关联的中间表里
+    if target_class not in teacher.teach_classes:
         return False
     # 从讲师的班级列表中移除该班级
     teacher.teach_classes.remove(target_class)
