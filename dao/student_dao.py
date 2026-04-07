@@ -2,6 +2,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from model.student import StuBasicInfo
 from model.teachers import Teacher
+from model.class_model import Class
 from schemas.student import StudentCreate
 from fastapi import HTTPException
 
@@ -15,6 +16,16 @@ def is_teacher_counselor(counselor_id,db: Session):
         raise HTTPException(status_code=400, detail=f"教师 ID {counselor_id} 不存在或不是counselor角色")
         # raise ValueError(f"教师 ID {counselor_id} 不存在或不是counselor角色")
 
+# 校验class_id是否存在
+def is_classes_exist(class_id,db: Session):
+    class_ids = db.query(Class.class_id).all()
+    class_id_list = [c[0] for c in class_ids]
+    if class_id not in class_id_list:
+        raise HTTPException(status_code=400, detail=f"班级 ID {class_id} 不存在")
+
+
+
+
 
 #规范返回数据,主要目的是不展示is_deleted字段
 def format_student_data(students_query_result):
@@ -56,54 +67,6 @@ def format_student_data(students_query_result):
         }
 
 
-# 校验老师是否是counselor
-def is_teacher_counselor(counselor_id,db: Session):
-    counselor_ids = db.query(Teacher.teacher_id).filter(
-        Teacher.role == 'counselor'
-    ).all()
-    counselor_id_list = [c[0] for c in counselor_ids]
-    if counselor_id not in counselor_id_list:
-        raise ValueError(f"教师 ID {counselor_id} 不存在或不是counselor角色")
-
-
-#规范返回数据,主要目的是不展示is_deleted字段
-def format_student_data(students_query_result):
-    # 判断是否是列表（多条数据）
-    if isinstance(students_query_result, list):
-        # 多条数据：转换成列表套字典
-        return [
-            {
-                "stu_id": i.stu_id,
-                "stu_name": i.stu_name,
-                "class_id": i.class_id,
-                "native_place": i.native_place,
-                "graduated_school": i.graduated_school,
-                "major": i.major,
-                "admission_date": i.admission_date,
-                "graduation_date": i.graduation_date,
-                "education": i.education,
-                "advisor_id": i.advisor_id,
-                "age": i.age,
-                "gender": i.gender
-            }
-            for i in students_query_result
-        ]
-    else:
-        # 单条数据：转换成字典
-        return {
-            "stu_id": students_query_result.stu_id,
-            "stu_name": students_query_result.stu_name,
-            "class_id": students_query_result.class_id,
-            "native_place": students_query_result.native_place,
-            "graduated_school": students_query_result.graduated_school,
-            "major": students_query_result.major,
-            "admission_date": students_query_result.admission_date,
-            "graduation_date": students_query_result.graduation_date,
-            "education": students_query_result.education,
-            "advisor_id": students_query_result.advisor_id,
-            "age": students_query_result.age,
-            "gender": students_query_result.gender
-        }
 
 
 
@@ -117,6 +80,8 @@ def create_student(
 ):
     # 校验老师是否是counselor
     is_teacher_counselor(new_student_data.advisor_id, db)
+    # 校验班级是否存在
+    is_classes_exist(new_student_data.class_id, db)
     """创建新学生"""
     # 将传入的数据转换为数据库模型
     new_student = StuBasicInfo(
@@ -181,7 +146,9 @@ def update_student(db: Session, stu_id: int, update_data):
         if update_data.stu_name is not None:
             result.stu_name = update_data.stu_name
         if update_data.class_id is not None:
+            is_classes_exist(update_data.class_id,db)
             result.class_id = update_data.class_id
+
         if update_data.native_place is not None:
             result.native_place = update_data.native_place
         if update_data.graduated_school is not None:
