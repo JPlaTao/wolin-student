@@ -1,6 +1,9 @@
 import os
 import re
 import asyncio
+import uuid
+import json
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -12,30 +15,25 @@ from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
 
 from database import get_db
+from dao.conversation_dao import save_turn, get_recent_turns, get_turn_count, get_latest_turn, get_previous_sql_turn
 
-# 加载环境变量
 load_dotenv()
 
-# 创建子路由
 router = APIRouter(prefix="/query", tags=["自然语言查询"])
 
-# 异步 OpenAI 客户端（用于 DeepSeek API）
 client = AsyncOpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com"
 )
 
-# 尝试加载向量知识库
+# ---------- 向量知识库 ----------
 vectordb = None
 try:
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
         print("警告: 未设置 DASHSCOPE_API_KEY，知识库功能不可用")
     else:
-        embeddings = DashScopeEmbeddings(
-            model="text-embedding-v3",
-            dashscope_api_key=api_key
-        )
+        embeddings = DashScopeEmbeddings(model="text-embedding-v3", dashscope_api_key=api_key)
         if os.path.exists("./chroma_db") and os.path.isdir("./chroma_db"):
             vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
             print("向量知识库加载成功")
@@ -44,214 +42,489 @@ try:
 except Exception as e:
     print(f"向量知识库加载失败: {e}")
 
-# 请求体模型
+# ---------- 请求模型 ----------
 class QueryRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None
+    include_history: bool = True
 
-# 数据库结构描述（明确表名均为单数，并加入重要规则）
-SCHEMA_DESC = """
-数据库表结构（注意：所有表名均为单数形式，不要使用复数）：
-1. teacher (教师表)
-   - teacher_id INT 主键
-   - teacher_name VARCHAR
-   - gender VARCHAR
-   - phone VARCHAR
-   - role VARCHAR (counselor/headteacher/lecturer)
-   - is_deleted BOOLEAN (0=未删除)
-
-2. class (班级表)
-   - class_id INT 主键
-   - class_name VARCHAR
-   - start_time DATETIME
-   - head_teacher_id INT 外键 -> teacher.teacher_id
-   - is_deleted BOOLEAN
-
-3. stu_basic_info (学生表)   -- 注意不是 students
-   - stu_id INT 主键
-   - stu_name VARCHAR
-   - native_place, graduated_school, major, admission_date, graduation_date, education, age, gender
-   - advisor_id INT 外键 -> teacher.teacher_id
-   - class_id INT 外键 -> class.class_id
-   - is_deleted BOOLEAN
-
-4. stu_exam_record (成绩表)
-   - stu_id INT 外键 -> stu_basic_info.stu_id
-   - seq_no INT (考核序次)
-   - grade INT (0-100)
-   - exam_date DATE
-   - is_deleted INT (0=未删除, 1=已删除)
-
-5. employment (就业表)
-   - emp_id INT 主键
-   - stu_id INT 外键 -> stu_basic_info.stu_id
-   - stu_name VARCHAR (冗余)
-   - class_id INT
-   - open_time DATE
-   - offer_time DATE
-   - company VARCHAR
-   - salary FLOAT
-   - is_deleted BOOLEAN
+# ---------- 备用表结构 ----------
+FALLBACK_SCHEMA = """
+数据库表结构（简化版）：
+- teacher: teacher_id, teacher_name, gender, phone, role, is_deleted (BOOLEAN)
+- class: class_id, class_name, start_time, head_teacher_id, is_deleted (BOOLEAN)
+- stu_basic_info: stu_id, stu_name, native_place, graduated_school, major, admission_date, graduation_date, education, age, gender, advisor_id, class_id, is_deleted (BOOLEAN)
+- stu_exam_record: stu_id, seq_no, grade, exam_date, is_deleted (INT, 0=未删除)
+- employment: emp_id, stu_id, stu_name, class_id, open_time, offer_time, company, salary, is_deleted (BOOLEAN)
 
 重要规则：
-- 所有查询必须过滤 is_deleted = 0 或 False（根据字段类型）
-- 成绩表的 is_deleted 是 INT，所以用 is_deleted = 0
-- 只生成 SELECT 语句，禁止 UPDATE/DELETE/INSERT/DROP
-- 表名和字段名使用反引号包裹
-- 返回的列名使用英文别名，便于前端解析
-- 表名是单数形式：teacher, class, stu_basic_info, stu_exam_record, employment
-
-常见问题示例：
-- 问：老师有多少人？ 答：SELECT COUNT(*) AS count FROM teacher WHERE is_deleted = 0;
-- 问：学生总数？ 答：SELECT COUNT(*) AS total FROM stu_basic_info WHERE is_deleted = 0;
-- 问：每个班级的平均分？ 答：SELECT c.class_name, AVG(e.grade) AS avg_grade FROM class c JOIN stu_basic_info s ON c.class_id = s.class_id JOIN stu_exam_record e ON s.stu_id = e.stu_id WHERE c.is_deleted = 0 AND s.is_deleted = 0 AND e.is_deleted = 0 GROUP BY c.class_id;
-- 问：年龄最大的学生？ 答：SELECT stu_name, age FROM stu_basic_info WHERE is_deleted = 0 ORDER BY age DESC LIMIT 1;
-- 问：薪资最高的前五名学生？ 答：SELECT stu_name, salary FROM employment WHERE is_deleted = 0 ORDER BY salary DESC LIMIT 5;
+- 所有查询必须过滤 is_deleted = 0 或 False（成绩表用 is_deleted = 0）
+- 表名均为单数形式，不要使用复数
+- 只生成 SELECT 语句
 """
 
-def classify_intent(question: str):
-    """根据用户问题中的关键词判断意图：knowledge、sql、chat"""
-    knowledge_keywords = ["为什么", "什么原因", "解释", "说明", "含义", "规则", "定义", "不准", "误差", "限制", "注意"]
+# ---------- 辅助函数 ----------
+def fix_table_names(sql: str) -> str:
+    sql = re.sub(r'\bteachers\b', 'teacher', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'\bstudents\b', 'stu_basic_info', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'\bcourses\b', 'class', sql, flags=re.IGNORECASE)
+    return sql
+
+async def similarity_search_async(vectordb, query: str, k: int = 3):
+    def _sync():
+        return vectordb.similarity_search(query, k=k)
+    return await asyncio.to_thread(_sync)
+
+async def retrieve_schema_context(vectordb) -> str:
+    if vectordb is None:
+        return FALLBACK_SCHEMA
+    try:
+        docs = await similarity_search_async(vectordb, "数据库表结构 字段定义 表名", k=2)
+        if docs:
+            context = "\n\n".join([doc.page_content for doc in docs])
+            return context[:4000]
+    except Exception as e:
+        print(f"检索表结构失败: {e}")
+    return FALLBACK_SCHEMA
+
+def summarize_result(data: List[dict], max_sample_rows: int = 3, full_save: bool = False) -> str:
+    """
+    生成结果摘要或完整数据JSON。
+    如果 full_save=True，则返回完整JSON（注意可能很大）。
+    否则返回摘要（包含 row_count, sample, statistics）。
+    """
+    if not data:
+        return json.dumps({"row_count": 0, "sample": []})
+    if full_save:
+        # 完整保存，直接序列化全部数据（可能很大，但用户要求）
+        return json.dumps(data, ensure_ascii=False, default=str)
+    else:
+        row_count = len(data)
+        sample = data[:max_sample_rows]
+        stats = {}
+        for key in data[0].keys():
+            if isinstance(data[0].get(key), (int, float)):
+                values = [row.get(key) for row in data if row.get(key) is not None]
+                if values:
+                    stats[key] = {"avg": sum(values)/len(values), "min": min(values), "max": max(values)}
+        summary = {"row_count": row_count, "sample": sample, "statistics": stats}
+        return json.dumps(summary, ensure_ascii=False, default=str)
+
+# ---------- 意图分类 ----------
+INTENT_CLASSIFICATION_PROMPT = """
+你是一个意图分类助手。根据对话历史和当前用户问题，判断用户意图。
+
+历史对话（最近5轮）：
+{history}
+
+当前问题：{question}
+
+意图选项（只输出一个单词）：
+- sql: 用户需要从数据库查询具体数据（如“查询成绩”、“统计人数”、“列出学生”）
+- analysis: 用户希望进行数据分析、解释原因、对比趋势（如“为什么成绩低”、“分析就业率变化”）
+- chat: 其他日常闲聊、问候、无关问题
+
+意图：
+"""
+
+async def classify_intent_llm(question: str, history_text: str = "") -> str:
+    if history_text:
+        prompt = INTENT_CLASSIFICATION_PROMPT.format(history=history_text, question=question)
+    else:
+        prompt = f"意图选项：sql / analysis / chat\n用户问题：{question}\n意图："
+    try:
+        resp = await client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=10
+        )
+        intent = resp.choices[0].message.content.strip().lower()
+        if intent in ["sql", "analysis", "chat"]:
+            return intent
+    except Exception as e:
+        print(f"LLM意图分类失败: {e}，降级到关键词匹配")
+    # 降级关键词
+    knowledge_keywords = ["为什么", "什么原因", "解释", "说明", "含义", "规则", "定义", "分析", "分布", "趋势", "对比"]
     if any(kw in question for kw in knowledge_keywords):
-        return "knowledge"
+        return "analysis"
     sql_keywords = ["查询", "多少", "几个", "平均", "最高", "最低", "排名", "列表", "统计", "每个", "各个", "薪资", "年龄", "成绩", "学生", "班级", "老师", "就业", "考试"]
     if any(kw in question for kw in sql_keywords):
         return "sql"
     return "chat"
 
-def fix_table_names(sql: str) -> str:
-    """修正大模型常见的表名错误（复数→单数）"""
-    # 注意：替换时要避免误伤（如字段名包含这些词）
-    sql = re.sub(r'\bteachers\b', 'teacher', sql, flags=re.IGNORECASE)
-    sql = re.sub(r'\bstudents\b', 'stu_basic_info', sql, flags=re.IGNORECASE)
-    sql = re.sub(r'\bcourses\b', 'class', sql, flags=re.IGNORECASE)
-    sql = re.sub(r'\benrollments\b', 'enrollment', sql, flags=re.IGNORECASE)
-    # 如果模型错误使用了 courses，但你的系统中没有 enrollments 表，可以忽略或替换为正确表
-    return sql
+# ---------- SQL 历史引用检测 ----------
+SQL_REFERENCE_CHECK_PROMPT = """
+你是一个判断助手。根据对话历史和当前问题，判断用户是否想要**基于上一轮查询结果**进行新的查询。
+上一轮查询可能提供了一些过滤条件（如班级名称、时间范围等），用户可能希望复用这些条件。
 
-async def generate_sql(question: str, retry: bool = False) -> str:
-    """异步调用大模型生成 SQL 语句"""
-    system_msg = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。注意表名都是单数形式（teacher, class, stu_basic_info, stu_exam_record, employment）。"
+对话历史（最近2轮）：
+{history}
+
+当前问题：{question}
+
+判断规则：
+- 如果用户明确提到“刚才”、“上一轮”、“再查一下”、“同样的”、“也”、“那个”、“再次”、“同样”等词，或者明显引用上一轮的结果（如“那个班的就业率”），返回 "YES"。
+- 否则返回 "NO"。
+
+只输出 YES 或 NO。
+"""
+
+async def check_sql_reference(question: str, history_text: str) -> str:
+    prompt = SQL_REFERENCE_CHECK_PROMPT.format(history=history_text, question=question)
+    try:
+        resp = await client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=10
+        )
+        result = resp.choices[0].message.content.strip().upper()
+        if result in ["YES", "NO"]:
+            return result
+    except Exception as e:
+        print(f"SQL引用检测失败: {e}")
+    # 降级关键词
+    reference_keywords = ["刚才", "上一轮", "再查", "同样的", "也", "那个", "再次", "同样", "这个班", "那个班"]
+    if any(kw in question for kw in reference_keywords):
+        return "YES"
+    return "NO"
+
+# ---------- SQL 生成 ----------
+async def generate_sql(question: str, vectordb, retry: bool = False, previous_sql: Optional[str] = None) -> str:
+    system = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。表名都是单数。"
     if retry:
-        system_msg += " 上一次生成的SQL执行失败，请修正。只输出修正后的SQL语句。"
-    response = await client.chat.completions.create(
+        system += " 上一次生成的SQL执行失败，请修正。只输出修正后的SQL语句。"
+    schema = await retrieve_schema_context(vectordb)
+    user = f"数据库结构：\n{schema}\n\n用户问题：{question}\n输出SQL："
+    if previous_sql:
+        user = f"上一轮用户执行的SQL是：\n{previous_sql}\n\n用户现在的问题可能希望复用其中的过滤条件。\n\n数据库结构：\n{schema}\n\n用户问题：{question}\n输出SQL："
+    resp = await client.chat.completions.create(
         model="deepseek-chat",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": f"根据以下数据库结构：\n{SCHEMA_DESC}\n\n用户问题：{question}\n请输出SQL语句："}
-        ],
+        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         temperature=0.1,
     )
-    sql = response.choices[0].message.content.strip()
+    sql = resp.choices[0].message.content.strip()
     sql = re.sub(r'^```sql\s*', '', sql)
     sql = re.sub(r'\s*```$', '', sql)
-    sql = fix_table_names(sql)   # 自动修正表名
-    return sql
+    return fix_table_names(sql)
 
-async def execute_sql_to_dict(db: Session, sql: str, params: dict = None):
-    """异步执行 SQL 并返回字典列表（线程池包装）"""
-    def _sync_execute():
-        result = db.execute(text(sql), params or {})
+async def execute_sql_to_dict(db: Session, sql: str):
+    def _sync():
+        result = db.execute(text(sql))
         rows = result.fetchall()
         if not rows:
             return []
-        columns = result.keys()
-        return [dict(zip(columns, row)) for row in rows]
-    return await asyncio.to_thread(_sync_execute)
+        return [dict(zip(result.keys(), row)) for row in rows]
+    return await asyncio.to_thread(_sync)
 
-async def similarity_search_async(vectordb, query: str, k: int = 3):
-    """异步执行向量检索"""
-    def _sync_search():
-        return vectordb.similarity_search(query, k=k)
-    return await asyncio.to_thread(_sync_search)
+# ---------- 聚合 SQL 生成 ----------
+AGGREGATE_SQL_PROMPT = """
+你是一个SQL专家。根据以下表结构，为数据分析需求生成一条聚合查询。
 
+要求：
+- 只输出SELECT语句，使用聚合函数（COUNT, AVG, SUM, GROUP BY等）
+- 返回行数不超过20行
+- 必须过滤 is_deleted = 0
+- 如果原始查询涉及特定范围，请在WHERE中体现
+
+表结构：
+{schema}
+
+用户分析需求：{question}
+原始查询描述（若有）：{original_desc}
+
+输出SQL：
+"""
+
+async def generate_aggregate_sql(question: str, original_desc: str, vectordb) -> Optional[str]:
+    schema = await retrieve_schema_context(vectordb)
+    prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question, original_desc=original_desc)
+    try:
+        resp = await client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        sql = resp.choices[0].message.content.strip()
+        sql = re.sub(r'^```sql\s*', '', sql)
+        sql = re.sub(r'\s*```$', '', sql)
+        if sql.lower().startswith("select"):
+            return fix_table_names(sql)
+    except Exception as e:
+        print(f"生成聚合SQL失败: {e}")
+    return None
+
+# ---------- 数据分析精炼 ----------
+ANALYSIS_REFINE_PROMPT = """
+你是一个数据分析专家，请对以下初步分析结果进行精简和规范化。
+
+要求：
+- 删除重复的句子或观点
+- 合并相似结论
+- 去掉无意义的填充词（如“总的来说”、“首先呢”、“那么”等）
+- 保留关键数据、原因、建议
+- 输出结构：结论 → 数据支撑 → 可能原因 → 建议
+
+原始分析结果：
+{raw_analysis}
+
+请输出精炼后的最终回答：
+"""
+
+async def refine_analysis(raw_analysis: str) -> str:
+    prompt = ANALYSIS_REFINE_PROMPT.format(raw_analysis=raw_analysis)
+    try:
+        resp = await client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        refined = resp.choices[0].message.content.strip()
+        return refined
+    except Exception as e:
+        print(f"精炼分析失败: {e}，返回原始结果")
+        return raw_analysis
+
+# ---------- 主接口 ----------
 @router.post("/natural")
 async def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
-    """
-    自然语言查询主接口（异步版本）
-    根据意图分流：知识库问答、SQL 数据查询、闲聊
-    """
     question = req.question
-    intent = classify_intent(question)
+    session_id = req.session_id
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        print(f"警告: 未提供 session_id，已生成新会话: {session_id}。后续请求请携带此ID以维持多轮记忆。")
+    include_history = req.include_history
 
-    # 1. 知识库问题（RAG）
-    if intent == "knowledge":
-        context = ""
-        if vectordb is not None:
-            try:
-                docs = await similarity_search_async(vectordb, question, k=3)
-                context = "\n\n".join([doc.page_content for doc in docs])
-                print(f"向量检索到 {len(docs)} 个片段")
-            except Exception as e:
-                print(f"向量检索失败: {e}")
+    # 获取历史记忆（用于意图分类和闲聊/分析）
+    history_turns = get_recent_turns(db, session_id, limit=5) if include_history else []
+    print(f"会话 {session_id} 历史记录数: {len(history_turns)}")
+    history_text = ""
+    for turn in history_turns:
+        if turn.result_summary:
+            summary_preview = turn.result_summary[:200]
         else:
-            # 回退：异步读取 docs 目录下的所有文本文件
-            docs_content = ""
-            docs_dir = "docs"
-            if os.path.exists(docs_dir):
-                for filename in os.listdir(docs_dir):
-                    if filename.endswith(".md") or filename.endswith(".txt"):
-                        filepath = os.path.join(docs_dir, filename)
-                        try:
-                            def _read():
-                                with open(filepath, "r", encoding="utf-8") as f:
-                                    return f.read()
-                            content = await asyncio.to_thread(_read)
-                            docs_content += content + "\n\n"
-                        except Exception as e:
-                            print(f"读取 {filename} 失败: {e}")
-            context = docs_content[:20000] if docs_content else "暂无文档。"
+            summary_preview = turn.answer_text[:200] if turn.answer_text else ""
+        history_text += f"用户: {turn.question}\n系统: {summary_preview}\n"
 
-        # 调用大模型，基于文档回答
-        try:
-            response = await client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "你是一个严格基于文档的问答助手。你必须只根据下面「文档内容」中的信息回答用户问题。如果文档内容中没有明确的答案，请直接回复「根据现有文档，无法回答该问题」。不要使用你自己的知识补充任何内容。"},
-                    {"role": "user", "content": f"文档内容：\n{context}\n\n用户问题：{question}"}
-                ],
-                temperature=0.1,
-            )
-            answer = response.choices[0].message.content
-            return {"type": "answer", "question": question, "answer": answer}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"AI 回答失败: {str(e)}")
+    # 意图分类
+    intent = await classify_intent_llm(question, history_text)
+    print(f"意图分类结果: {intent}")
 
-    # 2. SQL 数据查询
-    elif intent == "sql":
+    turn_index = get_turn_count(db, session_id) + 1
+
+    # ---------- SQL 分支 ----------
+    if intent == "sql":
+        # 检查是否需要引用上一轮SQL
+        need_reference = False
+        previous_sql_turn = None
+        if history_turns:
+            # 获取上一轮有SQL的记录（可能不是最新一轮，但通常是）
+            previous_sql_turn = get_previous_sql_turn(db, session_id)
+            if previous_sql_turn and previous_sql_turn.sql_query:
+                # 只取最近2轮历史用于判断
+                recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
+                ref_history = "\n".join([f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
+                reference_check = await check_sql_reference(question, ref_history)
+                need_reference = (reference_check == "YES")
+                print(f"SQL引用检测结果: {reference_check}")
+
         try:
-            sql = await generate_sql(question, retry=False)
+            if need_reference and previous_sql_turn and previous_sql_turn.sql_query:
+                sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql_turn.sql_query)
+            else:
+                sql = await generate_sql(question, vectordb, retry=False)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"AI 生成 SQL 失败: {str(e)}")
+            raise HTTPException(500, f"生成SQL失败: {e}")
 
         if not sql.strip().lower().startswith("select"):
-            raise HTTPException(status_code=400, detail="只能生成 SELECT 查询")
+            raise HTTPException(400, "只能生成SELECT语句")
 
         try:
             data = await execute_sql_to_dict(db, sql)
-            return {"type": "sql", "question": question, "sql": sql, "data": data, "count": len(data)}
+            row_count = len(data)
+            # 判断是否全量保存：行数<=100 且 JSON序列化后长度<=2000
+            full_save = (row_count <= 100) and (len(json.dumps(data, default=str)) <= 2000)
+            if full_save:
+                result_summary = summarize_result(data, full_save=True)
+                answer_text = f"查询成功，共{row_count}条记录。"
+            else:
+                result_summary = summarize_result(data, full_save=False)  # 摘要
+                answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问“分析这些数据”。"
+            save_turn(db, session_id, turn_index, question, sql_query=sql, result_summary=result_summary, answer_text=answer_text, full_data_saved=full_save)
+            if full_save:
+                return {
+                    "type": "sql",
+                    "session_id": session_id,
+                    "turn_index": turn_index,
+                    "sql": sql,
+                    "data": data,
+                    "count": row_count,
+                    "full_data_saved": True
+                }
+            else:
+                # 返回前10行样本
+                sample_data = data[:10]
+                return {
+                    "type": "sql",
+                    "session_id": session_id,
+                    "turn_index": turn_index,
+                    "sql": sql,
+                    "data_truncated": True,
+                    "sample_data": sample_data,
+                    "message": answer_text,
+                    "full_data_saved": False
+                }
         except Exception as e:
-            # 第一次执行失败，尝试修正
+            # 重试一次
             try:
-                sql_corrected = await generate_sql(question, retry=True)
-                if not sql_corrected.strip().lower().startswith("select"):
-                    raise HTTPException(status_code=400, detail="修正后的 SQL 仍然不是 SELECT 语句")
-                data = await execute_sql_to_dict(db, sql_corrected)
-                return {"type": "sql", "question": question, "sql": sql_corrected, "data": data, "count": len(data)}
+                sql_corrected = await generate_sql(question, vectordb, retry=True)
+                data2 = await execute_sql_to_dict(db, sql_corrected)
+                row_count2 = len(data2)
+                full_save2 = (row_count2 <= 100) and (len(json.dumps(data2, default=str)) <= 2000)
+                if full_save2:
+                    result_summary2 = summarize_result(data2, full_save=True)
+                    answer_text2 = f"查询成功，共{row_count2}条记录。"
+                else:
+                    result_summary2 = summarize_result(data2, full_save=False)
+                    answer_text2 = f"数据量较大（共{row_count2}行），已为您存储分析标记。"
+                save_turn(db, session_id, turn_index, question, sql_query=sql_corrected, result_summary=result_summary2, answer_text=answer_text2, full_data_saved=full_save2)
+                if full_save2:
+                    return {
+                        "type": "sql",
+                        "session_id": session_id,
+                        "turn_index": turn_index,
+                        "sql": sql_corrected,
+                        "data": data2,
+                        "count": row_count2,
+                        "full_data_saved": True
+                    }
+                else:
+                    return {
+                        "type": "sql",
+                        "session_id": session_id,
+                        "turn_index": turn_index,
+                        "sql": sql_corrected,
+                        "data_truncated": True,
+                        "sample_data": data2[:10],
+                        "message": answer_text2,
+                        "full_data_saved": False
+                    }
             except Exception as e2:
-                raise HTTPException(status_code=500, detail=f"SQL 执行失败: {str(e)}\n原始 SQL: {sql}\n修正后 SQL: {sql_corrected}")
+                raise HTTPException(500, f"SQL执行失败: {str(e)}\n原始SQL: {sql}\n修正SQL: {sql_corrected}")
 
-    # 3. 闲聊
-    else:
+    # ---------- 数据分析分支 ----------
+    elif intent == "analysis":
+        # 读取最近5轮历史（用于上下文）
+        analysis_history = get_recent_turns(db, session_id, limit=5) if include_history else []
+        # 获取上一轮（最新一轮）数据
+        latest_turn = get_latest_turn(db, session_id)
+        data_context = ""
+        aggregate_sql_used = None
+        need_aggregate = False
+
+        # 判断是否需要上一轮数据：如果用户问题包含“这些数据”、“刚才的结果”等，则默认需要；否则也可以不需要
+        # 简化：如果上一轮存在且有 result_summary，则尝试使用
+        if latest_turn and latest_turn.result_summary:
+            try:
+                if latest_turn.full_data_saved:
+                    # 全量保存，直接读取完整数据
+                    full_data = json.loads(latest_turn.result_summary)
+                    data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{json.dumps(full_data, ensure_ascii=False, indent=2)[:5000]}\n"
+                else:
+                    # 非全量，尝试生成聚合SQL
+                    need_aggregate = True
+                    # 从摘要中获取原始问题描述
+                    original_desc = latest_turn.question
+                    aggregate_sql = await generate_aggregate_sql(question, original_desc, vectordb)
+                    if aggregate_sql:
+                        agg_data = await execute_sql_to_dict(db, aggregate_sql)
+                        agg_summary = summarize_result(agg_data, full_save=False)
+                        data_context = f"根据您的分析需求，自动生成的聚合数据：\n{agg_summary}\n"
+                        aggregate_sql_used = aggregate_sql
+                    else:
+                        data_context = "上一轮查询数据量较大，无法直接分析，且自动生成聚合SQL失败。请提出更具体的统计需求（例如：按分数段统计人数）。\n"
+            except Exception as e:
+                data_context = f"读取上一轮数据失败：{str(e)}\n"
+        else:
+            data_context = "未找到上一轮的数据。请先执行一次SQL查询，再进行分析。\n"
+
+        # 知识库检索
+        knowledge_context = ""
+        if vectordb:
+            docs = await similarity_search_async(vectordb, question, k=3)
+            if docs:
+                knowledge_context = "\n\n".join([doc.page_content for doc in docs])[:3000]
+
+        # 构建历史文本（最近5轮）
+        hist_text = ""
+        for turn in analysis_history:
+            hist_text += f"用户: {turn.question}\n系统: {turn.answer_text[:200] if turn.answer_text else ''}\n"
+
+        # 第一轮：粗分析
+        analysis_prompt = f"""
+你是一个数据分析专家。请**严格基于以下提供的数据**回答用户的分析问题。不要编造数据。
+
+【提供的数据】
+{data_context}
+
+【参考分析指南】
+{knowledge_context}
+
+【历史对话记录（仅供参考）】
+{hist_text}
+
+【用户问题】
+{question}
+
+请给出清晰的分析结论、可能的原因和建议。如果数据不足，请明确指出缺少哪些数据，而不是给出通用回答。
+"""
         try:
-            response = await client.chat.completions.create(
+            resp_raw = await client.chat.completions.create(
                 model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "你是一个友好的助手，可以和学生管理系统相关的用户闲聊。回答要简洁、自然、有趣。"},
-                    {"role": "user", "content": question}
-                ],
+                messages=[{"role": "user", "content": analysis_prompt}],
+                temperature=0.5,
+            )
+            raw_answer = resp_raw.choices[0].message.content
+            # 第二轮：精炼
+            refined_answer = await refine_analysis(raw_answer)
+            answer = refined_answer
+            # 保存记录（注意：result_summary 这里存储的是数据上下文摘要，但为了节省空间，可以只存聚合SQL或标记）
+            save_turn(db, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used, full_data_saved=False)
+            return {
+                "type": "answer",
+                "session_id": session_id,
+                "turn_index": turn_index,
+                "answer": answer,
+                "raw_analysis": raw_answer  # 可选，调试用
+            }
+        except Exception as e:
+            raise HTTPException(500, f"分析失败: {str(e)}")
+
+    # ---------- 闲聊分支 ----------
+    else:
+        # 读取最近5轮历史
+        chat_history = get_recent_turns(db, session_id, limit=5) if include_history else []
+        chat_history_text = ""
+        for turn in chat_history:
+            chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
+        if chat_history_text:
+            chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。如果历史中有相关信息，请引用。\n\n{chat_history_text}\n\n用户最新问题：{question}\n助手："
+        else:
+            chat_prompt = f"用户：{question}\n助手："
+        try:
+            resp = await client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": chat_prompt}],
                 temperature=0.7,
             )
-            answer = response.choices[0].message.content
-            return {"type": "answer", "question": question, "answer": answer}
+            answer = resp.choices[0].message.content
+            save_turn(db, session_id, turn_index, question, answer_text=answer)
+            return {
+                "type": "answer",
+                "session_id": session_id,
+                "turn_index": turn_index,
+                "answer": answer
+            }
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"AI 回答失败: {str(e)}")
+            raise HTTPException(500, f"闲聊失败: {str(e)}")
