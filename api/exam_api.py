@@ -49,3 +49,16 @@ async def exam_delete(
         return response.ResponseBase(data=_return)
 
     raise HTTPException(status_code=400, detail=_return)
+
+
+@router_exam.get("/", response_model=response.ResponseBase, description="查询考试成绩")
+async def exam_get(
+        stu_id: int,
+        seq_no: Optional[int] = None,
+        db: Session = Depends(get_db)
+):
+    _return = exam_dao.exam_get(stu_id, seq_no, db)
+    if _return["msg"] == "success":
+        return response.ResponseBase(data=_return)
+
+    raise HTTPException(status_code=400, detail=_return)
