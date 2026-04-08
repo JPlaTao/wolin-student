@@ -375,6 +375,26 @@ INSERT INTO stu_exam_record (stu_id, seq_no, grade, exam_date, is_deleted) VALUE
 (50, 1, 89, '2024-08-01', 0);
 
 -- ============================================
+-- 7. 创建会话表 给会话功能提供历史会话记录
+-- ============================================
+
+create table wolin_test1.conversation_memory
+(
+	id int auto_increment comment '自增主键'
+		primary key,
+	session_id varchar(64) not null comment '会话ID，用于区分不同用户/对话',
+	turn_index int not null comment '轮次序号，同一会话内递增',
+	question text not null comment '用户提问的原文',
+	sql_query text null comment '生成的SQL语句（仅SQL意图时有值）',
+	result_summary text null comment '查询结果摘要（JSON格式）或完整数据（当full_data_saved=True时）',
+	answer_text text null comment '最终返回给用户的回答文本',
+	full_data_saved tinyint(1) null comment '是否完整保存了查询结果数据（True=完整，False=仅摘要）',
+	aggregate_sql text null comment '数据分析分支自动生成的聚合SQL（仅当需要聚合时）',
+	embedding_vector json null comment '问题的向量表示（预留）',
+	created_at datetime default 'now()' null comment '记录创建时间'
+);
+
+-- ============================================
 -- 数据插入完成
 -- ============================================
 
