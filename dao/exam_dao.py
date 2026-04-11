@@ -107,3 +107,28 @@ def exam_delete(
         return f"'{stu_id=}' & '{seq_no=}' -> {cnt} rows deleted"
     else:
         return f"'{stu_id=}' & '{seq_no=}' not found"
+
+
+def exam_get(
+        stu_id: int,
+        seq_no: int | None,
+        db: Session
+):
+    _query = db.query(StuExamRecord).filter(
+            and_(
+                StuExamRecord.is_deleted == 0,
+                StuExamRecord.stu_id == stu_id
+            )
+    )
+
+    if seq_no is not None:
+        _query = _query.filter(StuExamRecord.seq_no == seq_no).first()
+        data = {"stu_id": _query.stu_id, "seq_no": _query.seq_no, "grade": _query.grade, "exam_date": _query.exam_date}
+    else:
+        _query = _query.all()
+        data = [ {"stu_id": i.stu_id, "seq_no": i.seq_no, "grade": i.grade, "exam_date": i.exam_date} for i in _query ]
+
+    if data:
+        return {"msg": "success", "data": data}
+    else:
+        return {"msg": f"'{stu_id=}' & '{seq_no=}' not found"}

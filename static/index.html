@@ -101,7 +101,7 @@
             <!-- 智能问答 -->
             <div v-if="activeTab === 'query'" class="max-w-4xl mx-auto">
                 <div class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 overflow-hidden flex flex-col h-[75vh] shadow-2xl">
-                    <div class="p-4 border-b border-slate-700 bg-slate-800/60"><h2 class="text-xl font-semibold text-white"><i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手</h2><p class="text-slate-400 text-sm mt-1">支持自然语言查询数据，也可以问业务问题</p></div>
+                    <div class="p-4 border-b border-slate-700 bg-slate-800/60"><h2 class="text-xl font-semibold text-white"><i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手</h2><p class="text-slate-400 text-sm mt-1">支持自然语言查询数据，也可以问业务问题（支持多轮对话记忆）</p></div>
                     <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
                         <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
                             <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-slate-200'" class="max-w-[80%] px-4 py-2 shadow-md">
@@ -137,7 +137,7 @@
             <!-- 数据管理 -->
             <div v-if="activeTab === 'management'" class="space-y-6">
                 <el-tabs v-model="mgmtTab" class="custom-tabs">
-                    <!-- 学生管理（无改动） -->
+                    <!-- 学生管理 -->
                     <el-tab-pane label="学生管理" name="student">
                         <div class="mb-4 flex flex-wrap gap-4 items-end">
                             <el-input v-model="studentSearch.name" placeholder="学生姓名" style="width: 180px" clearable @clear="loadStudents" @keyup.enter="loadStudents"></el-input>
@@ -160,7 +160,7 @@
                         </el-table>
                     </el-tab-pane>
 
-                    <!-- 班级管理（无改动） -->
+                    <!-- 班级管理 -->
                     <el-tab-pane label="班级管理" name="class">
                         <div class="mb-4 flex justify-end"><el-button type="success" @click="openClassDialog(null)"><i class="fas fa-plus"></i> 新增班级</el-button></div>
                         <el-table :data="classes" stripe v-loading="mgmtLoading">
@@ -174,7 +174,7 @@
                         </el-table>
                     </el-tab-pane>
 
-                    <!-- 教师管理（无改动） -->
+                    <!-- 教师管理 -->
                     <el-tab-pane label="教师管理" name="teacher">
                         <div class="mb-4 flex justify-end"><el-button type="success" @click="openTeacherDialog(null)"><i class="fas fa-plus"></i> 新增教师</el-button></div>
                         <el-table :data="teachers" stripe v-loading="mgmtLoading">
@@ -189,7 +189,7 @@
                         </el-table>
                     </el-tab-pane>
 
-                    <!-- 成绩管理（优化：移除编辑选中/删除选中按钮，新增成绩维护弹窗） -->
+                    <!-- 成绩管理 -->
                     <el-tab-pane label="成绩管理" name="exam">
                         <div class="mb-4 flex flex-wrap gap-4 items-center">
                             <el-button type="success" @click="openExamDialog(null)"><i class="fas fa-plus"></i> 新增成绩</el-button>
@@ -212,7 +212,7 @@
                         </el-table>
                     </el-tab-pane>
 
-                    <!-- 就业管理（移除选中编辑/删除按钮，保留行内操作） -->
+                    <!-- 就业管理 -->
                     <el-tab-pane label="就业管理" name="employment">
                         <div class="mb-4 flex flex-wrap gap-4 items-end">
                             <el-input v-model="empSearch.stu_name" placeholder="学生姓名" style="width: 180px" clearable @clear="loadEmploymentData" @keyup.enter="loadEmploymentData"></el-input>
@@ -221,7 +221,6 @@
                             </el-select>
                             <el-button type="primary" @click="loadEmploymentData"><i class="fas fa-search"></i> 查询</el-button>
                             <el-button type="success" @click="openEmploymentDialog(null)"><i class="fas fa-plus"></i> 新增就业</el-button>
-                            <!-- 编辑选中 & 删除选中 按钮已移除 -->
                         </div>
                         <el-table :data="employmentRecords" stripe v-loading="empLoading" @current-change="handleEmploymentSelection" highlight-current-row>
                             <el-table-column prop="stu_id" label="学号" width="80"></el-table-column>
@@ -240,7 +239,7 @@
                     </el-tab-pane>
                 </el-tabs>
 
-                <!-- 学生表单（无改动） -->
+                <!-- 学生表单 -->
                 <el-dialog v-model="studentDialogVisible" title="学生信息" width="600px">
                     <el-form :model="studentForm" label-width="120px" :rules="studentRules" ref="studentFormRef">
                         <el-form-item label="姓名" prop="stu_name"><el-input v-model="studentForm.stu_name"></el-input></el-form-item>
@@ -258,7 +257,7 @@
                     <template #footer><el-button @click="studentDialogVisible = false">取消</el-button><el-button type="primary" @click="saveStudent">保存</el-button></template>
                 </el-dialog>
 
-                <!-- 班级表单（无改动） -->
+                <!-- 班级表单 -->
                 <el-dialog v-model="classDialogVisible" title="班级信息" width="500px">
                     <el-form :model="classForm" label-width="120px">
                         <el-form-item label="班级名称"><el-input v-model="classForm.class_name"></el-input></el-form-item>
@@ -268,7 +267,7 @@
                     <template #footer><el-button @click="classDialogVisible = false">取消</el-button><el-button type="primary" @click="saveClass">保存</el-button></template>
                 </el-dialog>
 
-                <!-- 教师表单（无改动） -->
+                <!-- 教师表单 -->
                 <el-dialog v-model="teacherDialogVisible" title="教师信息" width="500px">
                     <el-form :model="teacherForm" label-width="100px">
                         <el-form-item label="姓名"><el-input v-model="teacherForm.teacher_name"></el-input></el-form-item>
@@ -279,7 +278,7 @@
                     <template #footer><el-button @click="teacherDialogVisible = false">取消</el-button><el-button type="primary" @click="saveTeacher">保存</el-button></template>
                 </el-dialog>
 
-                <!-- 成绩表单（新增/编辑） -->
+                <!-- 成绩表单 -->
                 <el-dialog v-model="examDialogVisible" :title="examForm.id ? '编辑成绩' : '新增成绩'" width="500px">
                     <el-form :model="examForm" label-width="100px">
                         <el-form-item label="学生" prop="stu_id" required>
@@ -294,7 +293,7 @@
                     <template #footer><el-button @click="examDialogVisible = false">取消</el-button><el-button type="primary" @click="saveExam">保存</el-button></template>
                 </el-dialog>
 
-                <!-- 成绩维护弹窗：先查询，再修改或删除 -->
+                <!-- 成绩维护弹窗 -->
                 <el-dialog v-model="examMaintenanceDialogVisible" title="成绩维护（查询后操作）" width="550px" @close="resetExamMaintenance">
                     <el-form :model="examQueryForm" label-width="100px">
                         <el-form-item label="学号" required>
@@ -319,7 +318,7 @@
                     </template>
                 </el-dialog>
 
-                <!-- 内嵌修改成绩子对话框（维护弹窗内二次编辑） -->
+                <!-- 内嵌修改成绩子对话框 -->
                 <el-dialog v-model="maintenanceEditDialogVisible" title="修改成绩" width="450px">
                     <el-form :model="maintenanceEditForm" label-width="100px">
                         <el-form-item label="成绩"><el-input v-model.number="maintenanceEditForm.grade" type="number"></el-input></el-form-item>
@@ -331,7 +330,7 @@
                     </template>
                 </el-dialog>
 
-                <!-- 就业表单（新增/编辑） -->
+                <!-- 就业表单 -->
                 <el-dialog v-model="employmentDialogVisible" :title="employmentForm.emp_id ? '编辑就业信息' : '新增就业信息'" width="500px">
                     <el-form :model="employmentForm" label-width="100px">
                         <el-form-item label="学生" prop="stu_id" required>
@@ -355,7 +354,7 @@
     const { ElMessage } = ElementPlus;
     const app = createApp({
         setup() {
-            // 认证部分 (与原代码一致，无改动)
+            // 认证部分
             const isLoggedIn = ref(false);
             const authMode = ref('login');
             const authUsername = ref('');
@@ -363,10 +362,13 @@
             const activeTab = ref('dashboard');
             const mgmtTab = ref('student');
             const dashboard = ref({ studentCount: 0, classCount: 0, avgAge: 0, employmentRate: 0, topSalary: [] });
-            const chatMessages = ref([{ id: 1, role: 'ai', type: 'text', content: '✨ 你好！我是智能助手，可以问数据问题（如“学生有多少人？”或“李芳老师有多少个学生？”）或业务问题。' }]);
+            const chatMessages = ref([{ id: 1, role: 'ai', type: 'text', content: '✨ 你好！我是智能助手，可以问数据问题（如“学生有多少人？”或“李芳老师有多少个学生？”）或业务问题。我也支持多轮对话记忆，可以基于上下文连续提问。' }]);
             const currentQuestion = ref('');
             const isLoading = ref(false);
             const chatContainer = ref(null);
+
+            // 多轮对话记忆核心：保存后端返回的 session_id
+            const currentSessionId = ref(null);
 
             // 数据管理
             const mgmtLoading = ref(false);
@@ -382,7 +384,6 @@
             const examForm = ref({ stu_id: '', seq_no: '', grade: '', exam_date: '' });
             let editingExamKey = null;
             const selectedExam = ref(null);
-            // 成绩维护弹窗相关
             const examMaintenanceDialogVisible = ref(false);
             const examQueryForm = ref({ stu_id: '', seq_no: '' });
             const queriedExamData = ref({ found: false, grade: null, exam_date: null, notFoundMsg: '' });
@@ -416,20 +417,59 @@
 
             // 辅助函数
             const setAuthToken = (token) => { if (token) axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; else delete axios.defaults.headers.common['Authorization']; };
-            const submitAuth = async () => { /* 与原相同，省略保持简洁 */ try { if (authMode.value === 'login') { const res = await axios.post('/auth/login', { username: authUsername.value, password: authPassword.value }); localStorage.setItem('access_token', res.data.access_token); setAuthToken(res.data.access_token); isLoggedIn.value = true; await refreshDashboard(); await loadManagementData(); } else { await axios.post('/auth/register', { username: authUsername.value, password: authPassword.value }); ElMessage.success('注册成功，请登录'); authMode.value = 'login'; } } catch (err) { ElMessage.error(err.response?.data?.detail || '操作失败'); } };
-            const logout = () => { localStorage.removeItem('access_token'); setAuthToken(null); isLoggedIn.value = false; };
-            const checkLogin = () => { const token = localStorage.getItem('access_token'); if (token) { setAuthToken(token); isLoggedIn.value = true; } };
+
+            // 重置会话ID (登录/登出时调用)
+            const resetSessionId = () => {
+                currentSessionId.value = null;
+            };
+
+            const submitAuth = async () => {
+                try {
+                    if (authMode.value === 'login') {
+                        const res = await axios.post('/auth/login', { username: authUsername.value, password: authPassword.value });
+                        localStorage.setItem('access_token', res.data.access_token);
+                        setAuthToken(res.data.access_token);
+                        isLoggedIn.value = true;
+                        resetSessionId(); // 登录成功后重置会话，开启全新对话
+                        await refreshDashboard();
+                        await loadManagementData();
+                    } else {
+                        await axios.post('/auth/register', { username: authUsername.value, password: authPassword.value });
+                        ElMessage.success('注册成功，请登录');
+                        authMode.value = 'login';
+                    }
+                } catch (err) {
+                    ElMessage.error(err.response?.data?.detail || '操作失败');
+                }
+            };
+
+            const logout = () => {
+                localStorage.removeItem('access_token');
+                setAuthToken(null);
+                isLoggedIn.value = false;
+                resetSessionId(); // 退出登录重置会话ID
+            };
+
+            const checkLogin = () => {
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    setAuthToken(token);
+                    isLoggedIn.value = true;
+                    resetSessionId(); // 已登录但未开始对话，重置ID
+                }
+            };
+
             const loadDashboardData = async () => { try { const res = await axios.get('/statistics/dashboard'); const data = res.data.data; dashboard.value = { studentCount: data.total_students, classCount: data.total_classes, avgAge: data.avg_age, employmentRate: data.employment_rate, topSalary: data.top_salary }; } catch (err) { console.error(err); } };
-            const renderDashboardCharts = async () => { /* 省略，与原相同 */ try { const genderRes = await axios.get('/statistics/classes/gender-stat'); const scoreRes = await axios.get('/statistics/advanced/class-avg-score-rank'); await nextTick(); if (genderChart) genderChart.dispose(); if (scoreChart) scoreChart.dispose(); genderChart = echarts.init(document.getElementById('genderChart')); scoreChart = echarts.init(document.getElementById('scoreChart')); genderChart.setOption({ tooltip: { trigger: 'axis' }, legend: { data: ['男生', '女生'], textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: genderRes.data.data.map(c => c.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '人数' }, series: [{ name: '男生', type: 'bar', data: genderRes.data.data.map(c => c.male), color: '#3b82f6' }, { name: '女生', type: 'bar', data: genderRes.data.data.map(c => c.female), color: '#ec489a' }] }); scoreChart.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: scoreRes.data.data.map(d => d.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series: [{ type: 'bar', data: scoreRes.data.data.map(d => d.avg_score), color: '#10b981' }] }); } catch (err) { console.error(err); } };
+            const renderDashboardCharts = async () => { try { const genderRes = await axios.get('/statistics/classes/gender-stat'); const scoreRes = await axios.get('/statistics/advanced/class-avg-score-rank'); await nextTick(); if (genderChart) genderChart.dispose(); if (scoreChart) scoreChart.dispose(); genderChart = echarts.init(document.getElementById('genderChart')); scoreChart = echarts.init(document.getElementById('scoreChart')); genderChart.setOption({ tooltip: { trigger: 'axis' }, legend: { data: ['男生', '女生'], textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: genderRes.data.data.map(c => c.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '人数' }, series: [{ name: '男生', type: 'bar', data: genderRes.data.data.map(c => c.male), color: '#3b82f6' }, { name: '女生', type: 'bar', data: genderRes.data.data.map(c => c.female), color: '#ec489a' }] }); scoreChart.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: scoreRes.data.data.map(d => d.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series: [{ type: 'bar', data: scoreRes.data.data.map(d => d.avg_score), color: '#10b981' }] }); } catch (err) { console.error(err); } };
             const refreshDashboard = async () => { await loadDashboardData(); await renderDashboardCharts(); };
-            const renderAdvancedCharts = async () => { /* 同原逻辑，无改动 */ try { const [salaryRes, durationRes, examSeqRes] = await Promise.all([axios.get('/statistics/advanced/salary-distribution'), axios.get('/statistics/employment/avg-duration-per-class'), axios.get('/statistics/score/class-avg-per-exam')]); await nextTick(); if (salaryChart) salaryChart.dispose(); if (durationChart) durationChart.dispose(); if (examSeqChart) examSeqChart.dispose(); salaryChart = echarts.init(document.getElementById('salaryDistChart')); durationChart = echarts.init(document.getElementById('durationChart')); examSeqChart = echarts.init(document.getElementById('examSeqChart')); salaryChart.setOption({ tooltip: { trigger: 'item' }, legend: { textStyle: { color: '#ccc' } }, series: [{ type: 'pie', radius: '55%', data: salaryRes.data.data.map(d => ({ name: d.range, value: d.count })), label: { color: '#fff' } }] }); durationChart.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: durationRes.data.data.map(d => d.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '天数' }, series: [{ type: 'line', data: durationRes.data.data.map(d => d.avg_duration_days), smooth: true, lineStyle: { color: '#f59e0b', width: 3 } }] }); const data = examSeqRes.data.data; const exams = Object.keys(data); const classNames = [...new Set(exams.flatMap(e => data[e].map(c => c.class_name)))]; const series = classNames.map(cn => ({ name: cn, type: 'line', data: exams.map(e => { const item = data[e].find(d => d.class_name === cn); return item ? item.avg_grade : null; }), smooth: true })); examSeqChart.setOption({ tooltip: { trigger: 'axis' }, legend: { data: classNames, textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: exams, axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series }); } catch (err) { console.error(err); } };
+            const renderAdvancedCharts = async () => { try { const [salaryRes, durationRes, examSeqRes] = await Promise.all([axios.get('/statistics/advanced/salary-distribution'), axios.get('/statistics/employment/avg-duration-per-class'), axios.get('/statistics/score/class-avg-per-exam')]); await nextTick(); if (salaryChart) salaryChart.dispose(); if (durationChart) durationChart.dispose(); if (examSeqChart) examSeqChart.dispose(); salaryChart = echarts.init(document.getElementById('salaryDistChart')); durationChart = echarts.init(document.getElementById('durationChart')); examSeqChart = echarts.init(document.getElementById('examSeqChart')); salaryChart.setOption({ tooltip: { trigger: 'item' }, legend: { textStyle: { color: '#ccc' } }, series: [{ type: 'pie', radius: '55%', data: salaryRes.data.data.map(d => ({ name: d.range, value: d.count })), label: { color: '#fff' } }] }); durationChart.setOption({ tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: durationRes.data.data.map(d => d.class_name), axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '天数' }, series: [{ type: 'line', data: durationRes.data.data.map(d => d.avg_duration_days), smooth: true, lineStyle: { color: '#f59e0b', width: 3 } }] }); const data = examSeqRes.data.data; const exams = Object.keys(data); const classNames = [...new Set(exams.flatMap(e => data[e].map(c => c.class_name)))]; const series = classNames.map(cn => ({ name: cn, type: 'line', data: exams.map(e => { const item = data[e].find(d => d.class_name === cn); return item ? item.avg_grade : null; }), smooth: true })); examSeqChart.setOption({ tooltip: { trigger: 'axis' }, legend: { data: classNames, textStyle: { color: '#ccc' } }, xAxis: { type: 'category', data: exams, axisLabel: { rotate: 30, color: '#aaa' } }, yAxis: { type: 'value', name: '平均分' }, series }); } catch (err) { console.error(err); } };
 
             const loadManagementData = async () => { mgmtLoading.value = true; try { const [studentRes, classRes, teacherRes] = await Promise.all([axios.get('/students'), axios.get('/class/'), axios.get('/teacher/all')]); const rawStudents = studentRes.data.data || []; const classDict = classRes.data.data || {}; classes.value = Object.values(classDict).map(c => ({ ...c, head_teacher_name: c.head_teacher_name || '未知' })); const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name])); students.value = rawStudents.map(s => ({ ...s, class_name: classMap.get(s.class_id) || `班级${s.class_id}` })); teachers.value = teacherRes.data.data || []; teacherOptions.value = teachers.value; headTeacherOptions.value = teachers.value.filter(t => t.role === 'headteacher'); } catch (err) { ElMessage.error('加载管理数据失败'); } finally { mgmtLoading.value = false; } };
             const loadStudents = async () => { mgmtLoading.value = true; try { const params = {}; if (studentSearch.value.name) params.stu_name = studentSearch.value.name; if (studentSearch.value.class_id) params.class_id = studentSearch.value.class_id; const res = await axios.get('/students', { params }); const rawStudents = res.data.data || []; const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name])); students.value = rawStudents.map(s => ({ ...s, class_name: classMap.get(s.class_id) || `班级${s.class_id}` })); } catch (err) { ElMessage.error('查询学生失败'); } finally { mgmtLoading.value = false; } };
-            const openStudentDialog = (row) => { /* 与原相同 */ if (row) { editingStudentId = row.stu_id; studentForm.value = { ...row, advisor_id: row.advisor_id || null }; } else { editingStudentId = null; studentForm.value = { stu_name: '', native_place: '', graduated_school: '', major: '', admission_date: '', graduation_date: '', education: '本科', age: '', gender: '男', class_id: '', advisor_id: null }; } studentDialogVisible.value = true; };
+            const openStudentDialog = (row) => { if (row) { editingStudentId = row.stu_id; studentForm.value = { ...row, advisor_id: row.advisor_id || null }; } else { editingStudentId = null; studentForm.value = { stu_name: '', native_place: '', graduated_school: '', major: '', admission_date: '', graduation_date: '', education: '本科', age: '', gender: '男', class_id: '', advisor_id: null }; } studentDialogVisible.value = true; };
             const saveStudent = async () => { try { if (editingStudentId) await axios.put(`/students/${editingStudentId}`, studentForm.value); else await axios.post('/students/', studentForm.value); await loadStudents(); studentDialogVisible.value = false; ElMessage.success(editingStudentId ? '学生信息更新成功！' : '学生新增成功！'); } catch (err) { ElMessage.error('保存失败'); } };
             const deleteStudent = async (id) => { if (confirm('确定删除该学生？')) { await axios.delete(`/students/${id}`); await loadStudents(); ElMessage.success('学生删除成功！'); } };
-            const openClassDialog = (row) => { /* 略同原 */ if (row) { editingClassId = row.class_id; classForm.value = { class_name: row.class_name, head_teacher_id: row.head_teacher_id, start_time: row.start_time }; } else { editingClassId = null; classForm.value = { class_name: '', head_teacher_id: '', start_time: '' }; } classDialogVisible.value = true; };
+            const openClassDialog = (row) => { if (row) { editingClassId = row.class_id; classForm.value = { class_name: row.class_name, head_teacher_id: row.head_teacher_id, start_time: row.start_time }; } else { editingClassId = null; classForm.value = { class_name: '', head_teacher_id: '', start_time: '' }; } classDialogVisible.value = true; };
             const saveClass = async () => { try { if (editingClassId) await axios.put(`/class/${editingClassId}`, classForm.value); else await axios.post('/class/', classForm.value); await loadManagementData(); classDialogVisible.value = false; ElMessage.success(editingClassId ? '班级信息更新成功！' : '班级新增成功！'); } catch (err) { ElMessage.error('保存失败'); } };
             const deleteClass = async (id) => { if (confirm('确定删除该班级？')) { await axios.delete(`/class/${id}`); await loadManagementData(); ElMessage.success('班级删除成功！'); } };
             const openTeacherDialog = (row) => { if (row) { editingTeacherId = row.teacher_id; teacherForm.value = { ...row }; } else { editingTeacherId = null; teacherForm.value = { teacher_name: '', gender: '男', role: 'lecturer', phone: '' }; } teacherDialogVisible.value = true; };
@@ -440,42 +480,85 @@
             const openExamDialog = (row) => { if (row) { editingExamKey = { stu_id: row.stu_id, seq_no: row.seq_no }; examForm.value = { stu_id: row.stu_id, seq_no: row.seq_no, grade: row.grade, exam_date: row.exam_date }; } else { editingExamKey = null; examForm.value = { stu_id: '', seq_no: '', grade: '', exam_date: '' }; } examDialogVisible.value = true; };
             const saveExam = async () => { try { if (editingExamKey) { await axios.put('/exam/', examForm.value, { params: { stu_id: editingExamKey.stu_id, seq_no: editingExamKey.seq_no } }); ElMessage.success('成绩更新成功！'); } else { await axios.post('/exam/', examForm.value); ElMessage.success('成绩新增成功！'); } await loadExamRecords(); examDialogVisible.value = false; } catch (err) { ElMessage.error('操作失败'); } };
             const deleteExam = async (row) => { if (confirm(`确定删除学生 ${row.stu_name} 第 ${row.seq_no} 次考试成绩吗？`)) { try { await axios.delete(`/exam/${row.stu_id}`, { params: { seq_no: row.seq_no } }); ElMessage.success('成绩删除成功！'); await loadExamRecords(); if (selectedExam.value === row) selectedExam.value = null; } catch (err) { ElMessage.error('删除失败'); } } };
-
-            // 成绩维护弹窗逻辑
-            const openExamMaintenanceDialog = () => {
-                examQueryForm.value = { stu_id: selectedExam.value?.stu_id || '', seq_no: selectedExam.value?.seq_no || '' };
-                queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '' };
-                examMaintenanceDialogVisible.value = true;
-            };
-            const queryExamRecord = async () => {
-                if (!examQueryForm.value.stu_id || !examQueryForm.value.seq_no) { ElMessage.warning('请填写学号和考试序号'); return; }
-                examQueryLoading.value = true;
-                try {
-                    const res = await axios.get('/exam/records');
-                    const records = res.data.data || [];
-                    const target = records.find(r => r.stu_id === examQueryForm.value.stu_id && r.seq_no === examQueryForm.value.seq_no);
-                    if (target) {
-                        queriedExamData.value = { found: true, grade: target.grade, exam_date: target.exam_date, notFoundMsg: '' };
-                        currentQueryKey = { stu_id: target.stu_id, seq_no: target.seq_no };
-                    } else { queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '未找到该学生的考试记录，请检查学号和序号' }; }
-                } catch (err) { ElMessage.error('查询失败'); } finally { examQueryLoading.value = false; }
-            };
+            const openExamMaintenanceDialog = () => { examQueryForm.value = { stu_id: selectedExam.value?.stu_id || '', seq_no: selectedExam.value?.seq_no || '' }; queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '' }; examMaintenanceDialogVisible.value = true; };
+            const queryExamRecord = async () => { if (!examQueryForm.value.stu_id || !examQueryForm.value.seq_no) { ElMessage.warning('请填写学号和考试序号'); return; } examQueryLoading.value = true; try { const res = await axios.get('/exam/records'); const records = res.data.data || []; const target = records.find(r => r.stu_id === examQueryForm.value.stu_id && r.seq_no === examQueryForm.value.seq_no); if (target) { queriedExamData.value = { found: true, grade: target.grade, exam_date: target.exam_date, notFoundMsg: '' }; currentQueryKey = { stu_id: target.stu_id, seq_no: target.seq_no }; } else { queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '未找到该学生的考试记录，请检查学号和序号' }; } } catch (err) { ElMessage.error('查询失败'); } finally { examQueryLoading.value = false; } };
             const openMaintenanceEditForm = () => { if (!queriedExamData.value.found) return; maintenanceEditForm.value = { grade: queriedExamData.value.grade, exam_date: queriedExamData.value.exam_date }; maintenanceEditDialogVisible.value = true; };
             const submitMaintenanceUpdate = async () => { try { await axios.put('/exam/', { grade: maintenanceEditForm.value.grade, exam_date: maintenanceEditForm.value.exam_date }, { params: { stu_id: currentQueryKey.stu_id, seq_no: currentQueryKey.seq_no } }); ElMessage.success('修改成功'); await loadExamRecords(); examMaintenanceDialogVisible.value = false; maintenanceEditDialogVisible.value = false; } catch (err) { ElMessage.error('修改失败'); } };
             const deleteQueriedExam = async () => { if (!queriedExamData.value.found) return; if (confirm(`确定删除学号 ${currentQueryKey.stu_id} 第 ${currentQueryKey.seq_no} 次成绩吗？`)) { try { await axios.delete(`/exam/${currentQueryKey.stu_id}`, { params: { seq_no: currentQueryKey.seq_no } }); ElMessage.success('删除成功'); await loadExamRecords(); examMaintenanceDialogVisible.value = false; } catch (err) { ElMessage.error('删除失败'); } } };
             const resetExamMaintenance = () => { queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '' }; currentQueryKey = null; };
-
-            // 就业管理
             const loadEmploymentData = async () => { empLoading.value = true; try { const res = await axios.get('/employment/query'); let rawData = res.data.data || []; let filteredData = rawData; if (empSearch.value.class_id) filteredData = filteredData.filter(emp => emp.class_id === Number(empSearch.value.class_id)); if (empSearch.value.stu_name) filteredData = filteredData.filter(emp => emp.stu_name && emp.stu_name.includes(empSearch.value.stu_name.trim())); const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name])); employmentRecords.value = filteredData.map(emp => ({ ...emp, class_name: classMap.get(emp.class_id) || `班级${emp.class_id}` })); } catch (err) { ElMessage.error('加载就业数据失败'); } finally { empLoading.value = false; } };
             const handleEmploymentSelection = (row) => { selectedEmployment.value = row; };
             const openEmploymentDialog = (row) => { if (row) { editingEmploymentId = row.emp_id; employmentForm.value = { emp_id: row.emp_id, stu_id: row.stu_id, company: row.company, salary: row.salary, offer_time: row.offer_time }; } else { editingEmploymentId = null; employmentForm.value = { emp_id: null, stu_id: '', company: '', salary: '', offer_time: '' }; } employmentDialogVisible.value = true; };
             const saveEmployment = async () => { try { if (editingEmploymentId) await axios.put(`/employment/students/${employmentForm.value.stu_id}`, { company: employmentForm.value.company, salary: employmentForm.value.salary, offer_time: employmentForm.value.offer_time }); else await axios.post('/employment/', { stu_id: employmentForm.value.stu_id, company: employmentForm.value.company, salary: employmentForm.value.salary, offer_time: employmentForm.value.offer_time }); ElMessage.success(editingEmploymentId ? '更新成功' : '新增成功'); await loadEmploymentData(); employmentDialogVisible.value = false; } catch (err) { ElMessage.error('操作失败'); } };
             const deleteEmployment = async (row) => { if (confirm(`确定删除学生 ${row.stu_name} 的就业记录吗？`)) { try { await axios.delete(`/employment/delete/${row.emp_id}`); ElMessage.success('删除成功'); await loadEmploymentData(); if (selectedEmployment.value === row) selectedEmployment.value = null; } catch (err) { ElMessage.error('删除失败'); } } };
-            const sendQuestion = async () => { /* 原逻辑不变，略 */ if (!currentQuestion.value.trim()) return; const question = currentQuestion.value; chatMessages.value.push({ id: Date.now(), role: 'user', type: 'text', content: question }); currentQuestion.value = ''; isLoading.value = true; await nextTick(); if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight; try { const res = await axios.post('/query/natural', { question }); const result = res.data; if (result.type === 'sql') { const data = result.data; const count = result.count; let formattedContent = ''; let isSingleValue = false; if (count === 0) formattedContent = '未查询到相关数据。'; else if (count === 1 && Object.keys(data[0]).length === 1) { const key = Object.keys(data[0])[0]; let value = data[0][key]; isSingleValue = true; formattedContent = `${key}：${value}`; } else { let tableHtml = '<table class="result-table"><thead><tr>'; const headers = Object.keys(data[0]); headers.forEach(h => { tableHtml += `<th>${h}</th>`; }); tableHtml += '</tr></thead><tbody>'; data.slice(0, 10).forEach(row => { tableHtml += '<tr>'; headers.forEach(h => { tableHtml += `<td>${row[h]}</td>`; }); tableHtml += '</tr>'; }); tableHtml += '</tbody></table>'; if (count > 10) tableHtml += `<p class="text-xs text-slate-400 mt-2">共 ${count} 条记录，仅显示前 10 条。</p>`; formattedContent = tableHtml; } chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'sql', content: formattedContent, sql: result.sql, isSingleValue }); } else { chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'text', content: result.answer }); } } catch (err) { chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'text', content: `错误：${err.response?.data?.detail || err.message}` }); } finally { isLoading.value = false; await nextTick(); if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight; } };
+
+            // 智能问答核心方法（支持多轮记忆）
+            const sendQuestion = async () => {
+                if (!currentQuestion.value.trim()) return;
+                const question = currentQuestion.value;
+                chatMessages.value.push({ id: Date.now(), role: 'user', type: 'text', content: question });
+                currentQuestion.value = '';
+                isLoading.value = true;
+                await nextTick();
+                if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                try {
+                    // 构建请求体，如果已有 session_id 则携带以实现多轮记忆
+                    const payload = { question };
+                    if (currentSessionId.value) {
+                        payload.session_id = currentSessionId.value;
+                    }
+                    const res = await axios.post('/query/natural', payload);
+
+                    // 处理后端返回的 session_id，保存用于后续对话
+                    if (res.data && res.data.session_id) {
+                        currentSessionId.value = res.data.session_id;
+                    } else if (res.data && res.data.data && res.data.data.session_id) {
+                        currentSessionId.value = res.data.data.session_id;
+                    }
+
+                    const result = res.data;
+                    if (result.type === 'sql') {
+                        const data = result.data;
+                        const count = result.count;
+                        let formattedContent = '';
+                        let isSingleValue = false;
+                        if (count === 0) formattedContent = '未查询到相关数据。';
+                        else if (count === 1 && Object.keys(data[0]).length === 1) {
+                            const key = Object.keys(data[0])[0];
+                            let value = data[0][key];
+                            isSingleValue = true;
+                            formattedContent = `${key}：${value}`;
+                        } else {
+                            let tableHtml = '<table class="result-table"><thead><tr>';
+                            const headers = Object.keys(data[0]);
+                            headers.forEach(h => { tableHtml += `<th>${h}</th>`; });
+                            tableHtml += '</tr></thead><tbody>';
+                            data.slice(0, 10).forEach(row => {
+                                tableHtml += '<tr>';
+                                headers.forEach(h => { tableHtml += `<td>${row[h]}</td>`; });
+                                tableHtml += '</tr>';
+                            });
+                            tableHtml += '</tbody></table>';
+                            if (count > 10) tableHtml += `<p class="text-xs text-slate-400 mt-2">共 ${count} 条记录，仅显示前 10 条。</p>`;
+                            formattedContent = tableHtml;
+                        }
+                        chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'sql', content: formattedContent, sql: result.sql, isSingleValue });
+                    } else {
+                        chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'text', content: result.answer });
+                    }
+                } catch (err) {
+                    chatMessages.value.push({ id: Date.now(), role: 'ai', type: 'text', content: `错误：${err.response?.data?.detail || err.message}` });
+                } finally {
+                    isLoading.value = false;
+                    await nextTick();
+                    if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                }
+            };
 
             watch(activeTab, async (newVal) => { if (newVal === 'dashboard') await refreshDashboard(); else if (newVal === 'statistics') await renderAdvancedCharts(); else if (newVal === 'management') { await loadManagementData(); if (mgmtTab.value === 'student') await loadStudents(); else if (mgmtTab.value === 'exam') await loadExamRecords(); else if (mgmtTab.value === 'employment') await loadEmploymentData(); } });
             watch(mgmtTab, async (newTab) => { if (activeTab.value === 'management') { if (newTab === 'student') await loadStudents(); else if (newTab === 'exam') await loadExamRecords(); else if (newTab === 'employment') await loadEmploymentData(); } });
             onMounted(async () => { checkLogin(); if (isLoggedIn.value) { await refreshDashboard(); await loadManagementData(); await loadStudents(); } });
+
             return { isLoggedIn, authMode, authUsername, authPassword, submitAuth, logout, activeTab, mgmtTab, dashboard, chatMessages, currentQuestion, isLoading, sendQuestion, chatContainer, students, classes, teachers, mgmtLoading, studentSearch, loadStudents, studentDialogVisible, classDialogVisible, teacherDialogVisible, studentForm, classForm, teacherForm, studentFormRef, studentRules, openStudentDialog, saveStudent, deleteStudent, openClassDialog, saveClass, deleteClass, openTeacherDialog, saveTeacher, deleteTeacher, teacherOptions, headTeacherOptions, examRecords, examLoading, examDialogVisible, examForm, openExamDialog, saveExam, deleteExam, selectedExam, handleExamSelection, examMaintenanceDialogVisible, examQueryForm, queriedExamData, examQueryLoading, queryExamRecord, openExamMaintenanceDialog, maintenanceEditDialogVisible, maintenanceEditForm, openMaintenanceEditForm, submitMaintenanceUpdate, deleteQueriedExam, resetExamMaintenance, empSearch, employmentRecords, empLoading, loadEmploymentData, selectedEmployment, handleEmploymentSelection, employmentDialogVisible, employmentForm, openEmploymentDialog, saveEmployment, deleteEmployment };
         }
     });
