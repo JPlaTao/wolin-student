@@ -3,7 +3,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from core.database import get_db
 from model.user import User
-from core.auth import get_password_hash, authenticate_user, create_access_token, get_current_user, get_current_admin_user
+from core.auth import (
+    get_password_hash, authenticate_user, create_access_token,
+    get_current_user, get_current_admin_user
+)
+from core.exceptions import (
+    ValidationException, ConflictException, NotFoundException,
+    UnauthorizedException, BusinessException
+)
 from datetime import timedelta
 from typing import Optional
 from utils.logger import get_logger
@@ -45,11 +52,18 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     # 验证角色是否合法
     valid_roles = ["user", "student", "teacher", "admin"]
     if user.role not in valid_roles:
-        raise HTTPException(status_code=400, detail=f"角色必须是以下之一: {', '.join(valid_roles)}")
+        raise ValidationException(
+            message=f"角色必须是以下之一: {', '.join(valid_roles)}",
+            field="role",
+            detail=f"提供的角色 '{user.role}' 不在允许的角色列表中"
+        )
 
     existing = db.query(User).filter(User.username == user.username).first()
     if existing:
-        raise HTTPException(status_code=400, detail="用户名已存在")
+        raise ConflictException(
+            message="用户名已存在",
+            detail="该用户名已被其他用户使用，请选择其他用户名"
+        )
     hashed = get_password_hash(user.password)
     new_user = User(username=user.username, hashed_password=hashed, role=user.role)
     db.add(new_user)
@@ -62,7 +76,10 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 def login(form_data: UserLogin, db: Session = Depends(get_db)):
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+        raise UnauthorizedException(
+            message="用户名或密码错误",
+            detail="请检查用户名和密码是否正确"
+        )
     access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=30))
     return {
         "access_token": access_token,
@@ -106,7 +123,10 @@ def get_user(
     """获取单个用户信息（需要登录）"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise NotFoundException(
+            resource="用户",
+            detail=f"ID为 {user_id} 的用户不存在"
+        )
     return user
 
 
@@ -121,7 +141,10 @@ def update_user(
     """更新用户信息（仅管理员）"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise NotFoundException(
+            resource="用户",
+            detail=f"ID为 {user_id} 的用户不存在"
+        )
 
     if user_update.role is not None:
         user.role = user_update.role
@@ -143,10 +166,16 @@ def delete_user(
     """删除用户（仅管理员）"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise NotFoundException(
+            resource="用户",
+            detail=f"ID为 {user_id} 的用户不存在"
+        )
     
     if user.username == current_user.username:
-        raise HTTPException(status_code=400, detail="不能删除自己的账号")
+        raise BusinessException(
+            message="不能删除自己的账号",
+            detail="不允许删除当前登录的账号"
+        )
     
     db.delete(user)
     db.commit()

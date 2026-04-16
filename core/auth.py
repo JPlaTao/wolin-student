@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from core.database import get_db
 from model.user import User
+from core.exceptions import UnauthorizedException, ForbiddenException, BusinessException
 import os
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
@@ -42,39 +43,46 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="无效的认证凭据",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
-            raise credentials_exception
+            raise UnauthorizedException(
+                message="无效的认证凭据",
+                detail="Token中未包含有效的用户信息"
+            )
     except JWTError:
-        raise credentials_exception
+        raise UnauthorizedException(
+            message="Token无效或已过期",
+            detail="请重新登录以获取有效的访问令牌"
+        )
     user = db.query(User).filter(User.username == username).first()
     if user is None:
-        raise credentials_exception
+        raise UnauthorizedException(
+            message="用户不存在",
+            detail="Token对应的用户不存在，可能已被删除"
+        )
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="用户已被禁用"
+        raise ForbiddenException(
+            message="用户已被禁用",
+            detail="该账号已被管理员禁用，请联系管理员"
         )
     return user
 
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="未激活的用户")
+        raise BusinessException(
+            message="未激活的用户",
+            detail="当前用户账号未激活，请联系管理员"
+        )
     return current_user
 
 
 async def get_current_admin_user(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足，仅管理员可访问"
+        raise ForbiddenException(
+            message="权限不足",
+            detail="仅管理员可访问此资源"
         )
     return current_user

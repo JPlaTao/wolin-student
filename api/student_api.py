@@ -8,6 +8,7 @@ from services import student_service
 from dao import student_dao
 from schemas.student import StudentCreate, StudentUpdate
 from schemas import response
+from core.exceptions import ValidationException, NotFoundException, BusinessException
 from typing import Optional
 from utils.logger import get_logger
 from utils.log_decorators import log_api_call
@@ -86,21 +87,21 @@ def update_student(
             student_service.validate_class_exists(update_data.class_id, db)
         if update_data.advisor_id is not None:
             student_service.validate_counselor(update_data.advisor_id, db)
-        
+
         # 数据操作
         is_update_student = student_dao.update_student(db, stu_id, update_data)
 
         if not is_update_student:
             logger.warning(f"更新失败: 学生 ID={stu_id} 不存在")
-            raise HTTPException(status_code=400, detail="没有这个学生")
+            raise NotFoundException(
+                resource="学生",
+                detail=f"ID为 {stu_id} 的学生不存在"
+            )
 
         return response.ResponseBase(
             data=is_update_student
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"更新学生失败: {str(e)}")
+    except Exception:
         raise
 
 
@@ -118,14 +119,14 @@ def delete_student(
 
         if is_delete_student == '不存在这个学生或已被删除':
             logger.warning(f"删除失败: 学生 ID={stu_id} 不存在或已被删除")
-            raise HTTPException(status_code=400, detail="没有这个学生或已被删除")
-            
+            raise NotFoundException(
+                resource="学生",
+                detail=f"ID为 {stu_id} 的学生不存在或已被删除"
+            )
+
         return response.ResponseBase(
             message=is_delete_student,
             data=None
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"删除学生失败: {str(e)}")
+    except Exception:
         raise

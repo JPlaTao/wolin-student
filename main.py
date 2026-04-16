@@ -18,6 +18,7 @@ from api import (
 from services.knowledge_base import build_knowledge_base
 from utils.logger import get_logger
 from middleware.logging_middleware import LoggingMiddleware, ErrorLoggingMiddleware
+from core.exception_handlers import register_exception_handlers
 
 # 获取日志记录器
 logger = get_logger("main")
@@ -38,6 +39,9 @@ app = FastAPI(
     description="FastAPI + MySQL 学生信息/成绩/就业/统计管理",
     version="1.0.0"
 )
+
+# 注册全局异常处理器（必须在中间件之前注册）
+register_exception_handlers(app)
 
 # 添加日志中间件（需要在 CORS 之前添加）
 app.add_middleware(LoggingMiddleware)
