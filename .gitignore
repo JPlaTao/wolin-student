@@ -40,3 +40,7 @@ pythonVenv/
 
 # Other
 .codebuddy/
+__pycache__/database.cpython-312.pyc
+.idea/misc.xml
+.idea/WolinStudents.iml
+.idea/misc.xml
