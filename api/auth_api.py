@@ -6,8 +6,11 @@ from model.user import User
 from core.auth import get_password_hash, authenticate_user, create_access_token, get_current_user, get_current_admin_user
 from datetime import timedelta
 from typing import Optional
+from utils.logger import get_logger
+from utils.log_decorators import log_api_call
 
 router = APIRouter(prefix="/auth", tags=["认证"])
+logger = get_logger("auth_api")
 
 
 class UserCreate(BaseModel):
@@ -37,6 +40,7 @@ class UserResponse(BaseModel):
 
 
 @router.post("/register")
+@log_api_call("用户注册")
 def register(user: UserCreate, db: Session = Depends(get_db)):
     # 验证角色是否合法
     valid_roles = ["user", "student", "teacher", "admin"]
@@ -54,6 +58,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
+@log_api_call("用户登录")
 def login(form_data: UserLogin, db: Session = Depends(get_db)):
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -68,6 +73,7 @@ def login(form_data: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/me")
+@log_api_call("获取当前用户信息")
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """获取当前登录用户信息"""
     return {
@@ -78,6 +84,7 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/users")
+@log_api_call("获取用户列表")
 def get_users(
     skip: int = 0,
     limit: int = 100,
@@ -90,6 +97,7 @@ def get_users(
 
 
 @router.get("/users/{user_id}")
+@log_api_call("获取用户详情")
 def get_user(
     user_id: int,
     current_user: User = Depends(get_current_user),
@@ -103,6 +111,7 @@ def get_user(
 
 
 @router.put("/users/{user_id}")
+@log_api_call("更新用户信息")
 def update_user(
     user_id: int,
     user_update: UserUpdate,
@@ -125,6 +134,7 @@ def update_user(
 
 
 @router.delete("/users/{user_id}")
+@log_api_call("删除用户")
 def delete_user(
     user_id: int,
     current_user: User = Depends(get_current_admin_user),
