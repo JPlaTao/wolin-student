@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Database
+chroma_db/
+*.sqlite3
+*.sql
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+test_report.json
+
+# Documentation
+*.pdf
+*.pptx
+*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual Environment
+venv/
+env/
+ENV/
+pythonVenv/
+
+# Other
+.codebuddy/
