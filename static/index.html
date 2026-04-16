@@ -113,7 +113,7 @@
                     @click.prevent="activeTab = 'statistics'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'statistics' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
                 >
-                    <i class="fas fa-chart-simple w-5"></i>
+                    <i class="fas fa-chart-bar w-5"></i>
                     <span>高级统计</span>
                 </a>
                 <a
@@ -123,6 +123,15 @@
                 >
                     <i class="fas fa-database w-5"></i>
                     <span>数据管理</span>
+                </a>
+                <a
+                    v-if="isAdmin"
+                    href="#"
+                    @click.prevent="activeTab = 'userManagement'"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'userManagement' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                >
+                    <i class="fas fa-users-cog w-5"></i>
+                    <span>用户管理</span>
                 </a>
             </nav>
 
@@ -233,8 +242,8 @@
             </div>
 
             <!-- 智能问答 -->
-            <div v-if="activeTab === 'query'" class="max-w-4xl mx-auto">
-                <div class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 overflow-hidden flex flex-col h-[75vh] shadow-2xl">
+            <div v-if="activeTab === 'query'" class="h-full flex flex-col">
+                <div class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 overflow-hidden flex flex-col flex-1 shadow-2xl">
                     <div class="p-4 border-b border-slate-700 bg-slate-800/60">
                         <h2 class="text-xl font-semibold text-white">
                             <i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手
@@ -391,51 +400,6 @@
                         </el-table>
                     </el-tab-pane>
 
-                    <!-- 用户管理（新增） -->
-                    <el-tab-pane label="用户管理" name="user">
-                        <div class="mb-4 flex justify-between items-center">
-                            <div class="text-slate-400 text-sm">
-                                <i class="fas fa-info-circle"></i>
-                                <span v-if="isAdmin">管理员模式下，您可以管理所有用户</span>
-                                <span v-else>普通用户模式下，您只能查看用户列表</span>
-                            </div>
-                            <el-button v-if="isAdmin" type="success" @click="openUserDialog(null)">
-                                <i class="fas fa-user-plus"></i> 新增用户
-                            </el-button>
-                        </div>
-                        <el-table :data="users" stripe v-loading="userLoading">
-                            <el-table-column prop="id" label="用户ID" width="80"></el-table-column>
-                            <el-table-column prop="username" label="用户名"></el-table-column>
-                            <el-table-column label="角色" width="120">
-                                <template #default="scope">
-                                    <span :class="['role-tag', getRoleClass(scope.row.role)]">
-                                        {{ getRoleText(scope.row.role) }}
-                                    </span>
-                                </template>
-                            </el-table-column>
-                            <el-table-column label="状态" width="100">
-                                <template #default="scope">
-                                    <div class="status-indicator">
-                                        <span :class="['status-dot', scope.row.is_active ? 'active' : 'inactive']"></span>
-                                        <span>{{ scope.row.is_active ? '启用' : '禁用' }}</span>
-                                    </div>
-                                </template>
-                            </el-table-column>
-                            <el-table-column v-if="isAdmin" label="操作" width="180">
-                                <template #default="scope">
-                                    <el-button size="small" @click="openUserDialog(scope.row)">编辑</el-button>
-                                    <el-button
-                                        size="small"
-                                        type="danger"
-                                        @click="deleteUser(scope.row.id, scope.row.username)"
-                                        :disabled="scope.row.username === currentUser?.username"
-                                    >
-                                        删除
-                                    </el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
-                    </el-tab-pane>
 
                     <!-- 成绩管理 -->
                     <el-tab-pane label="成绩管理" name="exam">
@@ -739,6 +703,82 @@
                     <template #footer>
                         <el-button @click="employmentDialogVisible = false">取消</el-button>
                         <el-button type="primary" @click="saveEmployment">保存</el-button>
+                    </template>
+                </el-dialog>
+            </div>
+
+            <!-- 用户管理（独立页面，仅管理员可见） -->
+            <div v-if="activeTab === 'userManagement'" class="space-y-6">
+                <div class="card-hover rounded-2xl p-5">
+                    <div class="mb-4 flex justify-between items-center">
+                        <h3 class="text-white font-semibold text-lg">
+                            <i class="fas fa-users-cog text-blue-400"></i> 用户管理
+                        </h3>
+                        <el-button type="success" @click="openUserDialog(null)">
+                            <i class="fas fa-user-plus"></i> 新增用户
+                        </el-button>
+                    </div>
+                    <div class="mb-4 text-slate-400 text-sm">
+                        <i class="fas fa-info-circle"></i> 管理员模式下，您可以管理所有系统用户
+                    </div>
+                    <el-table :data="users" stripe v-loading="userLoading">
+                        <el-table-column prop="id" label="用户ID" width="80"></el-table-column>
+                        <el-table-column prop="username" label="用户名"></el-table-column>
+                        <el-table-column label="角色" width="120">
+                            <template #default="scope">
+                                <span :class="['role-tag', getRoleClass(scope.row.role)]">
+                                    {{ getRoleText(scope.row.role) }}
+                                </span>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="状态" width="100">
+                            <template #default="scope">
+                                <div class="status-indicator">
+                                    <span :class="['status-dot', scope.row.is_active ? 'active' : 'inactive']"></span>
+                                    <span>{{ scope.row.is_active ? '启用' : '禁用' }}</span>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        <el-table-column label="操作" width="180">
+                            <template #default="scope">
+                                <el-button size="small" @click="openUserDialog(scope.row)">编辑</el-button>
+                                <el-button
+                                    size="small"
+                                    type="danger"
+                                    @click="deleteUser(scope.row.id, scope.row.username)"
+                                    :disabled="scope.row.username === currentUser?.username"
+                                >
+                                    删除
+                                </el-button>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                </div>
+
+                <!-- 用户表单 -->
+                <el-dialog v-model="userDialogVisible" :title="userForm.id ? '编辑用户' : '新增用户'" width="500px">
+                    <el-form :model="userForm" label-width="100px">
+                        <el-form-item label="用户名">
+                            <el-input v-model="userForm.username" :disabled="!!userForm.id"></el-input>
+                        </el-form-item>
+                        <el-form-item v-if="!userForm.id" label="密码">
+                            <el-input v-model="userForm.password" type="password" placeholder="默认密码: 123456"></el-input>
+                        </el-form-item>
+                        <el-form-item label="角色">
+                            <el-select v-model="userForm.role">
+                                <el-option label="普通用户" value="user"></el-option>
+                                <el-option label="学生" value="student"></el-option>
+                                <el-option label="教师" value="teacher"></el-option>
+                                <el-option label="管理员" value="admin"></el-option>
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="状态">
+                            <el-switch v-model="userForm.is_active" active-text="启用" inactive-text="禁用"></el-switch>
+                        </el-form-item>
+                    </el-form>
+                    <template #footer>
+                        <el-button @click="userDialogVisible = false">取消</el-button>
+                        <el-button type="primary" @click="saveUser">保存</el-button>
                     </template>
                 </el-dialog>
             </div>

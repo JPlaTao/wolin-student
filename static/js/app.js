@@ -1135,7 +1135,8 @@ const app = createApp({
                 if (mgmtTab.value === 'student') await loadStudents();
                 else if (mgmtTab.value === 'exam') await loadExamRecords();
                 else if (mgmtTab.value === 'employment') await loadEmploymentData();
-                else if (mgmtTab.value === 'user') await loadUsers();
+            } else if (newVal === 'userManagement') {
+                await loadUsers();
             }
         });
 
@@ -1144,7 +1145,6 @@ const app = createApp({
                 if (newTab === 'student') await loadStudents();
                 else if (newTab === 'exam') await loadExamRecords();
                 else if (newTab === 'employment') await loadEmploymentData();
-                else if (newTab === 'user') await loadUsers();
             }
         });
 
