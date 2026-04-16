@@ -1,34 +1,11 @@
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from model.student import StuBasicInfo
-from model.teachers import Teacher
-from model.class_model import Class
 from schemas.student import StudentCreate
-from fastapi import HTTPException
-
-# 校验老师是否是counselor
-def is_teacher_counselor(counselor_id,db: Session):
-    counselor_ids = db.query(Teacher.teacher_id).filter(
-        Teacher.role == 'counselor'
-    ).all()
-    counselor_id_list = [c[0] for c in counselor_ids]
-    if counselor_id not in counselor_id_list:
-        raise HTTPException(status_code=400, detail=f"教师 ID {counselor_id} 不存在或不是counselor角色")
-        # raise ValueError(f"教师 ID {counselor_id} 不存在或不是counselor角色")
-
-# 校验class_id是否存在
-def is_classes_exist(class_id,db: Session):
-    class_ids = db.query(Class.class_id).all()
-    class_id_list = [c[0] for c in class_ids]
-    if class_id not in class_id_list:
-        raise HTTPException(status_code=400, detail=f"班级 ID {class_id} 不存在")
 
 
-
-
-
-#规范返回数据,主要目的是不展示is_deleted字段
 def format_student_data(students_query_result):
+    """规范返回数据,主要目的是不展示is_deleted字段"""
     # 判断是否是列表（多条数据）
     if isinstance(students_query_result, list):
         # 多条数据：转换成列表套字典
@@ -67,23 +44,13 @@ def format_student_data(students_query_result):
         }
 
 
-
-
-
-# 1、创建新学生记录（学生编号、学生班级、学生姓名、籍贯、毕业院校、专业、入学时间、毕业时间、学历、
-# 顾问编号、年龄、性别）
-
-# new_student_data 要声明类型
 def create_student(
-        new_student_data: StudentCreate,
-        db: Session
+        db: Session,
+        new_student_data: StudentCreate
 ):
-    # 校验老师是否是counselor
-    is_teacher_counselor(new_student_data.advisor_id, db)
-    # 校验班级是否存在
-    is_classes_exist(new_student_data.class_id, db)
-    """创建新学生"""
-    # 将传入的数据转换为数据库模型
+    """
+    创建新学生记录（纯数据操作，不包含业务校验）
+    """
     new_student = StuBasicInfo(
         stu_name=new_student_data.stu_name,
         class_id=new_student_data.class_id,
@@ -104,12 +71,12 @@ def create_student(
     return student
 
 
-# 2、查询学生信息（支持按编号、姓名、班级等条件筛选）
 def get_students(
         db: Session,
         stu_id: int = None,
         stu_name: str = None,
         class_id: int = None):
+    """查询学生信息（支持按编号、姓名、班级等条件筛选）"""
     # 默认全表扫描
     result = db.query(StuBasicInfo).filter(StuBasicInfo.is_deleted == False)
 
@@ -131,8 +98,8 @@ def get_students(
     return students
 
 
-# 更新学生信息
 def update_student(db: Session, stu_id: int, update_data):
+    """更新学生信息（纯数据操作）"""
     # 查找未删除的学生
     result = db.query(StuBasicInfo).filter(
         and_(
@@ -142,33 +109,12 @@ def update_student(db: Session, stu_id: int, update_data):
 
     if not result:
         return False
-    else:
-        if update_data.stu_name is not None:
-            result.stu_name = update_data.stu_name
-        if update_data.class_id is not None:
-            is_classes_exist(update_data.class_id,db)
-            result.class_id = update_data.class_id
 
-        if update_data.native_place is not None:
-            result.native_place = update_data.native_place
-        if update_data.graduated_school is not None:
-            result.graduated_school = update_data.graduated_school
-        if update_data.major is not None:
-            result.major = update_data.major
-        if update_data.admission_date is not None:
-            result.admission_date = update_data.admission_date
-        if update_data.graduation_date is not None:
-            result.graduation_date = update_data.graduation_date
-        if update_data.education is not None:
-            result.education = update_data.education
-        if update_data.advisor_id is not None:
-            #校验老师是否是counselor
-            is_teacher_counselor(update_data.advisor_id,db)
-            result.advisor_id = update_data.advisor_id
-        if update_data.age is not None:
-            result.age = update_data.age
-        if update_data.gender is not None:
-            result.gender = update_data.gender
+    # 只更新传入的字段
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for key, value in update_dict.items():
+        if hasattr(result, key):
+            setattr(result, key, value)
 
     db.commit()
     db.refresh(result)
@@ -176,8 +122,8 @@ def update_student(db: Session, stu_id: int, update_data):
     return student
 
 
-# 逻辑删除学生
 def delete_student(db: Session, stu_id: int):
+    """逻辑删除学生"""
     # 查找未删除的学生
     result = db.query(StuBasicInfo).filter(
         and_(

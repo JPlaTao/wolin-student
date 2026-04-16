@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import HTMLResponse
 
-from database import engine, Base
+from core.database import engine, Base
 from api import (
     student_api,
     class_api,
@@ -15,19 +15,33 @@ from api import (
     query_agent,
     auth_api
 )
-from knowledge_base import build_knowledge_base
+from services.knowledge_base import build_knowledge_base
+from utils.logger import get_logger
+from middleware.logging_middleware import LoggingMiddleware, ErrorLoggingMiddleware
+
+# 获取日志记录器
+logger = get_logger("main")
 
 # 创建所有表（包括 users）
 Base.metadata.create_all(bind=engine)
+logger.info("数据库表创建完成")
 
 # 构建知识库（如果模型存在则构建，否则跳过，不影响其他功能）
-build_knowledge_base()
+try:
+    build_knowledge_base()
+    logger.info("知识库构建完成")
+except Exception as e:
+    logger.warning(f"知识库构建失败（不影响其他功能）: {e}")
 
 app = FastAPI(
     title="沃林学生管理系统",
     description="FastAPI + MySQL 学生信息/成绩/就业/统计管理",
     version="1.0.0"
 )
+
+# 添加日志中间件（需要在 CORS 之前添加）
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(ErrorLoggingMiddleware)
 
 # 配置 CORS（允许前端跨域访问）
 app.add_middleware(
@@ -49,7 +63,7 @@ app.include_router(exam_api.router_exam)
 app.include_router(employment_api.router)
 app.include_router(statistics_api.router)
 app.include_router(query_agent.router)
-app.include_router(auth_api.router)   # 认证路由
+app.include_router(auth_api.router)  # 认证路由
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -64,6 +78,7 @@ def root():
     </body>
     </html>
     """
+
 
 if __name__ == '__main__':
     uvicorn.run(app, host='127.0.0.1', port=8080)

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def build_knowledge_base(docs_dir="docs", persist_dir="./chroma_db"):
     if os.path.exists(persist_dir) and os.path.isdir(persist_dir) and os.listdir(persist_dir):
         print(f"知识库已存在: {persist_dir}，跳过构建。")

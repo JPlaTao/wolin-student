@@ -6,8 +6,12 @@ from typing import List
 from schemas.response import ResponseBase, ListResponse
 # 导入就业相关模型
 from schemas.emp_schemas import EmploymentUpdate, EmploymentResp
+from model.employment import Employment
 # 数据库依赖
-from database import get_db
+from core.database import get_db
+# 导入认证依赖
+from core.auth import get_current_user
+from model.user import User
 # 导入dao函数
 from dao.employment_dao import *
 
@@ -19,7 +23,7 @@ router = APIRouter(prefix="/employment", tags=["就业管理模块"])
 # 1. 获取单个学生就业信息
 # ------------------------------
 @router.get("/students/{stu_id}", response_model=ResponseBase)
-def get_student_employment(stu_id: int, db: Session = Depends(get_db)):
+def get_student_employment(stu_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     emp = get_employment_by_stu_id(db, stu_id)
     if not emp:
         raise HTTPException(status_code=404, detail="未找到就业信息")
@@ -35,7 +39,7 @@ def get_student_employment(stu_id: int, db: Session = Depends(get_db)):
 # 2. 获取班级所有就业信息（列表 + 总数）
 # ------------------------------
 @router.get("/class/{class_id}", response_model=ListResponse)
-def get_class_employment(class_id: int, db: Session = Depends(get_db)):
+def get_class_employment(class_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     data = get_employment_by_class_id(db, class_id)
     list_data = [EmploymentResp.model_validate(item) for item in data]
     return ListResponse(
@@ -54,7 +58,8 @@ def query_employment(
     company: str = None,      # 公司名称（模糊查询，可选）
     min_salary: int = None,   # 最低工资（可选）
     max_salary: int = None,   # 最高工资（可选）
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     # 基础查询：未删除的记录
     query = db.query(Employment).filter(Employment.is_deleted == False)
@@ -87,7 +92,8 @@ def query_employment(
 def update_student_employment(
         stu_id: int,
         update_data: EmploymentUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     emp = get_employment_by_stu_id(db, stu_id)
     if not emp:
@@ -109,7 +115,7 @@ def update_student_employment(
 # 5. 逻辑删除就业信息
 # ------------------------------
 @router.delete("/delete/{emp_id}", response_model=ResponseBase)
-def delete_employment_api(emp_id: int, db: Session = Depends(get_db)):
+def delete_employment_api(emp_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     emp = get_employment_by_emp_id(db, emp_id)
     if not emp:
         raise HTTPException(status_code=404, detail="记录不存在或已删除")
@@ -129,7 +135,7 @@ def delete_employment_api(emp_id: int, db: Session = Depends(get_db)):
 # 6. 恢复就业信息
 # ------------------------------
 @router.put("/restore/{emp_id}", response_model=ResponseBase)
-def restore_emp(emp_id: int, db: Session = Depends(get_db)):
+def restore_emp(emp_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     success = restore_employment(db, emp_id)
     if not success:
         raise HTTPException(status_code=404, detail="恢复失败")

@@ -14,7 +14,9 @@ from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
 
-from database import get_db
+from core.database import get_db
+from core.auth import get_current_user
+from model.user import User
 from dao.conversation_dao import save_turn, get_recent_turns, get_turn_count, get_latest_turn, get_previous_sql_turn
 
 load_dotenv()
@@ -288,7 +290,7 @@ async def refine_analysis(raw_analysis: str) -> str:
 
 # ---------- 主接口 ----------
 @router.post("/natural")
-async def natural_query(req: QueryRequest, db: Session = Depends(get_db)):
+async def natural_query(req: QueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     question = req.question
     session_id = req.session_id
     if not session_id:

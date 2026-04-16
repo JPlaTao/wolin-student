@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
-from database import Base
+from core.database import Base
 from model.class_model import class_teacher
 
 # 多对多连接class表需要的中间表

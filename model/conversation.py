@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, JSON, DateTime, func, Boolean
-from database import Base
+from core.database import Base
 
 class ConversationMemory(Base):
     __tablename__ = "conversation_memory"

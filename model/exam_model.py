@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, Date, ForeignKey
-from database import Base
+from core.database import Base
 
 
 class StuExamRecord(Base):

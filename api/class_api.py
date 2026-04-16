@@ -12,7 +12,9 @@ from dao.class_dao import (
 )
 from schemas.class_schemas import ClassCreate, ClassUpdate
 from schemas.response import ResponseBase
-from database import get_db
+from core.database import get_db
+from core.auth import get_current_user
+from model.user import User
 
 router = APIRouter(prefix="/class", tags=["班级管理"])
 
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/class", tags=["班级管理"])
 @router.get("/", response_model=ResponseBase)
 def read_all_classes(
         db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
         include_deleted: bool = Query(False, description="是否包含已删除的班级")
 ):
     classes_list = get_all_class(db, include_deleted=include_deleted)
@@ -43,6 +46,7 @@ def read_all_classes(
 def read_one_class(
         class_id: int,
         db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
         include_deleted: bool = Query(False)
 ):
     cls_dict = get_class_by_id(db, class_id, include_deleted=include_deleted)
@@ -60,7 +64,8 @@ def read_one_class(
 @router.get("/{class_id}/teachers", response_model=ResponseBase)
 def get_teachers(
         class_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     teacher_list = get_class_teachers(db, class_id)
 
@@ -76,7 +81,7 @@ def get_teachers(
 
 # 创建班级
 @router.post("/", response_model=ResponseBase, status_code=201)
-def create_new_class(class_data: ClassCreate, db: Session = Depends(get_db)):
+def create_new_class(class_data: ClassCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     cls_dict = create_class(db, class_data)
 
     return ResponseBase(
@@ -91,7 +96,8 @@ def create_new_class(class_data: ClassCreate, db: Session = Depends(get_db)):
 def update_exist_class(
         class_id: int,
         class_data: ClassUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     cls_dict = update_class(db, class_id, class_data)
     if not cls_dict:
@@ -109,6 +115,7 @@ def update_exist_class(
 def delete_exist_class(
         class_id: int,
         db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
         hard_delete: bool = Query(False, description="是否硬删除")
 ):
     result = delete_class(db, class_id, hard_delete=hard_delete)
@@ -128,7 +135,7 @@ def delete_exist_class(
 
 # 恢复班级
 @router.post("/{class_id}/restore", response_model=ResponseBase)
-def restore_deleted_class(class_id: int, db: Session = Depends(get_db)):
+def restore_deleted_class(class_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     cls_dict = restore_class(db, class_id)
     if not cls_dict:
         raise HTTPException(status_code=404, detail="班级被删除或者不存在")

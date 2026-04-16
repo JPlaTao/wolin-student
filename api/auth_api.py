@@ -1,31 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from database import get_db
+from core.database import get_db
 from model.user import User
-from auth import get_password_hash, authenticate_user, create_access_token
+from core.auth import get_password_hash, authenticate_user, create_access_token, get_current_user, get_current_admin_user
 from datetime import timedelta
+from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["认证"])
+
 
 class UserCreate(BaseModel):
     username: str
     password: str
+    role: str = "user"  # 默认角色为普通用户
+
 
 class UserLogin(BaseModel):
     username: str
     password: str
 
+
+class UserUpdate(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
 @router.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
+    # 验证角色是否合法
+    valid_roles = ["user", "student", "teacher", "admin"]
+    if user.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"角色必须是以下之一: {', '.join(valid_roles)}")
+
     existing = db.query(User).filter(User.username == user.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="用户名已存在")
     hashed = get_password_hash(user.password)
-    new_user = User(username=user.username, hashed_password=hashed)
+    new_user = User(username=user.username, hashed_password=hashed, role=user.role)
     db.add(new_user)
     db.commit()
-    return {"msg": "注册成功"}
+    return {"msg": "注册成功", "username": user.username, "role": user.role}
+
 
 @router.post("/login")
 def login(form_data: UserLogin, db: Session = Depends(get_db)):
@@ -33,4 +59,85 @@ def login(form_data: UserLogin, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=30))
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "username": user.username,
+        "role": user.role
+    }
+
+
+@router.get("/me")
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """获取当前登录用户信息"""
+    return {
+        "username": current_user.username,
+        "role": current_user.role,
+        "is_active": current_user.is_active
+    }
+
+
+@router.get("/users")
+def get_users(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取用户列表（需要登录）"""
+    users = db.query(User).offset(skip).limit(limit).all()
+    return {"data": users}
+
+
+@router.get("/users/{user_id}")
+def get_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """获取单个用户信息（需要登录）"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return user
+
+
+@router.put("/users/{user_id}")
+def update_user(
+    user_id: int,
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """更新用户信息（仅管理员）"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    if user_update.role is not None:
+        user.role = user_update.role
+    if user_update.is_active is not None:
+        user.is_active = user_update.is_active
+
+    db.commit()
+    db.refresh(user)
+    return {"msg": "用户更新成功", "user": user}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """删除用户（仅管理员）"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    if user.username == current_user.username:
+        raise HTTPException(status_code=400, detail="不能删除自己的账号")
+    
+    db.delete(user)
+    db.commit()
+    return {"msg": "用户删除成功"}

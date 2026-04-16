@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, desc, asc, extract, distinct
 from datetime import datetime, date
 from typing import List, Optional, Dict, Any
-from database import get_db
+from core.database import get_db
+from core.auth import get_current_user
+from model.user import User
 from model.student import StuBasicInfo
 from model.class_model import Class
 from model.exam_model import StuExamRecord
@@ -16,7 +18,7 @@ router = APIRouter(tags=["统计分析模块"], prefix="/statistics")
 # ===================== 2.6.1 基本信息统计 =====================
 
 @router.get("/students/over30", summary="查询所有超过30岁的学员信息")
-def get_students_over_30(db: Session = Depends(get_db)):
+def get_students_over_30(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """返回年龄>30的学生（年龄为静态字段）"""
     students = db.query(
         StuBasicInfo.stu_id,
@@ -45,7 +47,7 @@ def get_students_over_30(db: Session = Depends(get_db)):
 
 
 @router.get("/classes/gender-stat", summary="统计每个班级的人数和男女生人数")
-def class_gender_statistics(db: Session = Depends(get_db)):
+def class_gender_statistics(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """返回每个班级的总人数、男生数、女生数"""
     stats = db.query(
         Class.class_id,
@@ -76,7 +78,7 @@ def class_gender_statistics(db: Session = Depends(get_db)):
 # ===================== 2.6.2 成绩统计 =====================
 
 @router.get("/score/always-above-80", summary="每次考试成绩都在80分以上的学生")
-def students_always_above_80(db: Session = Depends(get_db)):
+def students_always_above_80(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     查询所有考试（所有seq_no）成绩均 >= 80 的学生。
     返回学生编号、姓名以及每次考试的成绩列表。
@@ -109,7 +111,7 @@ def students_always_above_80(db: Session = Depends(get_db)):
 
 
 @router.get("/score/twice-failed", summary="有两次以上不及格的学生")
-def students_twice_failed(db: Session = Depends(get_db)):
+def students_twice_failed(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     查询不及格次数 >= 2 的学生，返回姓名、班级、不及格成绩列表。
     """
@@ -169,7 +171,7 @@ def students_twice_failed(db: Session = Depends(get_db)):
 
 
 @router.get("/score/class-avg-per-exam", summary="每次考试每个班级的平均分（从高到低）")
-def class_avg_per_exam(db: Session = Depends(get_db)):
+def class_avg_per_exam(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     统计每次考试（seq_no）每个班级的平均分，按考试序号分组，组内按平均分降序。
     """
@@ -207,7 +209,7 @@ def class_avg_per_exam(db: Session = Depends(get_db)):
 # ===================== 2.6.3 就业统计 =====================
 
 @router.get("/employment/top5-salary", summary="就业薪资最高的前五名学生")
-def top5_salary_students(db: Session = Depends(get_db)):
+def top5_salary_students(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """返回薪资最高的5名学生，包含姓名、班级、就业时间、公司"""
     top5 = db.query(
         Employment.stu_id,
@@ -239,7 +241,7 @@ def top5_salary_students(db: Session = Depends(get_db)):
 
 
 @router.get("/employment/duration-per-student", summary="每个学生的就业时长（天）")
-def employment_duration_per_student(db: Session = Depends(get_db)):
+def employment_duration_per_student(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     计算每个学生的就业时长 = offer_time - open_time（天数）。
     只计算两个时间均有的学生。
@@ -269,7 +271,7 @@ def employment_duration_per_student(db: Session = Depends(get_db)):
 
 
 @router.get("/employment/avg-duration-per-class", summary="每个班级的平均就业时长（仅统计有就业开放时间的学生）")
-def avg_duration_per_class(db: Session = Depends(get_db)):
+def avg_duration_per_class(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     统计每个班级的平均就业时长（天数），只计算有open_time的学生。
     """
@@ -299,7 +301,7 @@ def avg_duration_per_class(db: Session = Depends(get_db)):
 # ===================== 额外复杂统计（多表联查） =====================
 
 @router.get("/advanced/class-avg-score-rank", summary="各班平均成绩排名（含班主任姓名）")
-def class_avg_score_rank(db: Session = Depends(get_db)):
+def class_avg_score_rank(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     统计每个班级所有学生所有有效考试的平均分，按平均分从高到低排名，
     并显示班主任姓名（多表联查：班级、学生、成绩、教师）。
@@ -334,7 +336,7 @@ def class_avg_score_rank(db: Session = Depends(get_db)):
 
 
 @router.get("/advanced/salary-distribution", summary="各薪资区间学生人数统计")
-def salary_distribution(db: Session = Depends(get_db)):
+def salary_distribution(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     按薪资区间统计就业学生人数，区间：<5k, 5k-8k, 8k-12k, 12k-20k, >20k。
     """
@@ -357,7 +359,7 @@ def salary_distribution(db: Session = Depends(get_db)):
 
 
 @router.get("/advanced/most-improved-students", summary="成绩进步最快的学生（最后一次考试减第一次考试）")
-def most_improved_students(limit: int = 5, db: Session = Depends(get_db)):
+def most_improved_students(limit: int = 5, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     计算每个学生第一次考试和最后一次考试的成绩差，按进步分数降序排列。
     需要每个学生至少有2次有效考试。
@@ -454,7 +456,7 @@ def most_improved_students(limit: int = 5, db: Session = Depends(get_db)):
 
 
 @router.get("/advanced/class-employment-rate", summary="各班级就业率（有就业记录且薪资不为空的学生占比）")
-def class_employment_rate(db: Session = Depends(get_db)):
+def class_employment_rate(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     统计每个班级的就业率：有就业记录（Employment.is_deleted=False）且薪资不为空的学生数 / 班级总学生数。
     """
@@ -495,7 +497,7 @@ def class_employment_rate(db: Session = Depends(get_db)):
     return {"code": 200, "data": final}
 
 @router.get("/dashboard", summary="数据看板汇总")
-def dashboard_stats(db: Session = Depends(get_db)):
+def dashboard_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. 学生总数
     total_students = db.query(StuBasicInfo).filter(StuBasicInfo.is_deleted == False).count()
 

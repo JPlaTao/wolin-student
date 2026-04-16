@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from database import get_db
+from core.database import get_db
+from core.auth import get_current_user
+from model.user import User
 from dao import exam_dao
 from schemas import response, exam_request
 from typing import Optional
@@ -13,7 +15,8 @@ router_exam = APIRouter(prefix="/exam", tags=["学生成绩管理"])
 @router_exam.post("/", response_model=response.ResponseBase, description="提交考试成绩")
 async def exam_submit(
         exam_data: exam_request.NewExamData,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     _return = exam_dao.exam_submit(exam_data, db)
     if _return["message"] == "success":
@@ -28,7 +31,8 @@ async def exam_update(
         exam_data: exam_request.UpdateExamData,
         stu_id: int = Query(description="学生编号"),
         seq_no: int = Query(description="考核序次"),
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     _return = exam_dao.exam_update(stu_id, seq_no, exam_data, db)
     if _return.endswith('updated'):
@@ -42,7 +46,8 @@ async def exam_update(
 async def exam_delete(
         stu_id: int,
         seq_no: Optional[int] = None,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     _return = exam_dao.exam_delete(stu_id, seq_no, db)
     if _return.endswith('deleted'):
@@ -55,7 +60,8 @@ async def exam_delete(
 async def exam_get(
         stu_id: int,
         seq_no: Optional[int] = None,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     _return = exam_dao.exam_get(stu_id, seq_no, db)
     if _return["msg"] == "success":

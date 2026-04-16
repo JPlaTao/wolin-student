@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table, Boolean
 from sqlalchemy.orm import relationship
-from database import Base
+from core.database import Base
 
 # 班级-教师 多对多中间表
 class_teacher = Table(

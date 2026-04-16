@@ -1,0 +1,398 @@
+/* ===================================
+   沃林学生管理系统 - 全局样式
+   =================================== */
+
+/* 全局设置 */
+* {
+    font-family: 'Inter', sans-serif;
+    box-sizing: border-box;
+}
+
+body {
+    background: radial-gradient(ellipse at 20% 30%, #0a0f1e, #010101);
+    margin: 0;
+    padding: 0;
+    color: #eef2ff;
+    min-height: 100vh;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #111827;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #3b82f6, #a855f7);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #60a5fa, #c084fc);
+}
+
+/* 卡片样式 */
+.card-hover {
+    transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    backdrop-filter: blur(12px);
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    cursor: default;
+}
+
+.card-hover:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.7),
+                0 0 0 1px #3b82f6,
+                0 0 12px rgba(59, 130, 246, 0.4);
+    border-color: #3b82f6;
+}
+
+/* 聊天气泡样式 */
+.chat-bubble-user {
+    background: linear-gradient(135deg, #3b82f6, #9333ea);
+    border-radius: 20px 20px 4px 20px;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    max-width: 80%;
+}
+
+.chat-bubble-ai {
+    background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(8px);
+    border-radius: 20px 20px 20px 4px;
+    border: 1px solid #334155;
+    max-width: 80%;
+}
+
+/* 模态框容器 */
+.modal-container {
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid #3b82f6;
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.3);
+}
+
+/* 图表容器 */
+.chart-box {
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(8px);
+    border-radius: 24px;
+    border: 1px solid #3b82f6;
+    padding: 1rem;
+}
+
+/* 结果表格 */
+.result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    background: #0f172a;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.result-table th,
+.result-table td {
+    border: 1px solid #334155;
+    padding: 10px 14px;
+    text-align: left;
+}
+
+.result-table th {
+    background-color: #1e293b;
+    color: #facc15;
+    font-weight: 600;
+}
+
+.result-table tr:nth-child(even) {
+    background-color: #16212e;
+}
+
+.result-table tr:nth-child(odd) {
+    background-color: #0f172a;
+}
+
+.result-table tr:hover {
+    background-color: #1e2a3a;
+}
+
+/* ===================================
+   Element Plus 主题覆盖
+   =================================== */
+
+/* 对话框 */
+.el-dialog {
+    background: #0f172a !important;
+    border: 1px solid #3b82f6;
+    border-radius: 28px;
+    box-shadow: 0 25px 40px -12px black;
+    backdrop-filter: blur(8px);
+}
+
+.el-dialog__title {
+    color: #f1f5f9 !important;
+    font-weight: 700;
+}
+
+.el-dialog__body {
+    color: #e2e8f0;
+}
+
+/* 表单 */
+.el-form-item__label {
+    color: #cbd5e6 !important;
+    font-weight: 500;
+}
+
+.el-input__wrapper,
+.el-select .el-input__wrapper,
+.el-date-editor .el-input__wrapper {
+    background: #1e293b !important;
+    box-shadow: 0 0 0 1px #3b82f6 inset !important;
+    border-radius: 14px;
+    transition: all 0.2s;
+}
+
+.el-input__wrapper:hover {
+    box-shadow: 0 0 0 1px #a855f7 inset !important;
+}
+
+.el-input__inner,
+.el-select .el-input__inner {
+    color: #f8fafc !important;
+}
+
+.el-input__inner::placeholder {
+    color: #64748b;
+}
+
+/* 表格 */
+.el-table {
+    background: transparent !important;
+    --el-table-tr-bg-color: transparent;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+    background: #0f172a !important;
+    color: #facc15 !important;
+    font-weight: 700;
+    border-bottom: 2px solid #3b82f6;
+}
+
+.el-table tr {
+    background: rgba(30, 41, 59, 0.7) !important;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+}
+
+.el-table tr:hover > td {
+    background: rgba(59, 130, 246, 0.2) !important;
+}
+
+.el-table td.el-table__cell {
+    border-bottom-color: #334155 !important;
+    color: #e2e8f0;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+    background: rgba(15, 23, 42, 0.8) !important;
+}
+
+/* 按钮 */
+.el-button--primary {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border: none;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    transition: 0.2s;
+}
+
+.el-button--primary:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6);
+}
+
+.el-button--danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: none;
+}
+
+.el-button--success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: none;
+}
+
+/* 标签页 */
+.el-tabs__item {
+    color: #94a3b8;
+}
+
+.el-tabs__item:hover {
+    color: #cbd5e1;
+}
+
+.el-tabs__item.is-active {
+    color: #3b82f6;
+}
+
+.el-tabs__active-bar {
+    background-color: #3b82f6;
+}
+
+/* ===================================
+   自定义工具类
+   =================================== */
+
+/* 角色标签 */
+.role-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.role-admin {
+    background: linear-gradient(135deg, #dc2626, #991b1b);
+    color: white;
+}
+
+.role-teacher {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+}
+
+.role-student {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.role-user {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+/* 状态指示器 */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-dot.active {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.status-dot.inactive {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+/* 用户信息卡片 */
+.user-info-card {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s;
+}
+
+.user-info-card:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+}
+
+.user-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #a855f7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    color: white;
+    flex-shrink: 0;
+}
+
+.user-details {
+    flex: 1;
+}
+
+.user-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 4px;
+}
+
+.user-role {
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .el-dialog {
+        width: 90% !important;
+    }
+    
+    .user-info-card {
+        padding: 12px;
+    }
+    
+    .user-avatar {
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
+    }
+}
+
+/* 动画 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.loading-pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}
