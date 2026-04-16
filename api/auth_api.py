@@ -14,7 +14,7 @@ from core.exceptions import (
 from datetime import timedelta
 from typing import Optional
 from utils.logger import get_logger
-from utils.log_decorators import log_api_call
+from utils.log_decorators import log_api_call, log_sensitive_operation
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 logger = get_logger("auth_api")
@@ -157,7 +157,7 @@ def update_user(
 
 
 @router.delete("/users/{user_id}")
-@log_api_call("删除用户")
+@log_sensitive_operation("删除用户", level="ERROR")
 def delete_user(
     user_id: int,
     current_user: User = Depends(get_current_admin_user),
@@ -170,13 +170,13 @@ def delete_user(
             resource="用户",
             detail=f"ID为 {user_id} 的用户不存在"
         )
-    
+
     if user.username == current_user.username:
         raise BusinessException(
             message="不能删除自己的账号",
             detail="不允许删除当前登录的账号"
         )
-    
+
     db.delete(user)
     db.commit()
     return {"msg": "用户删除成功"}

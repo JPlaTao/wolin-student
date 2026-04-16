@@ -4,6 +4,7 @@
 """
 import functools
 import inspect
+import logging
 from typing import Callable, Any
 from fastapi import Request
 from utils.logger import get_logger
@@ -203,5 +204,137 @@ def log_dao_operation(operation_name: str = None):
                 raise
         
         return wrapper
-    
+
     return decorator
+
+
+def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
+    """
+    敏感操作日志装饰器
+
+    用于记录删除、硬删除、批量更新等敏感操作
+    这些操作需要更高的日志等级以便引起重视和进行安全审计
+
+    Args:
+        operation_name: 操作名称，如果为None则使用函数名
+        level: 日志等级，默认为 "WARNING"
+              可选值: "WARNING", "ERROR", "CRITICAL"
+
+    Usage:
+        @router.delete("/students/{stu_id}")
+        @log_sensitive_operation("删除学生", level="WARNING")
+        def delete_student(...):
+            ...
+
+        @router.delete("/class/{class_id}")
+        @log_sensitive_operation("硬删除班级", level="ERROR")
+        def delete_class_hard(..., hard_delete: bool = True):
+            ...
+    """
+    def decorator(func: Callable) -> Callable:
+        # 获取函数名作为默认操作名称
+        op_name = operation_name or func.__name__
+
+        # 验证日志等级
+        valid_levels = ["WARNING", "ERROR", "CRITICAL"]
+        if level not in valid_levels:
+            raise ValueError(f"无效的日志等级: {level}, 必须是: {', '.join(valid_levels)}")
+
+        log_level = getattr(logging, level.upper())
+
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            # 从kwargs中提取Request对象
+            request = kwargs.get('request') or next(
+                (arg for arg in args if isinstance(arg, Request)), None
+            )
+
+            # 获取request_id
+            request_id = getattr(request.state, 'request_id', 'unknown') if request else 'unknown'
+
+            # 记录开始日志
+            logger.log(
+                log_level,
+                f"[{request_id}] [敏感操作] {op_name}开始",
+                extra={"operation_type": "sensitive", "level": level}
+            )
+
+            try:
+                # 执行原函数
+                result = await func(*args, **kwargs)
+
+                # 记录成功日志
+                logger.log(
+                    log_level,
+                    f"[{request_id}] [敏感操作] {op_name}成功",
+                    extra={"operation_type": "sensitive", "level": level, "status": "success"}
+                )
+                return result
+
+            except Exception as e:
+                # 记录失败日志（总是用ERROR级别）
+                logger.error(
+                    f"[{request_id}] [敏感操作] {op_name}失败: {str(e)}",
+                    extra={"operation_type": "sensitive", "level": level, "status": "failed"}
+                )
+                raise
+
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            # 从kwargs中提取Request对象
+            request = kwargs.get('request') or next(
+                (arg for arg in args if isinstance(arg, Request)), None
+            )
+
+            # 获取request_id
+            request_id = getattr(request.state, 'request_id', 'unknown') if request else 'unknown'
+
+            # 记录开始日志
+            logger.log(
+                log_level,
+                f"[{request_id}] [敏感操作] {op_name}开始",
+                extra={"operation_type": "sensitive", "level": level}
+            )
+
+            try:
+                # 执行原函数
+                result = func(*args, **kwargs)
+
+                # 记录成功日志
+                logger.log(
+                    log_level,
+                    f"[{request_id}] [敏感操作] {op_name}成功",
+                    extra={"operation_type": "sensitive", "level": level, "status": "success"}
+                )
+                return result
+
+            except Exception as e:
+                # 记录失败日志（总是用ERROR级别）
+                logger.error(
+                    f"[{request_id}] [敏感操作] {op_name}失败: {str(e)}",
+                    extra={"operation_type": "sensitive", "level": level, "status": "failed"}
+                )
+                raise
+
+        # 根据函数是否为协程函数选择对应的包装器
+        return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
+
+    return decorator
+
+
+def log_mass_operation(operation_name: str = None):
+    """
+    批量操作日志装饰器
+
+    用于记录批量操作，如批量删除、批量更新等
+
+    Args:
+        operation_name: 操作名称
+
+    Usage:
+        @router.post("/students/batch-delete")
+        @log_mass_operation("批量删除学生")
+        def batch_delete_students(student_ids: List[int]):
+            ...
+    """
+    return log_sensitive_operation(operation_name, level="ERROR")

@@ -8,6 +8,7 @@ from dao import teacher_dao as dao
 from schemas.teacher import TeacheresUpdata
 # 导入通用响应模型
 from schemas.response import ResponseBase, ListResponse
+from utils.log_decorators import log_sensitive_operation
 
 router = APIRouter(
     prefix="/teacher",
@@ -84,6 +85,7 @@ def update_teacher(teacher_id: int, teacher: TeacheresUpdata, db: Session = Depe
 
 # 删除老师（逻辑删除）
 @router.delete("/{teacher_id}", response_model=ResponseBase, summary="删除老师")
+@log_sensitive_operation("删除老师", level="WARNING")
 def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 调用 dao 删除（标记 is_deleted=True）
     success = dao.delete_teacher(db, teacher_id)

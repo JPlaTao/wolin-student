@@ -15,6 +15,8 @@ from schemas.response import ResponseBase
 from core.database import get_db
 from core.auth import get_current_user
 from model.user import User
+from utils.log_decorators import log_api_call, log_sensitive_operation
+import functools
 
 router = APIRouter(prefix="/class", tags=["班级管理"])
 
@@ -118,11 +120,22 @@ def delete_exist_class(
         current_user: User = Depends(get_current_user),
         hard_delete: bool = Query(False, description="是否硬删除")
 ):
-    result = delete_class(db, class_id, hard_delete=hard_delete)
+    # 根据是否硬删除选择日志等级
+    op_level = "ERROR" if hard_delete else "WARNING"
+    op_name = "硬删除班级" if hard_delete else "软删除班级"
 
-    # 判断返回类型：False表示班级不存在，字典表示删除成功
-    if result is False:
-        raise HTTPException(status_code=404, detail="班级不存在")
+    # 使用敏感操作装饰器
+    @log_sensitive_operation(op_name, level=op_level)
+    def _delete_logic():
+        result = delete_class(db, class_id, hard_delete=hard_delete)
+
+        # 判断返回类型：False表示班级不存在，字典表示删除成功
+        if result is False:
+            raise HTTPException(status_code=404, detail="班级不存在")
+
+        return result
+
+    result = _delete_logic()
 
     msg = "硬删除成功" if hard_delete else "软删除成功"
 

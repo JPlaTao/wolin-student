@@ -11,7 +11,7 @@ from schemas import response
 from core.exceptions import ValidationException, NotFoundException, BusinessException
 from typing import Optional
 from utils.logger import get_logger
-from utils.log_decorators import log_api_call
+from utils.log_decorators import log_api_call, log_sensitive_operation
 
 router = APIRouter(prefix="/students", tags=["学生管理"])
 logger = get_logger("student_api")
@@ -92,7 +92,7 @@ def update_student(
         is_update_student = student_dao.update_student(db, stu_id, update_data)
 
         if not is_update_student:
-            logger.warning(f"更新失败: 学生 ID={stu_id} 不存在")
+            logger.error(f"更新失败: 学生 ID={stu_id} 不存在")
             raise NotFoundException(
                 resource="学生",
                 detail=f"ID为 {stu_id} 的学生不存在"
@@ -107,7 +107,7 @@ def update_student(
 
 # 删除学生(逻辑删除)
 @router.delete("/{stu_id}", response_model=response.ResponseBase)
-@log_api_call("删除学生")
+@log_sensitive_operation("删除学生", level="WARNING")
 def delete_student(
         request: Request,
         stu_id: int,
@@ -118,7 +118,7 @@ def delete_student(
         is_delete_student = student_dao.delete_student(db, stu_id)
 
         if is_delete_student == '不存在这个学生或已被删除':
-            logger.warning(f"删除失败: 学生 ID={stu_id} 不存在或已被删除")
+            logger.error(f"删除失败: 学生 ID={stu_id} 不存在或已被删除")
             raise NotFoundException(
                 resource="学生",
                 detail=f"ID为 {stu_id} 的学生不存在或已被删除"
