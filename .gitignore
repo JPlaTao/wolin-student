@@ -1,8 +1,9 @@
 # Python
 __pycache__/
-*.py[cod]
-*.pyc
+*.py[c]
 *.pyo
+*.pyd
+.Python
 
 # IDE
 .idea/
@@ -14,7 +15,6 @@ __pycache__/
 # Database
 chroma_db/
 *.sqlite3
-*.sql
 
 # Environment
 .env
@@ -24,10 +24,8 @@ chroma_db/
 # Testing
 test_report.json
 
-# Documentation
-*.pdf
-*.pptx
-*.xlsx
+# Documentation (except specific files needed)
+# Note: We keep certain SQL files for database initialization
 
 # OS
 .DS_Store
@@ -38,6 +36,7 @@ venv/
 env/
 ENV/
 pythonVenv/
+.venv/
 
 # Logs
 logs/
@@ -45,3 +44,6 @@ logs/
 
 # Other
 .codebuddy/
+
+# Dependencies
+node_modules/
