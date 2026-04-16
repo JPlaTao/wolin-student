@@ -354,17 +354,164 @@ body {
 /* 响应式调整 */
 @media (max-width: 768px) {
     .el-dialog {
-        width: 90% !important;
+        width: 95% !important;
+        margin: 20px auto !important;
     }
-    
+
+    .el-dialog__body {
+        padding: 15px !important;
+    }
+
     .user-info-card {
-        padding: 12px;
+        padding: 10px;
+        gap: 10px;
     }
-    
+
     .user-avatar {
-        width: 48px;
-        height: 48px;
-        font-size: 20px;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+
+    .user-name {
+        font-size: 14px;
+    }
+
+    .user-role {
+        font-size: 12px;
+    }
+
+    .card-hover {
+        padding: 10px !important;
+    }
+
+    .chart-box {
+        padding: 10px !important;
+        border-radius: 16px !important;
+    }
+
+    .el-button {
+        padding: 8px 12px !important;
+        font-size: 13px !important;
+    }
+
+    .el-input__inner {
+        font-size: 13px !important;
+    }
+
+    .el-table {
+        font-size: 12px !important;
+    }
+
+    .el-table th,
+    .el-table td {
+        padding: 8px 4px !important;
+    }
+
+    .el-tabs__item {
+        font-size: 13px !important;
+        padding: 0 12px !important;
+    }
+
+    .el-form-item__label {
+        font-size: 13px !important;
+        width: 90px !important;
+    }
+
+    .result-table {
+        font-size: 12px !important;
+    }
+
+    .result-table th,
+    .result-table td {
+        padding: 6px 8px !important;
+    }
+
+    .chat-bubble-user,
+    .chat-bubble-ai {
+        font-size: 14px !important;
+        padding: 10px 12px !important;
+    }
+
+    /* 表格横向滚动 */
+    .el-table {
+        font-size: 12px !important;
+    }
+
+    .el-table .el-table__body-wrapper {
+        overflow-x: auto !important;
+    }
+
+    /* 隐藏移动端不需要显示的列 */
+    .el-table .hide-mobile {
+        display: none !important;
+    }
+
+    /* 简化按钮图标 */
+    .el-button .fas {
+        margin-right: 0 !important;
+    }
+
+    /* 减小图标大小 */
+    .fas {
+        font-size: 0.9em;
+    }
+}
+
+@media (max-width: 480px) {
+    .el-dialog {
+        width: 98% !important;
+        margin: 10px auto !important;
+    }
+
+    .card-hover {
+        padding: 8px !important;
+    }
+
+    .user-name {
+        font-size: 12px;
+    }
+
+    .user-role {
+        font-size: 11px;
+    }
+
+    .role-tag {
+        padding: 3px 8px !important;
+        font-size: 10px !important;
+    }
+
+    .chart-box {
+        padding: 8px !important;
+    }
+
+    .el-button {
+        padding: 6px 10px !important;
+        font-size: 12px !important;
+    }
+
+    .el-table {
+        font-size: 11px !important;
+    }
+
+    .result-table th,
+    .result-table td {
+        padding: 5px 6px !important;
+        font-size: 11px !important;
+    }
+
+    .result-table {
+        font-size: 11px !important;
+    }
+
+    /* 在极小屏幕上隐藏更多内容 */
+    .hide-small-mobile {
+        display: none !important;
+    }
+
+    /* 减小padding和margin */
+    .space-y-6 > * + * {
+        margin-top: 1rem !important;
     }
 }
 

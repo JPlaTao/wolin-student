@@ -24,8 +24,8 @@
 <body>
 <div id="app">
     <!-- 登录/注册模态框 -->
-    <div v-if="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md">
-        <div class="modal-container rounded-2xl p-6 w-96">
+    <div v-if="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+        <div class="modal-container rounded-2xl p-6 w-full max-w-96">
             <h2 class="text-2xl font-bold text-white mb-4">
                 {{ authMode === 'login' ? '登录' : '注册' }}
             </h2>
@@ -75,17 +75,30 @@
 
     <!-- 主界面 -->
     <div v-else class="flex h-screen overflow-hidden">
+        <!-- 移动端遮罩层 -->
+        <div
+            v-if="sidebarOpen && isMobile"
+            @click="toggleSidebar"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 md:hidden"
+        ></div>
+
         <!-- 侧边栏 -->
-        <aside class="w-72 bg-slate-900/70 backdrop-blur-xl border-r border-slate-800 flex flex-col shadow-2xl z-10">
+        <aside
+            :class="[
+                'fixed md:static inset-y-0 left-0 z-30 bg-slate-900/95 backdrop-blur-xl border-r border-slate-800 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out',
+                sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+                'w-72'
+            ]"
+        >
             <!-- Logo -->
-            <div class="p-6 border-b border-slate-800">
+            <div class="p-4 md:p-6 border-b border-slate-800">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
                         <i class="fas fa-graduation-cap text-white text-xl"></i>
                     </div>
                     <div>
-                        <h1 class="text-xl font-bold text-white">沃林学生管理系统</h1>
-                        <p class="text-xs text-slate-400 mt-0.5">智能数据分析 · 极致体验</p>
+                        <h1 class="text-lg md:text-xl font-bold text-white">沃林学生管理系统</h1>
+                        <p class="text-xs text-slate-400 mt-0.5 hidden md:block">智能数据分析 · 极致体验</p>
                     </div>
                 </div>
             </div>
@@ -156,11 +169,20 @@
             </div>
         </aside>
 
+        <!-- 移动端顶部导航栏 -->
+        <div class="md:hidden fixed top-0 left-0 right-0 z-10 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+            <button @click="toggleSidebar" class="text-white text-xl p-2">
+                <i :class="sidebarOpen ? 'fas fa-times' : 'fas fa-bars'"></i>
+            </button>
+            <h1 class="text-white font-bold text-base">沃林学生管理系统</h1>
+            <div class="w-10"></div>
+        </div>
+
         <!-- 主内容区 -->
-        <main class="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-slate-900/40 to-black/40">
+        <main class="flex-1 overflow-y-auto p-3 md:p-6 bg-gradient-to-br from-slate-900/40 to-black/40 pt-16 md:pt-6">
             <!-- 数据看板 -->
-            <div v-if="activeTab === 'dashboard'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div v-if="activeTab === 'dashboard'" class="space-y-4 md:space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                     <div class="card-hover rounded-2xl p-5">
                         <div class="flex items-center justify-between">
                             <div>
@@ -199,7 +221,7 @@
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     <div class="chart-box">
                         <h3 class="text-white font-semibold mb-3">
                             <i class="fas fa-venus-mars text-pink-400"></i> 班级男女比例
@@ -273,20 +295,20 @@
                             </div>
                         </div>
                     </div>
-                    <div class="p-4 border-t border-slate-700 bg-slate-800/60">
-                        <div class="flex gap-2">
+                    <div class="p-3 md:p-4 border-t border-slate-700 bg-slate-800/60">
+                        <div class="flex gap-2 md:gap-3">
                             <input
                                 type="text"
                                 v-model="currentQuestion"
                                 @keyup.enter="sendQuestion"
-                                class="flex-1 bg-slate-700 border border-blue-500 rounded-xl px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                class="flex-1 bg-slate-700 border border-blue-500 rounded-xl px-3 md:px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base"
                                 placeholder="例如：学生有多少人？ 李芳老师有多少个学生？ 每个班级的平均分？"
                             >
                             <button
                                 @click="sendQuestion"
-                                class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition px-5 py-2 rounded-xl text-white font-medium"
+                                class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition px-3 md:px-5 py-2 rounded-xl text-white font-medium text-sm md:text-base"
                             >
-                                <i class="fas fa-paper-plane"></i> 发送
+                                <i class="fas fa-paper-plane"></i> <span class="hidden md:inline">发送</span>
                             </button>
                         </div>
                     </div>
@@ -294,33 +316,33 @@
             </div>
 
             <!-- 高级统计 -->
-            <div v-if="activeTab === 'statistics'" class="space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div v-if="activeTab === 'statistics'" class="space-y-4 md:space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     <div class="chart-box">
-                        <h3 class="text-white font-semibold mb-3">📊 薪资分布区间</h3>
-                        <div id="salaryDistChart" style="height: 320px;"></div>
+                        <h3 class="text-white font-semibold mb-3 text-sm md:text-base">📊 薪资分布区间</h3>
+                        <div id="salaryDistChart" style="height: 250px;"></div>
                     </div>
                     <div class="chart-box">
-                        <h3 class="text-white font-semibold mb-3">⏱️ 班级平均就业时长（天）</h3>
-                        <div id="durationChart" style="height: 320px;"></div>
+                        <h3 class="text-white font-semibold mb-3 text-sm md:text-base">⏱️ 班级平均就业时长（天）</h3>
+                        <div id="durationChart" style="height: 250px;"></div>
                     </div>
                 </div>
                 <div class="chart-box">
-                    <h3 class="text-white font-semibold mb-3">📈 每次考试班级平均分排名</h3>
-                    <div id="examSeqChart" style="height: 400px;"></div>
+                    <h3 class="text-white font-semibold mb-3 text-sm md:text-base">📈 每次考试班级平均分排名</h3>
+                    <div id="examSeqChart" style="height: 300px;"></div>
                 </div>
             </div>
 
             <!-- 数据管理 -->
-            <div v-if="activeTab === 'management'" class="space-y-6">
+            <div v-if="activeTab === 'management'" class="space-y-4 md:space-y-6">
                 <el-tabs v-model="mgmtTab" class="custom-tabs">
                     <!-- 学生管理 -->
                     <el-tab-pane label="学生管理" name="student">
-                        <div class="mb-4 flex flex-wrap gap-4 items-end">
+                        <div class="mb-4 flex flex-wrap gap-2 md:gap-4 items-end">
                             <el-input
                                 v-model="studentSearch.name"
                                 placeholder="学生姓名"
-                                style="width: 180px"
+                                style="width: 140px"
                                 clearable
                                 @clear="loadStudents"
                                 @keyup.enter="loadStudents"
@@ -329,7 +351,7 @@
                                 v-model="studentSearch.class_id"
                                 placeholder="选择班级"
                                 clearable
-                                style="width: 160px"
+                                style="width: 130px"
                                 @change="loadStudents"
                             >
                                 <el-option v-for="c in classes" :key="c.class_id" :label="c.class_name" :value="c.class_id"></el-option>
@@ -708,17 +730,17 @@
             </div>
 
             <!-- 用户管理（独立页面，仅管理员可见） -->
-            <div v-if="activeTab === 'userManagement'" class="space-y-6">
-                <div class="card-hover rounded-2xl p-5">
-                    <div class="mb-4 flex justify-between items-center">
-                        <h3 class="text-white font-semibold text-lg">
+            <div v-if="activeTab === 'userManagement'" class="space-y-4 md:space-y-6">
+                <div class="card-hover rounded-2xl p-4 md:p-5">
+                    <div class="mb-3 md:mb-4 flex justify-between items-center flex-wrap gap-2">
+                        <h3 class="text-white font-semibold text-base md:text-lg">
                             <i class="fas fa-users-cog text-blue-400"></i> 用户管理
                         </h3>
-                        <el-button type="success" @click="openUserDialog(null)">
-                            <i class="fas fa-user-plus"></i> 新增用户
+                        <el-button type="success" @click="openUserDialog(null)" size="small md:default">
+                            <i class="fas fa-user-plus"></i> <span class="hidden md:inline">新增用户</span>
                         </el-button>
                     </div>
-                    <div class="mb-4 text-slate-400 text-sm">
+                    <div class="mb-3 md:mb-4 text-slate-400 text-xs md:text-sm">
                         <i class="fas fa-info-circle"></i> 管理员模式下，您可以管理所有系统用户
                     </div>
                     <el-table :data="users" stripe v-loading="userLoading">

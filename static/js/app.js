@@ -24,6 +24,28 @@ const app = createApp({
         // 导航状态
         const activeTab = ref('dashboard');
         const mgmtTab = ref('student');
+        const sidebarOpen = ref(true);
+        const isMobile = ref(window.innerWidth < 768);
+
+        // 侧边栏切换
+        const toggleSidebar = () => {
+            sidebarOpen.value = !sidebarOpen.value;
+        };
+
+        // 监听窗口大小变化
+        const handleResize = () => {
+            isMobile.value = window.innerWidth < 768;
+            if (!isMobile.value) {
+                sidebarOpen.value = true;
+            } else {
+                sidebarOpen.value = false;
+            }
+        };
+
+        // 初始化时检测移动设备
+        if (isMobile.value) {
+            sidebarOpen.value = false;
+        }
 
         // 仪表板数据
         const dashboard = ref({
@@ -1155,6 +1177,10 @@ const app = createApp({
                 await loadManagementData();
                 await loadStudents();
             }
+
+            // 添加窗口大小变化监听
+            window.addEventListener('resize', handleResize);
+            handleResize();
         });
 
         // ===================================
@@ -1177,6 +1203,9 @@ const app = createApp({
             // 导航
             activeTab,
             mgmtTab,
+            sidebarOpen,
+            isMobile,
+            toggleSidebar,
 
             // 仪表板
             dashboard,
