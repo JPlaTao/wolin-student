@@ -20,6 +20,10 @@ from core.auth import get_current_user
 from core.settings import get_settings
 from model.user import User
 from dao.conversation_dao import save_turn, get_recent_turns, get_turn_count, get_latest_turn, get_previous_sql_turn
+from utils.logger import get_logger
+
+# 获取模块专用 logger
+logger = get_logger("query_agent")
 
 router = APIRouter(prefix="/query", tags=["自然语言查询"])
 
@@ -34,16 +38,16 @@ vectordb = None
 try:
     api_key = settings.api_keys.dashscope
     if not api_key:
-        print("警告: 未配置 DASHSCOPE_API_KEY，知识库功能不可用")
+        logger.warning("未配置 DASHSCOPE_API_KEY，知识库功能不可用")
     else:
         embeddings = DashScopeEmbeddings(model="text-embedding-v3", dashscope_api_key=api_key)
         if os.path.exists("./chroma_db") and os.path.isdir("./chroma_db"):
             vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
-            print("向量知识库加载成功")
+            logger.info("向量知识库加载成功")
         else:
-            print("知识库目录不存在，请先运行 build_knowledge_base() 构建")
+            logger.warning("知识库目录不存在，请先运行 build_knowledge_base() 构建")
 except Exception as e:
-    print(f"向量知识库加载失败: {e}")
+    logger.error(f"向量知识库加载失败: {e}")
 
 
 # ---------- 请求模型 ----------
@@ -71,6 +75,7 @@ FALLBACK_SCHEMA = """
 
 # ---------- 辅助函数 ----------
 def fix_table_names(sql: str) -> str:
+    """修正 SQL 中的表名"""
     sql = re.sub(r'\bteachers\b', 'teacher', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bstudents\b', 'stu_basic_info', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bcourses\b', 'class', sql, flags=re.IGNORECASE)
@@ -154,6 +159,7 @@ def validate_sql(sql: str) -> tuple[bool, Optional[str]]:
 
 
 async def similarity_search_async(vectordb, query: str, k: int = 3):
+    """异步执行向量相似度搜索"""
     def _sync():
         return vectordb.similarity_search(query, k=k)
 
@@ -161,6 +167,7 @@ async def similarity_search_async(vectordb, query: str, k: int = 3):
 
 
 async def retrieve_schema_context(vectordb) -> str:
+    """从向量知识库检索数据库表结构上下文"""
     if vectordb is None:
         return FALLBACK_SCHEMA
     try:
@@ -169,15 +176,20 @@ async def retrieve_schema_context(vectordb) -> str:
             context = "\n\n".join([doc.page_content for doc in docs])
             return context[:4000]
     except Exception as e:
-        print(f"检索表结构失败: {e}")
+        logger.error(f"检索表结构失败: {e}")
     return FALLBACK_SCHEMA
 
 
 def summarize_result(data: List[dict], max_sample_rows: int = 3, full_save: bool = False) -> str:
     """
     生成结果摘要或完整数据JSON。
-    如果 full_save=True，则返回完整JSON（注意可能很大）。
-    否则返回摘要（包含 row_count, sample, statistics）。
+
+    参数:
+        data: 查询结果列表
+        max_sample_rows: 摘要中最大样本行数
+        full_save: 是否完整保存数据
+
+    返回: JSON 格式的摘要或完整数据
     """
     if not data:
         return json.dumps({"row_count": 0, "sample": []})
@@ -216,6 +228,7 @@ INTENT_CLASSIFICATION_PROMPT = """
 
 
 async def classify_intent_llm(question: str, history_text: str = "") -> str:
+    """使用 LLM 进行意图分类"""
     if history_text:
         prompt = INTENT_CLASSIFICATION_PROMPT.format(history=history_text, question=question)
     else:
@@ -231,7 +244,7 @@ async def classify_intent_llm(question: str, history_text: str = "") -> str:
         if intent in ["sql", "analysis", "chat"]:
             return intent
     except Exception as e:
-        print(f"LLM意图分类失败: {e}，降级到关键词匹配")
+        logger.warning(f"LLM意图分类失败: {e}，降级到关键词匹配")
     # 降级关键词
     knowledge_keywords = ["为什么", "什么原因", "解释", "说明", "含义", "规则", "定义", "分析", "分布", "趋势", "对比"]
     if any(kw in question for kw in knowledge_keywords):
@@ -262,6 +275,7 @@ SQL_REFERENCE_CHECK_PROMPT = """
 
 
 async def check_sql_reference(question: str, history_text: str) -> str:
+    """检测用户是否需要引用上一轮的 SQL 查询"""
     prompt = SQL_REFERENCE_CHECK_PROMPT.format(history=history_text, question=question)
     try:
         resp = await client.chat.completions.create(
@@ -274,7 +288,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
         if result in ["YES", "NO"]:
             return result
     except Exception as e:
-        print(f"SQL引用检测失败: {e}")
+        logger.error(f"SQL引用检测失败: {e}")
     # 降级关键词
     reference_keywords = ["刚才", "上一轮", "再查", "同样的", "也", "那个", "再次", "同样", "这个班", "那个班"]
     if any(kw in question for kw in reference_keywords):
@@ -284,6 +298,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
 
 # ---------- SQL 生成 ----------
 async def generate_sql(question: str, vectordb, retry: bool = False, previous_sql: Optional[str] = None) -> str:
+    """使用 LLM 生成 SQL 查询语句"""
     system = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。表名都是单数。"
     if retry:
         system += " 上一次生成的SQL执行失败，请修正。只输出修正后的SQL语句。"
@@ -303,7 +318,11 @@ async def generate_sql(question: str, vectordb, retry: bool = False, previous_sq
 
 
 async def execute_sql_to_dict(db: Session, sql: str):
-    """执行 SQL 查询并返回字典列表，包含 SQL 注入防护"""
+    """
+    执行 SQL 查询并返回字典列表
+
+    包含 SQL 注入防护验证
+    """
     # SQL 安全验证
     is_valid, error_msg = validate_sql(sql)
     if not is_valid:
@@ -340,6 +359,7 @@ AGGREGATE_SQL_PROMPT = """
 
 
 async def generate_aggregate_sql(question: str, original_desc: str, vectordb) -> Optional[str]:
+    """为数据分析需求生成聚合查询 SQL"""
     schema = await retrieve_schema_context(vectordb)
     prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question, original_desc=original_desc)
     try:
@@ -354,7 +374,7 @@ async def generate_aggregate_sql(question: str, original_desc: str, vectordb) ->
         if sql.lower().startswith("select"):
             return fix_table_names(sql)
     except Exception as e:
-        print(f"生成聚合SQL失败: {e}")
+        logger.error(f"生成聚合SQL失败: {e}")
     return None
 
 
@@ -377,6 +397,7 @@ ANALYSIS_REFINE_PROMPT = """
 
 
 async def refine_analysis(raw_analysis: str) -> str:
+    """对原始分析结果进行精简和规范化"""
     prompt = ANALYSIS_REFINE_PROMPT.format(raw_analysis=raw_analysis)
     try:
         resp = await client.chat.completions.create(
@@ -387,7 +408,7 @@ async def refine_analysis(raw_analysis: str) -> str:
         refined = resp.choices[0].message.content.strip()
         return refined
     except Exception as e:
-        print(f"精炼分析失败: {e}，返回原始结果")
+        logger.warning(f"精炼分析失败: {e}，返回原始结果")
         return raw_analysis
 
 
@@ -395,18 +416,30 @@ async def refine_analysis(raw_analysis: str) -> str:
 @router.post("/natural")
 async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
+    """
+    自然语言查询主接口
+
+    支持三种意图：
+    - sql: SQL 查询
+    - analysis: 数据分析
+    - chat: 闲聊
+    """
     question = req.question
     user_id = current_user.id  # 从认证用户获取 user_id
     session_id = req.session_id
-    print(f"[DEBUG] 收到请求 - question: {question[:50]}..., session_id: {session_id}")
+
+    logger.debug(f"收到请求 - question: {question[:50]}..., session_id: {session_id}, user_id: {user_id}")
+
     if not session_id:
         session_id = str(uuid.uuid4())
-        print(f"[DEBUG] 未提供 session_id，已生成新会话: {session_id}。后续请求请携带此ID以维持多轮记忆。")
+        logger.warning(f"未提供 session_id，已生成新会话: {session_id}，user_id: {user_id}")
+
     include_history = req.include_history
 
     # 获取历史记忆（用于意图分类和闲聊/分析）
     history_turns = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
-    print(f"会话 {session_id} 历史记录数: {len(history_turns)}")
+    logger.info(f"会话 {session_id} (user_id={user_id}) 历史记录数: {len(history_turns)}")
+
     history_text = ""
     for turn in history_turns:
         if turn.result_summary:
@@ -417,7 +450,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
     # 意图分类
     intent = await classify_intent_llm(question, history_text)
-    print(f"意图分类结果: {intent}")
+    logger.info(f"会话 {session_id} 意图分类结果: {intent}")
 
     turn_index = get_turn_count(db, user_id, session_id) + 1
 
@@ -436,22 +469,26 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                     [f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
                 reference_check = await check_sql_reference(question, ref_history)
                 need_reference = (reference_check == "YES")
-                print(f"SQL引用检测结果: {reference_check}")
+                logger.info(f"会话 {session_id} SQL引用检测结果: {reference_check}")
 
         try:
             if need_reference and previous_sql_turn and previous_sql_turn.sql_query:
                 sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql_turn.sql_query)
             else:
                 sql = await generate_sql(question, vectordb, retry=False)
+            logger.debug(f"会话 {session_id} 生成的SQL: {sql}")
         except Exception as e:
+            logger.error(f"会话 {session_id} 生成SQL失败: {e}")
             raise HTTPException(500, f"生成SQL失败: {e}")
 
         if not sql.strip().lower().startswith("select"):
+            logger.warning(f"会话 {session_id} 生成的非SELECT语句: {sql}")
             raise HTTPException(400, "只能生成SELECT语句")
 
         try:
             data = await execute_sql_to_dict(db, sql)
             row_count = len(data)
+            logger.info(f"会话 {session_id} SQL执行成功，返回 {row_count} 条记录")
             # 判断是否全量保存：行数<=100 且 JSON序列化后长度<=2000
             full_save = (row_count <= 100) and (len(json.dumps(data, default=str)) <= 2000)
             if full_save:
@@ -487,10 +524,12 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 }
         except Exception as e:
             # 重试一次
+            logger.warning(f"会话 {session_id} SQL执行失败，准备重试: {e}")
             try:
                 sql_corrected = await generate_sql(question, vectordb, retry=True)
                 data2 = await execute_sql_to_dict(db, sql_corrected)
                 row_count2 = len(data2)
+                logger.info(f"会话 {session_id} 重试SQL执行成功，返回 {row_count2} 条记录")
                 full_save2 = (row_count2 <= 100) and (len(json.dumps(data2, default=str)) <= 2000)
                 if full_save2:
                     result_summary2 = summarize_result(data2, full_save=True)
@@ -522,10 +561,12 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                         "full_data_saved": False
                     }
             except Exception as e2:
+                logger.error(f"会话 {session_id} SQL重试失败: 原始错误={e}, 修正错误={e2}")
                 raise HTTPException(500, f"SQL执行失败: {str(e)}\n原始SQL: {sql}\n修正SQL: {sql_corrected}")
 
     # ---------- 数据分析分支 ----------
     elif intent == "analysis":
+        logger.info(f"会话 {session_id} 进入数据分析分支")
         # 读取最近5轮历史（用于上下文）
         analysis_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
         # 获取上一轮（最新一轮）数据
@@ -600,9 +641,10 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             # 第二轮：精炼
             refined_answer = await refine_analysis(raw_answer)
             answer = refined_answer
-            # 保存记录（注意：result_summary 这里存储的是数据上下文摘要，但为了节省空间，可以只存聚合SQL或标记）
+            # 保存记录
             save_turn(db, user_id, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used,
                       full_data_saved=False)
+            logger.info(f"会话 {session_id} 数据分析完成")
             return {
                 "type": "answer",
                 "session_id": session_id,
@@ -611,10 +653,12 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 "raw_analysis": raw_answer  # 可选，调试用
             }
         except Exception as e:
+            logger.error(f"会话 {session_id} 分析失败: {e}")
             raise HTTPException(500, f"分析失败: {str(e)}")
 
     # ---------- 闲聊分支 ----------
     else:
+        logger.info(f"会话 {session_id} 进入闲聊分支")
         # 读取最近5轮历史
         chat_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
         chat_history_text = ""
@@ -632,6 +676,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             )
             answer = resp.choices[0].message.content
             save_turn(db, user_id, session_id, turn_index, question, answer_text=answer)
+            logger.info(f"会话 {session_id} 闲聊回复完成")
             return {
                 "type": "answer",
                 "session_id": session_id,
@@ -639,4 +684,5 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 "answer": answer
             }
         except Exception as e:
+            logger.error(f"会话 {session_id} 闲聊失败: {e}")
             raise HTTPException(500, f"闲聊失败: {str(e)}")
