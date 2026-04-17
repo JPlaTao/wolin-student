@@ -5,13 +5,14 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from core.database import get_db
+from core.settings import get_settings
 from model.user import User
 from core.exceptions import UnauthorizedException, ForbiddenException, BusinessException
-import os
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+settings = get_settings()
+SECRET_KEY = settings.jwt.secret_key
+ALGORITHM = settings.jwt.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt.access_token_expire_minutes
 
 # 使用 pbkdf2_sha256 代替 bcrypt，避免 72 字节限制和版本兼容问题
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")

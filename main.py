@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import HTMLResponse
 
 from core.database import engine, Base
+from core.settings import get_settings
 from api import (
     student_api,
     class_api,
@@ -20,8 +21,9 @@ from utils.logger import get_logger
 from middleware.logging_middleware import LoggingMiddleware, ErrorLoggingMiddleware
 from core.exception_handlers import register_exception_handlers
 
-# 获取日志记录器
+# 获取日志记录器和配置
 logger = get_logger("main")
+settings = get_settings()
 
 # 创建所有表（包括 users）
 Base.metadata.create_all(bind=engine)
@@ -35,9 +37,9 @@ except Exception as e:
     logger.warning(f"知识库构建失败（不影响其他功能）: {e}")
 
 app = FastAPI(
-    title="沃林学生管理系统",
+    title=settings.app.title,
     description="FastAPI + MySQL 学生信息/成绩/就业/统计管理",
-    version="1.0.0"
+    version=settings.app.version
 )
 
 # 注册全局异常处理器（必须在中间件之前注册）
@@ -85,4 +87,9 @@ def root():
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=8080)
+    uvicorn.run(
+        app,
+        host=settings.app.host,
+        port=settings.app.port,
+        reload=settings.app.debug
+    )

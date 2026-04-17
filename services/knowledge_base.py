@@ -3,9 +3,8 @@ from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
-from dotenv import load_dotenv
 
-load_dotenv()
+from core.settings import get_settings
 
 
 def build_knowledge_base(docs_dir="docs", persist_dir="./chroma_db"):
@@ -38,9 +37,9 @@ def build_knowledge_base(docs_dir="docs", persist_dir="./chroma_db"):
     chunks = text_splitter.split_documents(documents)
     print(f"文档已分割为 {len(chunks)} 个文本块")
 
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    api_key = get_settings().api_keys.dashscope
     if not api_key:
-        print("错误: 未找到 DASHSCOPE_API_KEY 环境变量，请在 .env 文件中设置")
+        print("错误: 未配置 DASHSCOPE_API_KEY，请在 config.json 中设置 api_keys.dashscope")
         return False
 
     embeddings = DashScopeEmbeddings(

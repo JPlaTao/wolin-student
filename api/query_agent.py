@@ -9,31 +9,30 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from openai import AsyncOpenAI
-from dotenv import load_dotenv
 
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
 
 from core.database import get_db
 from core.auth import get_current_user
+from core.settings import get_settings
 from model.user import User
 from dao.conversation_dao import save_turn, get_recent_turns, get_turn_count, get_latest_turn, get_previous_sql_turn
 
-load_dotenv()
-
 router = APIRouter(prefix="/query", tags=["自然语言查询"])
 
+settings = get_settings()
 client = AsyncOpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    api_key=settings.api_keys.deepseek,
     base_url="https://api.deepseek.com"
 )
 
 # ---------- 向量知识库 ----------
 vectordb = None
 try:
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    api_key = settings.api_keys.dashscope
     if not api_key:
-        print("警告: 未设置 DASHSCOPE_API_KEY，知识库功能不可用")
+        print("警告: 未配置 DASHSCOPE_API_KEY，知识库功能不可用")
     else:
         embeddings = DashScopeEmbeddings(model="text-embedding-v3", dashscope_api_key=api_key)
         if os.path.exists("./chroma_db") and os.path.isdir("./chroma_db"):

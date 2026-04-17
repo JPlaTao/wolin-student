@@ -1,0 +1,28 @@
+{
+  "database": {
+    "driver": "mysql+pymysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "your_password",
+    "database": "wolin_db",
+    "pool_size": 5,
+    "pool_recycle": 3600
+  },
+  "jwt": {
+    "secret_key": "your-secret-key-change-this-in-production",
+    "algorithm": "HS256",
+    "access_token_expire_minutes": 1440
+  },
+  "api_keys": {
+    "dashscope": "your-dashscope-api-key-here",
+    "deepseek": "your-deepseek-api-key-here"
+  },
+  "app": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "debug": false,
+    "title": "沃林学生管理系统",
+    "version": "1.0.0"
+  }
+}

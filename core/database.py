@@ -1,15 +1,18 @@
-import os
-
-from dotenv import load_dotenv
+"""
+数据库连接模块
+使用 Settings 配置，支持类型验证
+"""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-load_dotenv()
+from core.settings import get_settings
+
+settings = get_settings()
 
 engine = create_engine(
-    url=os.getenv("SQLALCHEMY_DATABASE_URL"),
-    pool_size=5,
-    pool_recycle=3600
+    url=settings.database.url,
+    pool_size=settings.database.pool_size,
+    pool_recycle=settings.database.pool_recycle
 )
 
 # 会话工厂

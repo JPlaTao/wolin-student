@@ -1,0 +1,28 @@
+{
+  "database": {
+    "driver": "mysql+pymysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "123456",
+    "database": "wolin_test1",
+    "pool_size": 5,
+    "pool_recycle": 3600
+  },
+  "jwt": {
+    "secret_key": "wolin-student-secret-key-change-in-production-2024",
+    "algorithm": "HS256",
+    "access_token_expire_minutes": 1440
+  },
+  "api_keys": {
+    "dashscope": "sk-80fdea06ea574837b432ab451791160b",
+    "deepseek": "sk-334328a78e7a40d4a61cb37130962e7e"
+  },
+  "app": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "debug": false,
+    "title": "沃林学生管理系统",
+    "version": "1.0.0"
+  }
+}
