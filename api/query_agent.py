@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from openai import AsyncOpenAI
+import sqlparse
+from sqlparse import tokens
 
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
@@ -43,11 +45,13 @@ try:
 except Exception as e:
     print(f"向量知识库加载失败: {e}")
 
+
 # ---------- 请求模型 ----------
 class QueryRequest(BaseModel):
     question: str
     session_id: Optional[str] = None
     include_history: bool = True
+
 
 # ---------- 备用表结构 ----------
 FALLBACK_SCHEMA = """
@@ -64,6 +68,7 @@ FALLBACK_SCHEMA = """
 - 只生成 SELECT 语句
 """
 
+
 # ---------- 辅助函数 ----------
 def fix_table_names(sql: str) -> str:
     sql = re.sub(r'\bteachers\b', 'teacher', sql, flags=re.IGNORECASE)
@@ -71,10 +76,89 @@ def fix_table_names(sql: str) -> str:
     sql = re.sub(r'\bcourses\b', 'class', sql, flags=re.IGNORECASE)
     return sql
 
+
+def validate_sql(sql: str) -> tuple[bool, Optional[str]]:
+    """
+    验证 SQL 是否安全，仅允许 SELECT 查询
+
+    返回: (是否通过, 错误信息)
+    """
+    sql_clean = sql.strip()
+    sql_lower = sql_clean.lower()
+
+    # 1. 基础检查：必须以 SELECT 开头
+    if not sql_lower.startswith('select'):
+        return False, "只允许 SELECT 查询语句"
+
+    # 2. 禁止关键字检查
+    dangerous_keywords = [
+        'drop', 'delete', 'truncate', 'insert', 'update', 'alter',
+        'create', 'grant', 'revoke', 'show', 'describe', 'explain',
+        'load_file', 'into outfile', 'dumpfile'
+    ]
+
+    for keyword in dangerous_keywords:
+        # 使用单词边界匹配，避免误判（如 'updated' 包含 'update'）
+        pattern = r'\b' + keyword + r'\b'
+        if re.search(pattern, sql_lower):
+            return False, f"包含危险关键字: {keyword}"
+
+    # 3. 禁止注释注入
+    if '--' in sql or '/*' in sql or '*/' in sql:
+        return False, "包含注释标记，可能存在注入风险"
+
+    # 4. 禁止分号分隔的多条语句
+    if sql_clean.count(';') > 1:
+        return False, "不允许执行多条 SQL 语句"
+
+    # 5. 禁止常见的注入模式
+    injection_patterns = [
+        r'\bor\b\s+\d+\s*=\s*\d+',  # OR 1=1
+        r'\band\b\s+\d+\s*=\s*\d+',  # AND 1=1
+        r'\bor\s+["\']',  # OR "1"="1"
+        r'\band\s+["\']',  # AND "1"="1"
+        r"union\s+select",  # UNION SELECT
+        r"waitfor\s+delay",  # 时间注入
+        r"benchmark\s*\(",  # MySQL 盲注
+        r"sleep\s*\(",  # MySQL 盲注
+    ]
+
+    for pattern in injection_patterns:
+        if re.search(pattern, sql_lower):
+            return False, f"包含可疑的注入模式"
+
+    # 6. 使用 sqlparse 进行深度解析
+    try:
+        parsed = sqlparse.parse(sql)[0]
+        dml_found = False
+
+        for token in parsed.flatten():
+            # 检查 DML 类型
+            if token.ttype in tokens.DML:
+                if token.value.upper() != 'SELECT':
+                    return False, f"包含非 SELECT 的 DML 操作: {token.value}"
+                dml_found = True
+
+            # 检查是否包含存储过程调用
+            if token.ttype in tokens.Keyword and token.value.upper() in ['CALL', 'EXECUTE', 'EXEC']:
+                return False, "不允许调用存储过程或函数"
+
+        # 如果解析成功但未找到 DML，可能是空语句或异常
+        if not dml_found:
+            return False, "未找到有效的 SELECT 语句"
+
+    except Exception as e:
+        return False, f"SQL 解析失败: {str(e)}"
+
+    return True, None
+
+
 async def similarity_search_async(vectordb, query: str, k: int = 3):
     def _sync():
         return vectordb.similarity_search(query, k=k)
+
     return await asyncio.to_thread(_sync)
+
 
 async def retrieve_schema_context(vectordb) -> str:
     if vectordb is None:
@@ -87,6 +171,7 @@ async def retrieve_schema_context(vectordb) -> str:
     except Exception as e:
         print(f"检索表结构失败: {e}")
     return FALLBACK_SCHEMA
+
 
 def summarize_result(data: List[dict], max_sample_rows: int = 3, full_save: bool = False) -> str:
     """
@@ -107,9 +192,10 @@ def summarize_result(data: List[dict], max_sample_rows: int = 3, full_save: bool
             if isinstance(data[0].get(key), (int, float)):
                 values = [row.get(key) for row in data if row.get(key) is not None]
                 if values:
-                    stats[key] = {"avg": sum(values)/len(values), "min": min(values), "max": max(values)}
+                    stats[key] = {"avg": sum(values) / len(values), "min": min(values), "max": max(values)}
         summary = {"row_count": row_count, "sample": sample, "statistics": stats}
         return json.dumps(summary, ensure_ascii=False, default=str)
+
 
 # ---------- 意图分类 ----------
 INTENT_CLASSIFICATION_PROMPT = """
@@ -127,6 +213,7 @@ INTENT_CLASSIFICATION_PROMPT = """
 
 意图：
 """
+
 
 async def classify_intent_llm(question: str, history_text: str = "") -> str:
     if history_text:
@@ -149,10 +236,12 @@ async def classify_intent_llm(question: str, history_text: str = "") -> str:
     knowledge_keywords = ["为什么", "什么原因", "解释", "说明", "含义", "规则", "定义", "分析", "分布", "趋势", "对比"]
     if any(kw in question for kw in knowledge_keywords):
         return "analysis"
-    sql_keywords = ["查询", "多少", "几个", "平均", "最高", "最低", "排名", "列表", "统计", "每个", "各个", "薪资", "年龄", "成绩", "学生", "班级", "老师", "就业", "考试"]
+    sql_keywords = ["查询", "多少", "几个", "平均", "最高", "最低", "排名", "列表", "统计", "每个", "各个", "薪资",
+                    "年龄", "成绩", "学生", "班级", "老师", "就业", "考试"]
     if any(kw in question for kw in sql_keywords):
         return "sql"
     return "chat"
+
 
 # ---------- SQL 历史引用检测 ----------
 SQL_REFERENCE_CHECK_PROMPT = """
@@ -170,6 +259,7 @@ SQL_REFERENCE_CHECK_PROMPT = """
 
 只输出 YES 或 NO。
 """
+
 
 async def check_sql_reference(question: str, history_text: str) -> str:
     prompt = SQL_REFERENCE_CHECK_PROMPT.format(history=history_text, question=question)
@@ -191,6 +281,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
         return "YES"
     return "NO"
 
+
 # ---------- SQL 生成 ----------
 async def generate_sql(question: str, vectordb, retry: bool = False, previous_sql: Optional[str] = None) -> str:
     system = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。表名都是单数。"
@@ -210,14 +301,23 @@ async def generate_sql(question: str, vectordb, retry: bool = False, previous_sq
     sql = re.sub(r'\s*```$', '', sql)
     return fix_table_names(sql)
 
+
 async def execute_sql_to_dict(db: Session, sql: str):
+    """执行 SQL 查询并返回字典列表，包含 SQL 注入防护"""
+    # SQL 安全验证
+    is_valid, error_msg = validate_sql(sql)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"SQL 验证失败: {error_msg}")
+
     def _sync():
         result = db.execute(text(sql))
         rows = result.fetchall()
         if not rows:
             return []
         return [dict(zip(result.keys(), row)) for row in rows]
+
     return await asyncio.to_thread(_sync)
+
 
 # ---------- 聚合 SQL 生成 ----------
 AGGREGATE_SQL_PROMPT = """
@@ -238,6 +338,7 @@ AGGREGATE_SQL_PROMPT = """
 输出SQL：
 """
 
+
 async def generate_aggregate_sql(question: str, original_desc: str, vectordb) -> Optional[str]:
     schema = await retrieve_schema_context(vectordb)
     prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question, original_desc=original_desc)
@@ -256,6 +357,7 @@ async def generate_aggregate_sql(question: str, original_desc: str, vectordb) ->
         print(f"生成聚合SQL失败: {e}")
     return None
 
+
 # ---------- 数据分析精炼 ----------
 ANALYSIS_REFINE_PROMPT = """
 你是一个数据分析专家，请对以下初步分析结果进行精简和规范化。
@@ -273,6 +375,7 @@ ANALYSIS_REFINE_PROMPT = """
 请输出精炼后的最终回答：
 """
 
+
 async def refine_analysis(raw_analysis: str) -> str:
     prompt = ANALYSIS_REFINE_PROMPT.format(raw_analysis=raw_analysis)
     try:
@@ -287,9 +390,11 @@ async def refine_analysis(raw_analysis: str) -> str:
         print(f"精炼分析失败: {e}，返回原始结果")
         return raw_analysis
 
+
 # ---------- 主接口 ----------
 @router.post("/natural")
-async def natural_query(req: QueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
     question = req.question
     session_id = req.session_id
     if not session_id:
@@ -325,7 +430,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db), curren
             if previous_sql_turn and previous_sql_turn.sql_query:
                 # 只取最近2轮历史用于判断
                 recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
-                ref_history = "\n".join([f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
+                ref_history = "\n".join(
+                    [f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
                 reference_check = await check_sql_reference(question, ref_history)
                 need_reference = (reference_check == "YES")
                 print(f"SQL引用检测结果: {reference_check}")
@@ -352,7 +458,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db), curren
             else:
                 result_summary = summarize_result(data, full_save=False)  # 摘要
                 answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问“分析这些数据”。"
-            save_turn(db, session_id, turn_index, question, sql_query=sql, result_summary=result_summary, answer_text=answer_text, full_data_saved=full_save)
+            save_turn(db, session_id, turn_index, question, sql_query=sql, result_summary=result_summary,
+                      answer_text=answer_text, full_data_saved=full_save)
             if full_save:
                 return {
                     "type": "sql",
@@ -389,7 +496,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db), curren
                 else:
                     result_summary2 = summarize_result(data2, full_save=False)
                     answer_text2 = f"数据量较大（共{row_count2}行），已为您存储分析标记。"
-                save_turn(db, session_id, turn_index, question, sql_query=sql_corrected, result_summary=result_summary2, answer_text=answer_text2, full_data_saved=full_save2)
+                save_turn(db, session_id, turn_index, question, sql_query=sql_corrected, result_summary=result_summary2,
+                          answer_text=answer_text2, full_data_saved=full_save2)
                 if full_save2:
                     return {
                         "type": "sql",
@@ -491,7 +599,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db), curren
             refined_answer = await refine_analysis(raw_answer)
             answer = refined_answer
             # 保存记录（注意：result_summary 这里存储的是数据上下文摘要，但为了节省空间，可以只存聚合SQL或标记）
-            save_turn(db, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used, full_data_saved=False)
+            save_turn(db, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used,
+                      full_data_saved=False)
             return {
                 "type": "answer",
                 "session_id": session_id,
