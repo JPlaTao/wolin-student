@@ -15,8 +15,17 @@
     "access_token_expire_minutes": 1440
   },
   "api_keys": {
-    "dashscope": "sk-80fdea06ea574837b432ab451791160b",
-    "deepseek": "sk-334328a78e7a40d4a61cb37130962e7e"
+    "dashscope": "sk-ae72435926e24db19b62e25842e1c144",
+    "deepseek": "",
+    "openai": "",
+    "kimi": "sk-31KufpXQn0MflvMdPORlKRKuoNmCdrUa3DCEQirUaHUsvGBU"
+  },
+  "llm": {
+    "provider": "kimi",
+    "model": "kimi-k2.5",
+    "base_url": "https://api.moonshot.cn/v1",
+    "temperature": 0.1,
+    "max_tokens": 4096
   },
   "app": {
     "host": "0.0.0.0",

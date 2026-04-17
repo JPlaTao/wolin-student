@@ -28,10 +28,27 @@ logger = get_logger("query_agent")
 router = APIRouter(prefix="/query", tags=["自然语言查询"])
 
 settings = get_settings()
+
+# ---------- LLM 客户端初始化 ----------
+def _get_llm_api_key() -> str:
+    """根据配置的 provider 获取对应的 API key"""
+    provider = settings.llm.provider.lower()
+    if provider == "kimi":
+        return settings.api_keys.kimi
+    elif provider == "deepseek":
+        return settings.api_keys.deepseek
+    elif provider == "openai":
+        return settings.api_keys.openai
+    else:
+        logger.warning(f"未知的 LLM provider: {provider}，尝试使用 kimi key")
+        return settings.api_keys.kimi
+
+llm_config = settings.llm
 client = AsyncOpenAI(
-    api_key=settings.api_keys.deepseek,
-    base_url="https://api.deepseek.com"
+    api_key=_get_llm_api_key(),
+    base_url=llm_config.base_url
 )
+logger.info(f"LLM 客户端初始化完成: provider={llm_config.provider}, model={llm_config.model}, base_url={llm_config.base_url}")
 
 # ---------- 向量知识库 ----------
 vectordb = None
@@ -235,7 +252,7 @@ async def classify_intent_llm(question: str, history_text: str = "") -> str:
         prompt = f"意图选项：sql / analysis / chat\n用户问题：{question}\n意图："
     try:
         resp = await client.chat.completions.create(
-            model="deepseek-chat",
+            model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=10
@@ -279,7 +296,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
     prompt = SQL_REFERENCE_CHECK_PROMPT.format(history=history_text, question=question)
     try:
         resp = await client.chat.completions.create(
-            model="deepseek-chat",
+            model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=10
@@ -307,7 +324,7 @@ async def generate_sql(question: str, vectordb, retry: bool = False, previous_sq
     if previous_sql:
         user = f"上一轮用户执行的SQL是：\n{previous_sql}\n\n用户现在的问题可能希望复用其中的过滤条件。\n\n数据库结构：\n{schema}\n\n用户问题：{question}\n输出SQL："
     resp = await client.chat.completions.create(
-        model="deepseek-chat",
+        model=llm_config.model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         temperature=0.1,
     )
@@ -364,7 +381,7 @@ async def generate_aggregate_sql(question: str, original_desc: str, vectordb) ->
     prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question, original_desc=original_desc)
     try:
         resp = await client.chat.completions.create(
-            model="deepseek-chat",
+            model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
@@ -401,7 +418,7 @@ async def refine_analysis(raw_analysis: str) -> str:
     prompt = ANALYSIS_REFINE_PROMPT.format(raw_analysis=raw_analysis)
     try:
         resp = await client.chat.completions.create(
-            model="deepseek-chat",
+            model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )
@@ -633,7 +650,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 """
         try:
             resp_raw = await client.chat.completions.create(
-                model="deepseek-chat",
+                model=llm_config.model,
                 messages=[{"role": "user", "content": analysis_prompt}],
                 temperature=0.5,
             )
@@ -670,7 +687,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             chat_prompt = f"用户：{question}\n助手："
         try:
             resp = await client.chat.completions.create(
-                model="deepseek-chat",
+                model=llm_config.model,
                 messages=[{"role": "user", "content": chat_prompt}],
                 temperature=0.7,
             )

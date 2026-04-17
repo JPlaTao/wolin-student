@@ -14,7 +14,8 @@ from api import (
     employment_api,
     statistics_api,
     query_agent,
-    auth_api
+    auth_api,
+    image_gen
 )
 from services.knowledge_base import build_knowledge_base
 from utils.logger import get_logger
@@ -70,6 +71,7 @@ app.include_router(employment_api.router)
 app.include_router(statistics_api.router)
 app.include_router(query_agent.router)
 app.include_router(auth_api.router)  # 认证路由
+app.include_router(image_gen.router)  # 文生图路由
 
 
 @app.get("/", response_class=HTMLResponse)

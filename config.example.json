@@ -16,7 +16,15 @@
   },
   "api_keys": {
     "dashscope": "your-dashscope-api-key-here",
-    "deepseek": "your-deepseek-api-key-here"
+    "deepseek": "your-deepseek-api-key-here",
+    "openai": "your-openai-api-key-here"
+  },
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "base_url": "https://api.deepseek.com",
+    "temperature": 0.1,
+    "max_tokens": 4096
   },
   "app": {
     "host": "0.0.0.0",

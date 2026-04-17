@@ -1,33 +1,42 @@
-# FastAPI 核心
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
+# ============================================
+# 沃林学生管理系统 - Python 依赖
+# ============================================
 
-# 数据库相关
-sqlalchemy==2.0.23
-pymysql==1.1.0
-cryptography==41.0.7
-sqlparse==0.4.4
+# ---------- Web 框架 ----------
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
 
-# 认证相关
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-dotenv==1.0.0
+# ---------- 数据库 ----------
+sqlalchemy>=2.0.0
+pymysql>=1.1.0
+cryptography>=41.0.0
+sqlparse>=0.4.4
 
-# Pydantic (FastAPI 依赖)
-pydantic==2.5.0
-pydantic-settings==2.1.0
-email-validator==2.1.0
+# ---------- 认证/授权 ----------
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0
 
-# LangChain 生态
-langchain==0.1.0
-langchain-community==0.0.10
-langchain-text-splitters==0.0.1
-langchain-chroma==0.1.1
+# ---------- 数据验证 ----------
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
 
-# 向量数据库和嵌入
-chromadb==0.4.18
-dashscope==1.14.1
+# ---------- LLM / AI ----------
+openai>=1.0.0
+dashscope>=1.14.0
+tiktoken>=0.5.0
 
-# 其他依赖
-aiosqlite==0.19.0
+# ---------- LangChain 生态 ----------
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-text-splitters>=0.0.1
+langchain-chroma>=0.1.0
+
+# ---------- 向量数据库 ----------
+chromadb>=0.4.0
+
+# ---------- 测试 ----------
+pytest>=7.0.0
+httpx>=0.25.0

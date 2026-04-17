@@ -41,6 +41,17 @@ class APIKeysConfig(BaseModel):
     """API密钥配置"""
     dashscope: str = Field(default="", description="阿里云 DashScope API 密钥")
     deepseek: str = Field(default="", description="DeepSeek API 密钥")
+    openai: str = Field(default="", description="OpenAI API 密钥")
+    kimi: str = Field(default="", description="Kimi (Moonshot) API 密钥")
+
+
+class LLMConfig(BaseModel):
+    """LLM 模型配置"""
+    provider: str = Field(default="kimi", description="模型提供商: kimi, deepseek, openai")
+    model: str = Field(default="kimi-k2.5", description="模型名称")
+    base_url: str = Field(default="https://api.moonshot.cn/v1", description="API 基础URL")
+    temperature: float = Field(default=0.1, ge=0, le=2, description="默认温度参数")
+    max_tokens: int = Field(default=4096, ge=100, description="最大生成token数")
 
 
 class AppConfig(BaseModel):
@@ -57,6 +68,7 @@ class Settings(BaseModel):
     database: DatabaseConfig
     jwt: JWTConfig
     api_keys: APIKeysConfig
+    llm: LLMConfig = Field(default_factory=LLMConfig)  # LLM 配置，支持默认工厂
     app: AppConfig
 
 
