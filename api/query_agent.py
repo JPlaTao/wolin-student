@@ -207,8 +207,8 @@ INTENT_CLASSIFICATION_PROMPT = """
 当前问题：{question}
 
 意图选项（只输出一个单词）：
-- sql: 用户需要从数据库查询具体数据（如“查询成绩”、“统计人数”、“列出学生”）
-- analysis: 用户希望进行数据分析、解释原因、对比趋势（如“为什么成绩低”、“分析就业率变化”）
+- sql: 用户需要从数据库查询具体数据（如"查询成绩"、"统计人数"、"列出学生"）
+- analysis: 用户希望进行数据分析、解释原因、对比趋势（如"为什么成绩低"、"分析就业率变化"）
 - chat: 其他日常闲聊、问候、无关问题
 
 意图：
@@ -254,7 +254,7 @@ SQL_REFERENCE_CHECK_PROMPT = """
 当前问题：{question}
 
 判断规则：
-- 如果用户明确提到“刚才”、“上一轮”、“再查一下”、“同样的”、“也”、“那个”、“再次”、“同样”等词，或者明显引用上一轮的结果（如“那个班的就业率”），返回 "YES"。
+- 如果用户明确提到"刚才"、"上一轮"、"再查一下"、"同样的"、"也"、"那个"、"再次"、"同样"等词，或者明显引用上一轮的结果（如"那个班的就业率"），返回 "YES"。
 - 否则返回 "NO"。
 
 只输出 YES 或 NO。
@@ -365,7 +365,7 @@ ANALYSIS_REFINE_PROMPT = """
 要求：
 - 删除重复的句子或观点
 - 合并相似结论
-- 去掉无意义的填充词（如“总的来说”、“首先呢”、“那么”等）
+- 去掉无意义的填充词（如"总的来说"、"首先呢"、"那么"等）
 - 保留关键数据、原因、建议
 - 输出结构：结论 → 数据支撑 → 可能原因 → 建议
 
@@ -396,14 +396,16 @@ async def refine_analysis(raw_analysis: str) -> str:
 async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     question = req.question
+    user_id = current_user.id  # 从认证用户获取 user_id
     session_id = req.session_id
+    print(f"[DEBUG] 收到请求 - question: {question[:50]}..., session_id: {session_id}")
     if not session_id:
         session_id = str(uuid.uuid4())
-        print(f"警告: 未提供 session_id，已生成新会话: {session_id}。后续请求请携带此ID以维持多轮记忆。")
+        print(f"[DEBUG] 未提供 session_id，已生成新会话: {session_id}。后续请求请携带此ID以维持多轮记忆。")
     include_history = req.include_history
 
     # 获取历史记忆（用于意图分类和闲聊/分析）
-    history_turns = get_recent_turns(db, session_id, limit=5) if include_history else []
+    history_turns = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
     print(f"会话 {session_id} 历史记录数: {len(history_turns)}")
     history_text = ""
     for turn in history_turns:
@@ -417,7 +419,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     intent = await classify_intent_llm(question, history_text)
     print(f"意图分类结果: {intent}")
 
-    turn_index = get_turn_count(db, session_id) + 1
+    turn_index = get_turn_count(db, user_id, session_id) + 1
 
     # ---------- SQL 分支 ----------
     if intent == "sql":
@@ -426,7 +428,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
         previous_sql_turn = None
         if history_turns:
             # 获取上一轮有SQL的记录（可能不是最新一轮，但通常是）
-            previous_sql_turn = get_previous_sql_turn(db, session_id)
+            previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
             if previous_sql_turn and previous_sql_turn.sql_query:
                 # 只取最近2轮历史用于判断
                 recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
@@ -457,8 +459,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 answer_text = f"查询成功，共{row_count}条记录。"
             else:
                 result_summary = summarize_result(data, full_save=False)  # 摘要
-                answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问“分析这些数据”。"
-            save_turn(db, session_id, turn_index, question, sql_query=sql, result_summary=result_summary,
+                answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问'分析这些数据'。"
+            save_turn(db, user_id, session_id, turn_index, question, sql_query=sql, result_summary=result_summary,
                       answer_text=answer_text, full_data_saved=full_save)
             if full_save:
                 return {
@@ -496,7 +498,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 else:
                     result_summary2 = summarize_result(data2, full_save=False)
                     answer_text2 = f"数据量较大（共{row_count2}行），已为您存储分析标记。"
-                save_turn(db, session_id, turn_index, question, sql_query=sql_corrected, result_summary=result_summary2,
+                save_turn(db, user_id, session_id, turn_index, question, sql_query=sql_corrected, result_summary=result_summary2,
                           answer_text=answer_text2, full_data_saved=full_save2)
                 if full_save2:
                     return {
@@ -525,14 +527,14 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     # ---------- 数据分析分支 ----------
     elif intent == "analysis":
         # 读取最近5轮历史（用于上下文）
-        analysis_history = get_recent_turns(db, session_id, limit=5) if include_history else []
+        analysis_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
         # 获取上一轮（最新一轮）数据
-        latest_turn = get_latest_turn(db, session_id)
+        latest_turn = get_latest_turn(db, user_id, session_id)
         data_context = ""
         aggregate_sql_used = None
         need_aggregate = False
 
-        # 判断是否需要上一轮数据：如果用户问题包含“这些数据”、“刚才的结果”等，则默认需要；否则也可以不需要
+        # 判断是否需要上一轮数据：如果用户问题包含"这些数据"、"刚才的结果"等，则默认需要；否则也可以不需要
         # 简化：如果上一轮存在且有 result_summary，则尝试使用
         if latest_turn and latest_turn.result_summary:
             try:
@@ -599,7 +601,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             refined_answer = await refine_analysis(raw_answer)
             answer = refined_answer
             # 保存记录（注意：result_summary 这里存储的是数据上下文摘要，但为了节省空间，可以只存聚合SQL或标记）
-            save_turn(db, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used,
+            save_turn(db, user_id, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used,
                       full_data_saved=False)
             return {
                 "type": "answer",
@@ -614,7 +616,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     # ---------- 闲聊分支 ----------
     else:
         # 读取最近5轮历史
-        chat_history = get_recent_turns(db, session_id, limit=5) if include_history else []
+        chat_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
         chat_history_text = ""
         for turn in chat_history:
             chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
@@ -629,7 +631,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 temperature=0.7,
             )
             answer = resp.choices[0].message.content
-            save_turn(db, session_id, turn_index, question, answer_text=answer)
+            save_turn(db, user_id, session_id, turn_index, question, answer_text=answer)
             return {
                 "type": "answer",
                 "session_id": session_id,

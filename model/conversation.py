@@ -5,6 +5,7 @@ class ConversationMemory(Base):
     __tablename__ = "conversation_memory"
 
     id = Column(Integer, primary_key=True, autoincrement=True, comment="自增主键")
+    user_id = Column(Integer, nullable=False, index=True, comment="用户ID，关联users表")
     session_id = Column(String(64), nullable=False, index=True, comment="会话ID，用于区分不同用户/对话")
     turn_index = Column(Integer, nullable=False, comment="轮次序号，同一会话内递增")
     question = Column(Text, nullable=False, comment="用户提问的原文")

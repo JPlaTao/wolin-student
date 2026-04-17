@@ -85,7 +85,8 @@ def login(form_data: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "username": user.username,
-        "role": user.role
+        "role": user.role,
+        "user_id": user.id  # 添加 user_id 用于会话绑定
     }
 
 

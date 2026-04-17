@@ -68,6 +68,43 @@ const app = createApp({
         const chatContainer = ref(null);
         const currentSessionId = ref(null);
 
+        /**
+         * 获取用户会话ID（用户级别固定会话）
+         * 格式: user_{user_id}
+         * 未来扩展: 改为 list 存储多个会话
+         */
+        const getUserSessionId = () => {
+            const stored = localStorage.getItem('user_session_id');
+            if (stored) return stored;
+            // 如果有登录用户，使用用户ID生成固定session
+            const token = localStorage.getItem('access_token');
+            if (token) {
+                // 暂时用时间戳作为session（登录时后端会返回真正的user_id）
+                // 实际session_id由后端基于user_id生成
+                return null;
+            }
+            return null;
+        };
+
+        /**
+         * 初始化用户会话（登录成功后调用）
+         */
+        const initUserSession = (userId) => {
+            const sessionId = `user_${userId}`;
+            currentSessionId.value = sessionId;
+            localStorage.setItem('user_session_id', sessionId);
+            console.log('[Session] 初始化用户会话:', sessionId);
+        };
+
+        // 从 localStorage 恢复 session_id
+        const savedSessionId = localStorage.getItem('user_session_id');
+        if (savedSessionId) {
+            currentSessionId.value = savedSessionId;
+            console.log('[Session] 从 localStorage 恢复 session_id:', savedSessionId);
+        } else {
+            console.log('[Session] localStorage 中无 session_id，等待登录后初始化');
+        }
+
         // 数据管理
         const mgmtLoading = ref(false);
         const students = ref([]);
@@ -182,10 +219,13 @@ const app = createApp({
         };
 
         /**
-         * 重置会话ID
+         * 重置会话ID（仅清除内存，用于刷新场景）
+         * 注意：user_session_id 是用户级别固定值，不应轻易清除
          */
         const resetSessionId = () => {
-            currentSessionId.value = null;
+            // 只清除内存，不清除 localStorage
+            // session_id 是用户级别固定的，与用户绑定
+            currentSessionId.value = localStorage.getItem('user_session_id');
         };
 
         /**
@@ -206,6 +246,16 @@ const app = createApp({
          */
         const getRoleClass = (role) => {
             return `role-${role}`;
+        };
+
+        /**
+         * 渲染 Markdown 文本
+         */
+        const renderMarkdown = (text) => {
+            if (typeof marked !== 'undefined') {
+                return marked.parse(text);
+            }
+            return text;
         };
 
         // ===================================
@@ -229,10 +279,12 @@ const app = createApp({
                     isLoggedIn.value = true;
                     currentUser.value = {
                         username: res.data.username,
-                        role: res.data.role
+                        role: res.data.role,
+                        userId: res.data.user_id
                     };
                     isAdmin.value = res.data.role === 'admin';
-                    resetSessionId();
+                    // 初始化用户会话（基于 user_id 的固定会话）
+                    initUserSession(res.data.user_id);
                     await refreshDashboard();
                     await loadManagementData();
                     ElMessage.success('登录成功');
@@ -1071,14 +1123,19 @@ const app = createApp({
                 if (currentSessionId.value) {
                     payload.session_id = currentSessionId.value;
                 }
+                console.log('[Session] 发送请求，携带 session_id:', currentSessionId.value);
 
                 const res = await axios.post('/query/natural', payload);
 
-                // 处理返回的 session_id
+                // 处理返回的 session_id（持久化到 localStorage）
                 if (res.data && res.data.session_id) {
                     currentSessionId.value = res.data.session_id;
+                    localStorage.setItem('current_session_id', res.data.session_id);
+                    console.log('[Session] 保存 session_id 到 localStorage:', res.data.session_id);
                 } else if (res.data && res.data.data && res.data.data.session_id) {
                     currentSessionId.value = res.data.data.session_id;
+                    localStorage.setItem('current_session_id', res.data.data.session_id);
+                    console.log('[Session] 保存 session_id 到 localStorage:', res.data.data.session_id);
                 }
 
                 const result = res.data;
@@ -1217,6 +1274,7 @@ const app = createApp({
             isLoading,
             sendQuestion,
             chatContainer,
+            renderMarkdown,
 
             // 数据管理
             students,

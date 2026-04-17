@@ -13,6 +13,9 @@
     
     <!-- 自定义样式 -->
     <link rel="stylesheet" href="css/style.css">
+
+    <!-- Markdown 渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <!-- 外部脚本库 -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -286,6 +289,9 @@
                                     </details>
                                 </div>
                                 <div v-else-if="msg.type === 'html'" v-html="msg.content"></div>
+                                <!-- AI 消息渲染 Markdown -->
+                                <div v-else-if="msg.role === 'ai'" v-html="renderMarkdown(msg.content)"></div>
+                                <!-- 用户消息直接显示 -->
                                 <div v-else>{{ msg.content }}</div>
                             </div>
                         </div>
@@ -809,6 +815,6 @@
 </div>
 
 <!-- 应用脚本 -->
-<script src="js/app.js"></script>
+<script src="js/app.js?v=20240417c"></script>
 </body>
 </html>
