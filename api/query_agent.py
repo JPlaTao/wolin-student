@@ -5,6 +5,9 @@ import uuid
 import json
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+import asyncio
+from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -44,6 +47,7 @@ def _get_llm_api_key() -> str:
         return settings.api_keys.kimi
 
 llm_config = settings.llm
+_temperature = llm_config.effective_temperature  # 自动适配模型限制
 client = AsyncOpenAI(
     api_key=_get_llm_api_key(),
     base_url=llm_config.base_url
@@ -209,10 +213,10 @@ def summarize_result(data: List[dict], max_sample_rows: int = 3, full_save: bool
     返回: JSON 格式的摘要或完整数据
     """
     if not data:
-        return json.dumps({"row_count": 0, "sample": []})
+        return safe_json_dumps({"row_count": 0, "sample": []})
     if full_save:
-        # 完整保存，直接序列化全部数据（可能很大，但用户要求）
-        return json.dumps(data, ensure_ascii=False, default=str)
+        # 完整保存，直接序列化全部数据
+        return safe_json_dumps(data, ensure_ascii=False)
     else:
         row_count = len(data)
         sample = data[:max_sample_rows]
@@ -223,7 +227,7 @@ def summarize_result(data: List[dict], max_sample_rows: int = 3, full_save: bool
                 if values:
                     stats[key] = {"avg": sum(values) / len(values), "min": min(values), "max": max(values)}
         summary = {"row_count": row_count, "sample": sample, "statistics": stats}
-        return json.dumps(summary, ensure_ascii=False, default=str)
+        return safe_json_dumps(summary, ensure_ascii=False)
 
 
 # ---------- 意图分类 ----------
@@ -254,7 +258,7 @@ async def classify_intent_llm(question: str, history_text: str = "") -> str:
         resp = await client.chat.completions.create(
             model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0,
+            temperature=_temperature,
             max_tokens=10
         )
         intent = resp.choices[0].message.content.strip().lower()
@@ -298,7 +302,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
         resp = await client.chat.completions.create(
             model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0,
+            temperature=_temperature,
             max_tokens=10
         )
         result = resp.choices[0].message.content.strip().upper()
@@ -326,7 +330,7 @@ async def generate_sql(question: str, vectordb, retry: bool = False, previous_sq
     resp = await client.chat.completions.create(
         model=llm_config.model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.1,
+        temperature=_temperature,
     )
     sql = resp.choices[0].message.content.strip()
     sql = re.sub(r'^```sql\s*', '', sql)
@@ -334,11 +338,64 @@ async def generate_sql(question: str, vectordb, retry: bool = False, previous_sq
     return fix_table_names(sql)
 
 
+import datetime
+import decimal
+import uuid
+from enum import Enum
+from json import JSONEncoder
+
+
+class SafeJSONEncoder(JSONEncoder):
+    """
+    安全的 JSON 编码器，自动处理所有不可序列化的类型。
+    使用方式: json.dumps(data, cls=SafeJSONEncoder)
+    """
+    def default(self, obj):
+        # datetime 类型
+        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
+        # Decimal 类型
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+        # UUID 类型
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        # bytes 类型
+        if isinstance(obj, bytes):
+            try:
+                return obj.decode('utf-8')
+            except:
+                return obj.hex()
+        # Enum 类型
+        if isinstance(obj, Enum):
+            return obj.value
+        # set/frozenset 转为列表
+        if isinstance(obj, (set, frozenset)):
+            return list(obj)
+        # 其他有 __dict__ 的对象
+        if hasattr(obj, '__dict__'):
+            return obj.__dict__
+        # 最后尝试 str()
+        try:
+            return str(obj)
+        except:
+            return f"<unserializable: {type(obj).__name__}>"
+
+
+def safe_json_dumps(obj, **kwargs) -> str:
+    """
+    安全的 JSON 序列化函数，自动处理不可序列化类型。
+    用法与 json.dumps 完全相同，只需替换函数名即可。
+    """
+    return json.dumps(obj, cls=SafeJSONEncoder, **kwargs)
+
+
 async def execute_sql_to_dict(db: Session, sql: str):
     """
     执行 SQL 查询并返回字典列表
 
     包含 SQL 注入防护验证
+    返回的数据已转换为 JSON 安全类型
     """
     # SQL 安全验证
     is_valid, error_msg = validate_sql(sql)
@@ -350,6 +407,7 @@ async def execute_sql_to_dict(db: Session, sql: str):
         rows = result.fetchall()
         if not rows:
             return []
+        # 列名和行数据组合为字典
         return [dict(zip(result.keys(), row)) for row in rows]
 
     return await asyncio.to_thread(_sync)
@@ -383,7 +441,7 @@ async def generate_aggregate_sql(question: str, original_desc: str, vectordb) ->
         resp = await client.chat.completions.create(
             model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
+            temperature=_temperature,
         )
         sql = resp.choices[0].message.content.strip()
         sql = re.sub(r'^```sql\s*', '', sql)
@@ -420,7 +478,7 @@ async def refine_analysis(raw_analysis: str) -> str:
         resp = await client.chat.completions.create(
             model=llm_config.model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
+            temperature=_temperature,
         )
         refined = resp.choices[0].message.content.strip()
         return refined
@@ -507,7 +565,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             row_count = len(data)
             logger.info(f"会话 {session_id} SQL执行成功，返回 {row_count} 条记录")
             # 判断是否全量保存：行数<=100 且 JSON序列化后长度<=2000
-            full_save = (row_count <= 100) and (len(json.dumps(data, default=str)) <= 2000)
+            full_save = (row_count <= 100) and (len(safe_json_dumps(data)) <= 2000)
             if full_save:
                 result_summary = summarize_result(data, full_save=True)
                 answer_text = f"查询成功，共{row_count}条记录。"
@@ -547,7 +605,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 data2 = await execute_sql_to_dict(db, sql_corrected)
                 row_count2 = len(data2)
                 logger.info(f"会话 {session_id} 重试SQL执行成功，返回 {row_count2} 条记录")
-                full_save2 = (row_count2 <= 100) and (len(json.dumps(data2, default=str)) <= 2000)
+                full_save2 = (row_count2 <= 100) and (len(safe_json_dumps(data2)) <= 2000)
                 if full_save2:
                     result_summary2 = summarize_result(data2, full_save=True)
                     answer_text2 = f"查询成功，共{row_count2}条记录。"
@@ -599,7 +657,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 if latest_turn.full_data_saved:
                     # 全量保存，直接读取完整数据
                     full_data = json.loads(latest_turn.result_summary)
-                    data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{json.dumps(full_data, ensure_ascii=False, indent=2)[:5000]}\n"
+                    data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{safe_json_dumps(full_data, indent=2)[:5000]}\n"
                 else:
                     # 非全量，尝试生成聚合SQL
                     need_aggregate = True
@@ -652,7 +710,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             resp_raw = await client.chat.completions.create(
                 model=llm_config.model,
                 messages=[{"role": "user", "content": analysis_prompt}],
-                temperature=0.5,
+                temperature=_temperature,
             )
             raw_answer = resp_raw.choices[0].message.content
             # 第二轮：精炼
@@ -689,7 +747,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             resp = await client.chat.completions.create(
                 model=llm_config.model,
                 messages=[{"role": "user", "content": chat_prompt}],
-                temperature=0.7,
+                temperature=_temperature,
             )
             answer = resp.choices[0].message.content
             save_turn(db, user_id, session_id, turn_index, question, answer_text=answer)
@@ -703,3 +761,345 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
         except Exception as e:
             logger.error(f"会话 {session_id} 闲聊失败: {e}")
             raise HTTPException(500, f"闲聊失败: {str(e)}")
+
+
+# ========== 流式输出支持 ==========
+
+class StreamBuffer:
+    """流式输出缓冲区管理器"""
+    def __init__(self, min_chunk_size: int = 5, max_wait_ms: int = 50):
+        """
+        参数:
+            min_chunk_size: 最小累积字符数才发送一次
+            max_wait_ms: 最大等待毫秒数，即使未达到最小字符数也发送
+        """
+        self.min_chunk_size = min_chunk_size
+        self.max_wait_ms = max_wait_ms
+        self.buffer = ""
+        self.last_send_time = datetime.datetime.now()
+
+    def add(self, text: str) -> list[str]:
+        """添加文本，返回可发送的 chunks"""
+        self.buffer += text
+        chunks = []
+        now = datetime.datetime.now()
+        elapsed = (now - self.last_send_time).total_seconds() * 1000
+
+        # 如果缓冲区超过最小大小或等待时间超时
+        if len(self.buffer) >= self.min_chunk_size or elapsed >= self.max_wait_ms:
+            if self.buffer:
+                chunks.append(self.buffer)
+                self.buffer = ""
+                self.last_send_time = now
+
+        return chunks
+
+    def flush(self) -> str:
+        """强制刷新缓冲区，返回剩余内容"""
+        result = self.buffer
+        self.buffer = ""
+        self.last_send_time = datetime.datetime.now()
+        return result
+
+
+async def stream_llm_response(question: str, history_text: str, intent: str,
+                                 user_id: int, session_id: str, turn_index: int,
+                                 db: Session, vectordb) -> dict:
+    """
+    流式处理问答，返回生成器
+
+    返回的事件类型:
+    - type: "intent" - 意图分类结果
+    - type: "thinking" - 思考中状态
+    - type: "sql" - 生成的SQL
+    - type: "data" - 查询结果
+    - type: "chunk" - 回答内容片段
+    - type: "done" - 完成
+    - type: "error" - 错误
+    """
+    buffer = StreamBuffer(min_chunk_size=8, max_wait_ms=80)
+    temp = _temperature  # 使用配置的温度（自动适配模型限制）
+
+    try:
+        # 1. 发送意图分类
+        logger.info(f"会话 {session_id} 流式处理 - 意图: {intent}")
+        yield {"event": "intent", "data": intent}
+
+        # 2. 根据意图分支处理
+        if intent == "sql":
+            yield {"event": "thinking", "data": "正在生成SQL查询..."}
+
+            # 检查历史引用
+            history_turns = get_recent_turns(db, user_id, session_id, limit=5)
+            need_reference = False
+            previous_sql = None
+            if history_turns:
+                previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
+                if previous_sql_turn and previous_sql_turn.sql_query:
+                    recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
+                    ref_history = "\n".join([f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
+                    reference_check = await check_sql_reference(question, ref_history)
+                    need_reference = (reference_check == "YES")
+                    previous_sql = previous_sql_turn.sql_query if need_reference else None
+
+            # 生成 SQL
+            sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql)
+            sql = sql.strip()
+
+            # 验证 SQL
+            is_valid, error_msg = validate_sql(sql)
+            if not is_valid:
+                yield {"event": "error", "data": f"SQL验证失败: {error_msg}"}
+                yield {"event": "done", "data": ""}
+                return
+
+            yield {"event": "sql", "data": sql}
+            yield {"event": "thinking", "data": "正在执行查询..."}
+
+            # 执行 SQL
+            try:
+                data = await execute_sql_to_dict(db, sql)
+                row_count = len(data)
+
+                # 判断是否全量保存
+                full_save = (row_count <= 100) and (len(safe_json_dumps(data)) <= 2000)
+                if full_save:
+                    result_summary = summarize_result(data, full_save=True)
+                    answer_text = f"查询成功，共{row_count}条记录。"
+                else:
+                    result_summary = summarize_result(data, full_save=False)
+                    answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问'分析这些数据'。"
+
+                yield {"event": "data", "data": {
+                    "row_count": row_count,
+                    "full_save": full_save,
+                    "data": data if full_save else data[:10],
+                    "message": answer_text
+                }}
+
+                # 保存记录
+                save_turn(db, user_id, session_id, turn_index, question,
+                         sql_query=sql, result_summary=result_summary,
+                         answer_text=answer_text, full_data_saved=full_save)
+
+                # 流式返回回答
+                yield {"event": "thinking", "data": "正在生成回答..."}
+                answer_prompt = f"请基于以下SQL查询结果，用自然语言回答用户问题。\n\nSQL: {sql}\n结果: {answer_text}\n\n用户问题: {question}\n\n回答:"
+                async for chunk in stream_llm_chunk(answer_prompt, buffer, temp):
+                    yield chunk
+
+            except Exception as e:
+                # SQL 执行失败，尝试修正重试
+                logger.warning(f"会话 {session_id} SQL执行失败，尝试重试: {e}")
+                yield {"event": "thinking", "data": "SQL执行失败，正在修正..."}
+
+                try:
+                    sql_corrected = await generate_sql(question, vectordb, retry=True, previous_sql=previous_sql)
+                    yield {"event": "sql", "data": sql_corrected}
+
+                    data = await execute_sql_to_dict(db, sql_corrected)
+                    row_count = len(data)
+                    full_save = (row_count <= 100) and (len(safe_json_dumps(data)) <= 2000)
+                    result_summary = summarize_result(data, full_save=full_save)
+                    answer_text = f"查询成功，共{row_count}条记录（已修正）。"
+
+                    yield {"event": "data", "data": {
+                        "row_count": row_count,
+                        "full_save": full_save,
+                        "data": data if full_save else data[:10],
+                        "message": answer_text
+                    }}
+
+                    save_turn(db, user_id, session_id, turn_index, question,
+                             sql_query=sql_corrected, result_summary=result_summary,
+                             answer_text=answer_text, full_data_saved=full_save)
+
+                    answer_prompt = f"请基于修正后的SQL查询结果回答用户。\n\nSQL: {sql_corrected}\n结果: {answer_text}\n\n用户问题: {question}"
+                    async for chunk in stream_llm_chunk(answer_prompt, buffer, temp):
+                        yield chunk
+
+                except Exception as e2:
+                    yield {"event": "error", "data": f"SQL执行失败: {str(e2)}"}
+                    yield {"event": "done", "data": ""}
+                    return
+
+        elif intent == "analysis":
+            yield {"event": "thinking", "data": "正在分析数据..."}
+
+            # 获取上下文
+            latest_turn = get_latest_turn(db, user_id, session_id)
+            data_context = ""
+            aggregate_sql_used = None
+
+            if latest_turn and latest_turn.result_summary:
+                try:
+                    if latest_turn.full_data_saved:
+                        full_data = json.loads(latest_turn.result_summary)
+                        data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{safe_json_dumps(full_data, indent=2)[:5000]}\n"
+                    else:
+                        original_desc = latest_turn.question
+                        aggregate_sql = await generate_aggregate_sql(question, original_desc, vectordb)
+                        if aggregate_sql:
+                            agg_data = await execute_sql_to_dict(db, aggregate_sql)
+                            agg_summary = summarize_result(agg_data, full_save=False)
+                            data_context = f"根据您的分析需求，自动生成的聚合数据：\n{agg_summary}\n"
+                            aggregate_sql_used = aggregate_sql
+                        else:
+                            data_context = "上一轮查询数据量较大，无法直接分析。"
+                except Exception as e:
+                    data_context = f"读取上一轮数据失败：{str(e)}\n"
+            else:
+                data_context = "未找到上一轮的数据。请先执行一次SQL查询。\n"
+
+            # 知识库检索
+            knowledge_context = ""
+            if vectordb:
+                docs = await similarity_search_async(vectordb, question, k=3)
+                if docs:
+                    knowledge_context = "\n\n".join([doc.page_content for doc in docs])[:3000]
+
+            # 构建分析提示
+            analysis_prompt = f"""你是一个数据分析专家。请严格基于以下提供的数据回答用户的分析问题。不要编造数据。
+
+【提供的数据】
+{data_context}
+
+【参考分析指南】
+{knowledge_context}
+
+【用户问题】
+{question}
+
+请给出清晰的分析结论、可能的原因和建议。"""
+
+            # 流式返回分析结果
+            async for chunk in stream_llm_chunk(analysis_prompt, buffer, temp):
+                yield chunk
+
+            # 保存记录
+            final_answer = buffer.flush()
+            save_turn(db, user_id, session_id, turn_index, question,
+                     answer_text=final_answer, aggregate_sql=aggregate_sql_used,
+                     full_data_saved=False)
+
+        else:  # chat
+            yield {"event": "thinking", "data": "正在思考..."}
+
+            chat_history = get_recent_turns(db, user_id, session_id, limit=5)
+            chat_history_text = ""
+            for turn in chat_history:
+                chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
+
+            if chat_history_text:
+                chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。\n\n{chat_history_text}\n\n用户最新问题：{question}\n助手："
+            else:
+                chat_prompt = f"用户：{question}\n助手："
+
+            # 流式返回闲聊
+            async for chunk in stream_llm_chunk(chat_prompt, buffer, temp):
+                yield chunk
+
+            # 保存记录
+            final_answer = buffer.flush()
+            save_turn(db, user_id, session_id, turn_index, question, answer_text=final_answer)
+
+        yield {"event": "done", "data": ""}
+
+    except Exception as e:
+        logger.error(f"会话 {session_id} 流式处理异常: {e}")
+        yield {"event": "error", "data": f"处理异常: {str(e)}"}
+        yield {"event": "done", "data": ""}
+
+
+async def stream_llm_chunk(prompt: str, buffer: StreamBuffer, temperature: float = None) -> dict:
+    """流式调用 LLM 并返回 chunks"""
+    if temperature is None:
+        temperature = _temperature
+    try:
+        stream = await client.chat.completions.create(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            stream=True
+        )
+
+        async for chunk in stream:
+            content = chunk.choices[0].delta.content
+            if content:
+                # 累积到缓冲区
+                chunks = buffer.add(content)
+                for c in chunks:
+                    yield {"event": "chunk", "data": c}
+
+        # 刷新剩余内容
+        remaining = buffer.flush()
+        if remaining:
+            yield {"event": "chunk", "data": remaining}
+
+    except Exception as e:
+        logger.error(f"LLM流式调用失败: {e}")
+        raise
+
+
+# ========== 流式输出接口 ==========
+
+@router.post("/stream")
+async def stream_natural_query(req: QueryRequest, db: Session = Depends(get_db),
+                                current_user: User = Depends(get_current_user)):
+    """
+    流式自然语言查询接口
+
+    使用 SSE (Server-Sent Events) 实现流式输出
+    """
+    question = req.question
+    user_id = current_user.id
+    session_id = req.session_id
+    include_history = req.include_history
+
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        logger.warning(f"未提供 session_id，已生成新会话: {session_id}")
+
+    logger.info(f"流式请求 - 会话 {session_id}, 问题: {question[:50]}...")
+
+    # 获取历史
+    history_turns = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
+    history_text = ""
+    for turn in history_turns:
+        preview = turn.result_summary[:200] if turn.result_summary else (turn.answer_text[:200] if turn.answer_text else "")
+        history_text += f"用户: {turn.question}\n系统: {preview}\n"
+
+    # 意图分类
+    intent = await classify_intent_llm(question, history_text)
+    turn_index = get_turn_count(db, user_id, session_id) + 1
+
+    async def event_generator():
+        """SSE 事件生成器"""
+        try:
+            async for event in stream_llm_response(question, history_text, intent,
+                                                   user_id, session_id, turn_index, db, vectordb):
+                # 格式化 SSE 事件
+                event_type = event.get("event", "message")
+                event_data = event.get("data", "")
+
+                if isinstance(event_data, dict):
+                    event_data = safe_json_dumps(event_data)
+
+                # 添加延迟，控制输出速度（避免过快导致界面卡顿）
+                await asyncio.sleep(0.02)
+
+                yield f"event: {event_type}\ndata: {event_data}\n\n"
+
+        except Exception as e:
+            logger.error(f"SSE生成器异常: {e}")
+            yield f"event: error\ndata: {str(e)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # 禁用 Nginx 缓冲
+        }
+    )
