@@ -50,8 +50,29 @@ class LLMConfig(BaseModel):
     provider: str = Field(default="kimi", description="模型提供商: kimi, deepseek, openai")
     model: str = Field(default="kimi-k2.5", description="模型名称")
     base_url: str = Field(default="https://api.moonshot.cn/v1", description="API 基础URL")
-    temperature: float = Field(default=0.1, ge=0, le=2, description="默认温度参数")
+    temperature: float = Field(default=0.7, ge=0, le=2, description="默认温度参数")
     max_tokens: int = Field(default=4096, ge=100, description="最大生成token数")
+
+    # 仅支持 temperature=1 的模型列表（通常是 Reasoner/Actor 分离的 Agent 模型）
+    _TEMPERATURE_ONE_MODELS = frozenset([
+        "kimi-k2.5",
+        "kimi-k1.5",
+        "moonshot-v1-auto",
+    ])
+
+    @computed_field
+    @property
+    def effective_temperature(self) -> float:
+        """
+        获取有效的 temperature 值。
+
+        部分模型（如 kimi-k2.5 等 Reasoner 模型）只支持 temperature=1，
+        使用此属性可自动适配，避免手动处理。
+        """
+        model_lower = self.model.lower()
+        if model_lower in self._TEMPERATURE_ONE_MODELS:
+            return 1.0
+        return self.temperature
 
 
 class AppConfig(BaseModel):
