@@ -358,18 +358,26 @@ const app = createApp({
         const classes = ref([]);
         const teachers = ref([]);
 
+        // 分页状态
+        const studentPagination = ref({ currentPage: 1, pageSize: 10, total: 0 });
+        const classPagination = ref({ currentPage: 1, pageSize: 10, total: 0 });
+        const teacherPagination = ref({ currentPage: 1, pageSize: 10, total: 0 });
+
         const loadManagementData = async () => {
             mgmtLoading.value = true;
             try {
                 const [studentRes, classRes, teacherRes] = await Promise.all([
-                    axios.get('/students'),
-                    axios.get('/class/'),
-                    axios.get('/teacher/all')
+                    axios.get('/students', { params: { page: studentPagination.value.currentPage, page_size: studentPagination.value.pageSize } }),
+                    axios.get('/class/', { params: { page: classPagination.value.currentPage, page_size: classPagination.value.pageSize } }),
+                    axios.get('/teacher/all', { params: { page: teacherPagination.value.currentPage, page_size: teacherPagination.value.pageSize } })
                 ]);
 
                 const rawStudents = studentRes.data.data || [];
+                studentPagination.value.total = studentRes.data.total || rawStudents.length;
+                
                 const classDict = classRes.data.data || {};
-
+                classPagination.value.total = Object.keys(classDict).length;
+                
                 classes.value = Object.values(classDict).map(c => ({
                     ...c,
                     head_teacher_name: c.head_teacher_name || '未知'
@@ -382,6 +390,7 @@ const app = createApp({
                 }));
 
                 teachers.value = teacherRes.data.data || [];
+                teacherPagination.value.total = teacherRes.data.total || teachers.value.length;
             } catch (err) {
                 ElMessage.error('加载管理数据失败');
             } finally {
@@ -400,9 +409,15 @@ const app = createApp({
                 const params = {};
                 if (studentSearch.value.name) params.stu_name = studentSearch.value.name;
                 if (studentSearch.value.class_id) params.class_id = studentSearch.value.class_id;
+                
+                // 添加分页参数
+                params.page = studentPagination.value.currentPage;
+                params.page_size = studentPagination.value.pageSize;
 
                 const res = await axios.get('/students', { params });
                 const rawStudents = res.data.data || [];
+                studentPagination.value.total = res.data.total || rawStudents.length;
+                
                 const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name]));
                 students.value = rawStudents.map(s => ({
                     ...s,
@@ -413,6 +428,23 @@ const app = createApp({
             } finally {
                 mgmtLoading.value = false;
             }
+        };
+
+        // 学生分页处理
+        const handleStudentPageChange = (page) => {
+            studentPagination.value.currentPage = page;
+            loadStudents();
+        };
+
+        const handleStudentSizeChange = (size) => {
+            studentPagination.value.pageSize = size;
+            studentPagination.value.currentPage = 1;
+            loadStudents();
+        };
+
+        const handleStudentSearch = () => {
+            studentPagination.value.currentPage = 1;
+            loadStudents();
         };
 
         const studentDialogVisible = ref(false);
@@ -432,7 +464,20 @@ const app = createApp({
         const teacherOptions = ref([]);
         const headTeacherOptions = ref([]);
 
-        const openStudentDialog = (row) => {
+        // 加载顾问列表
+        const loadCounselors = async () => {
+            try {
+                const res = await axios.get('/teacher/counselors');
+                teacherOptions.value = res.data.data || [];
+            } catch (err) {
+                console.error('加载顾问列表失败:', err);
+            }
+        };
+
+        const openStudentDialog = async (row) => {
+            // 加载顾问列表
+            await loadCounselors();
+            
             if (row) {
                 editingStudentId = row.stu_id;
                 studentForm.value = { ...row, advisor_id: row.advisor_id || null };
@@ -519,6 +564,18 @@ const app = createApp({
             }
         };
 
+        // 班级分页处理
+        const handleClassPageChange = (page) => {
+            classPagination.value.currentPage = page;
+            loadManagementData();
+        };
+
+        const handleClassSizeChange = (size) => {
+            classPagination.value.pageSize = size;
+            classPagination.value.currentPage = 1;
+            loadManagementData();
+        };
+
         // ===================================
         // 教师管理
         // ===================================
@@ -562,6 +619,18 @@ const app = createApp({
             } catch (err) {
                 if (err !== 'cancel') ElMessage.error('删除失败');
             }
+        };
+
+        // 教师分页处理
+        const handleTeacherPageChange = (page) => {
+            teacherPagination.value.currentPage = page;
+            loadManagementData();
+        };
+
+        const handleTeacherSizeChange = (size) => {
+            teacherPagination.value.pageSize = size;
+            teacherPagination.value.currentPage = 1;
+            loadManagementData();
         };
 
         // ===================================
@@ -1093,6 +1162,12 @@ const app = createApp({
             openClassDialog, saveClass, deleteClass,
             openTeacherDialog, saveTeacher, deleteTeacher,
             teacherOptions, headTeacherOptions,
+            
+            // 分页
+            studentPagination, classPagination, teacherPagination,
+            handleStudentPageChange, handleStudentSizeChange, handleStudentSearch,
+            handleClassPageChange, handleClassSizeChange,
+            handleTeacherPageChange, handleTeacherSizeChange,
 
             // 成绩
             examRecords, examLoading, examDialogVisible, examForm,

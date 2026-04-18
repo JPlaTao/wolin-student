@@ -53,15 +53,28 @@ def get_students(
         current_user: User = Depends(get_current_user),
         stu_id: Optional[int] = Query(None, description="按学生编号查询"),
         stu_name: Optional[str] = Query(None, description="按学生姓名查询"),
-        class_id: Optional[int] = Query(None, description="按班级编号查询")
+        class_id: Optional[int] = Query(None, description="按班级编号查询"),
+        page: Optional[int] = Query(None, description="页码（从1开始）"),
+        page_size: Optional[int] = Query(None, description="每页条数")
 ):
     try:
         students = student_dao.get_students(
             db,
             stu_id=stu_id,
             stu_name=stu_name,
-            class_id=class_id
+            class_id=class_id,
+            page=page,
+            page_size=page_size
         )
+        
+        # 判断是否为分页模式
+        if isinstance(students, dict) and "items" in students:
+            return response.ListResponse(
+                data=students["items"],
+                total=students["total"]
+            )
+        
+        # 全量模式（向后兼容）
         return response.ListResponse(
             data=students,
             total=len(students)

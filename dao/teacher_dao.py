@@ -52,8 +52,38 @@ def get_teacher(db: Session, teacher_id: int = None, teacher_name: str = None):
 
 
 # 查询所有未删除的老师
-def get_all_teachers(db: Session):
-    data = db.query(Teacher).filter(Teacher.is_deleted == False).all()
+def get_all_teachers(db: Session, page: int = None, page_size: int = None):
+    """
+    查询所有未删除的老师
+    
+    Args:
+        page: 页码（从1开始），为None时返回全部
+        page_size: 每页条数，为None时返回全部
+    """
+    query = db.query(Teacher).filter(Teacher.is_deleted == False)
+    
+    # 分页模式
+    if page is not None and page_size is not None:
+        from utils.pagination import paginate_with_dict
+        # 参数校验：页码最小为1，每页条数限制1-100
+        page = max(1, page)
+        page_size = max(1, min(page_size, 100))
+        total = query.count()
+        offset = (page - 1) * page_size
+        data = query.order_by(Teacher.teacher_id.desc()).offset(offset).limit(page_size).all()
+        result = [
+            {
+                "teacher_id": i.teacher_id,
+                "teacher_name": i.teacher_name,
+                "phone": i.phone,
+                "role": i.role,
+                "gender": i.gender
+            } for i in data
+        ]
+        return paginate_with_dict(result, total, page, page_size)
+    
+    # 全量模式
+    data = query.all()
     return [
         {
             "teacher_id": i.teacher_id,
@@ -62,7 +92,54 @@ def get_all_teachers(db: Session):
             "role": i.role,
             "gender": i.gender
         } for i in data
-    ]  # 遍历拿到每个老师的数据重新赋值:列表表达式[],通过api返回到前端
+    ]
+
+
+# 按角色查询老师
+def get_teachers_by_role(db: Session, role: str, page: int = None, page_size: int = None):
+    """
+    获取指定角色的所有未删除教师
+    
+    Args:
+        page: 页码（从1开始），为None时返回全部
+        page_size: 每页条数，为None时返回全部
+    """
+    query = db.query(Teacher).filter(
+        Teacher.is_deleted == False,
+        Teacher.role == role
+    )
+    
+    # 分页模式
+    if page is not None and page_size is not None:
+        from utils.pagination import paginate_with_dict
+        # 参数校验：页码最小为1，每页条数限制1-100
+        page = max(1, page)
+        page_size = max(1, min(page_size, 100))
+        total = query.count()
+        offset = (page - 1) * page_size
+        data = query.order_by(Teacher.teacher_id.desc()).offset(offset).limit(page_size).all()
+        result = [
+            {
+                "teacher_id": i.teacher_id,
+                "teacher_name": i.teacher_name,
+                "phone": i.phone,
+                "role": i.role,
+                "gender": i.gender
+            } for i in data
+        ]
+        return paginate_with_dict(result, total, page, page_size)
+    
+    # 全量模式
+    data = query.all()
+    return [
+        {
+            "teacher_id": i.teacher_id,
+            "teacher_name": i.teacher_name,
+            "phone": i.phone,
+            "role": i.role,
+            "gender": i.gender
+        } for i in data
+    ]
 
 
 # 修改老师

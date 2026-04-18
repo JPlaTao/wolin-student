@@ -59,10 +59,23 @@ def get_teacher(
 
 # 查询所有老师
 @router.get("/all", response_model=ListResponse, summary="查询所有老师")
-def get_all_teachers(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_all_teachers(
+        db: Session = Depends(get_db), 
+        current_user: User = Depends(get_current_user),
+        page: int = Query(None, description="页码（从1开始）"),
+        page_size: int = Query(None, description="每页条数")
+):
     # 调用 DAO，获取所有老师列表
-    data = dao.get_all_teachers(db)
-    # 返回带总数的统一响应格式（列表+total）
+    data = dao.get_all_teachers(db, page=page, page_size=page_size)
+    
+    # 分页模式
+    if isinstance(data, dict) and "items" in data:
+        return ListResponse(
+            data=data["items"],
+            total=data["total"]
+        )
+    
+    # 全量模式
     return ListResponse(
         data=data,
         total=len(data)
@@ -182,3 +195,22 @@ def get_my_students(teacher_id: int, db: Session = Depends(get_db), current_user
             raise HTTPException(status_code=400, detail=data)
     # 返回统一的响应模型到前端
     return ResponseBase(data=data)
+
+
+# 获取所有顾问教师
+@router.get("/counselors", response_model=ListResponse, summary="获取所有顾问教师")
+def get_counselors(
+        db: Session = Depends(get_db), 
+        current_user: User = Depends(get_current_user),
+        page: int = Query(None, description="页码（从1开始）"),
+        page_size: int = Query(None, description="每页条数")
+):
+    """获取所有角色为 counselor 的教师列表"""
+    data = dao.get_teachers_by_role(db, "counselor", page=page, page_size=page_size)
+    
+    # 分页模式
+    if isinstance(data, dict) and "items" in data:
+        return ListResponse(data=data["items"], total=data["total"])
+    
+    # 全量模式
+    return ListResponse(data=data, total=len(data))

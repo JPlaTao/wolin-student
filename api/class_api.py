@@ -26,10 +26,26 @@ router = APIRouter(prefix="/class", tags=["班级管理"])
 def read_all_classes(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-        include_deleted: bool = Query(False, description="是否包含已删除的班级")
+        include_deleted: bool = Query(False, description="是否包含已删除的班级"),
+        page: int = Query(None, description="页码（从1开始）"),
+        page_size: int = Query(None, description="每页条数")
 ):
-    classes_list = get_all_class(db, include_deleted=include_deleted)
+    classes_list = get_all_class(db, include_deleted=include_deleted, page=page, page_size=page_size)
 
+    # 分页模式下直接返回分页结果
+    if isinstance(classes_list, dict) and "items" in classes_list:
+        # 列表转字典：以 class_id 为键
+        classes_dict = {
+            str(c["class_id"]): c
+            for c in classes_list["items"]
+        }
+        return ResponseBase(
+            code=200,
+            message="查询成功",
+            data=classes_dict
+        )
+
+    # 全量模式
     # 列表转字典：以 class_id 为键
     classes_dict = {
         str(c["class_id"]): c

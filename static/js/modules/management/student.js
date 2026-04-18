@@ -39,6 +39,13 @@ export function createStudentModule({ getClasses }) {
         age: [{ type: 'number', min: 0, max: 120, message: '年龄需0-120' }]
     };
     const teacherOptions = ref([]);
+    
+    // 分页状态
+    const pagination = ref({
+        currentPage: 1,
+        pageSize: 10,
+        total: 0
+    });
 
     // ===================================
     // 内部方法
@@ -54,9 +61,15 @@ export function createStudentModule({ getClasses }) {
             const params = {};
             if (studentSearch.value.name) params.stu_name = studentSearch.value.name;
             if (studentSearch.value.class_id) params.class_id = studentSearch.value.class_id;
+            
+            // 添加分页参数
+            params.page = pagination.value.currentPage;
+            params.page_size = pagination.value.pageSize;
 
             const res = await axios.get('/students', { params });
             const rawStudents = res.data.data || [];
+            pagination.value.total = res.data.total || rawStudents.length;
+            
             const classes = getClasses();
             const classMap = new Map(classes.map(c => [c.class_id, c.class_name]));
             students.value = rawStudents.map(s => ({
@@ -88,6 +101,43 @@ export function createStudentModule({ getClasses }) {
         }
     };
 
+    /**
+     * 加载顾问列表（创建学生对话框时调用）
+     */
+    const loadCounselors = async () => {
+        try {
+            const res = await axios.get('/teacher/counselors');
+            teacherOptions.value = res.data.data || [];
+        } catch (err) {
+            console.error('加载顾问列表失败:', err);
+        }
+    };
+
+    /**
+     * 分页变化处理
+     */
+    const handlePageChange = (page) => {
+        pagination.value.currentPage = page;
+        loadStudents();
+    };
+
+    /**
+     * 每页条数变化处理
+     */
+    const handleSizeChange = (size) => {
+        pagination.value.pageSize = size;
+        pagination.value.currentPage = 1;  // 重置到第一页
+        loadStudents();
+    };
+
+    /**
+     * 搜索并重置分页
+     */
+    const handleSearch = () => {
+        pagination.value.currentPage = 1;
+        loadStudents();
+    };
+
     // ===================================
     // 公开方法
     // ===================================
@@ -95,7 +145,10 @@ export function createStudentModule({ getClasses }) {
     /**
      * 打开学生对话框
      */
-    const openStudentDialog = (row) => {
+    const openStudentDialog = async (row) => {
+        // 加载顾问列表
+        await loadCounselors();
+        
         if (row) {
             editingStudentId = row.stu_id;
             studentForm.value = { ...row, advisor_id: row.advisor_id || null };
@@ -180,14 +233,19 @@ export function createStudentModule({ getClasses }) {
         studentFormRef,
         studentRules,
         teacherOptions,
+        pagination,
 
         // 方法
         loadStudents,
         loadAllStudents,
+        loadCounselors,
         openStudentDialog,
         saveStudent,
         deleteStudent,
         setTeacherOptions,
-        getStudents
+        getStudents,
+        handlePageChange,
+        handleSizeChange,
+        handleSearch
     };
 }

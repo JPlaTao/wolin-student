@@ -75,9 +75,17 @@ def get_students(
         db: Session,
         stu_id: int = None,
         stu_name: str = None,
-        class_id: int = None):
-    """查询学生信息（支持按编号、姓名、班级等条件筛选）"""
-    # 默认全表扫描
+        class_id: int = None,
+        page: int = None,
+        page_size: int = None):
+    """
+    查询学生信息（支持按编号、姓名、班级等条件筛选）
+    
+    Args:
+        page: 页码（从1开始），为None时返回全部
+        page_size: 每页条数，为None时返回全部
+    """
+    # 构建基础查询
     result = db.query(StuBasicInfo).filter(StuBasicInfo.is_deleted == False)
 
     # stu_id: 按学生编号查询
@@ -92,9 +100,21 @@ def get_students(
     if class_id is not None:
         result = result.filter(StuBasicInfo.class_id == class_id)
 
+    # 分页模式
+    if page is not None and page_size is not None:
+        from utils.pagination import paginate_with_dict
+        # 参数校验：页码最小为1，每页条数限制1-100
+        page = max(1, page)
+        page_size = max(1, min(page_size, 100))
+        total = result.count()
+        offset = (page - 1) * page_size
+        students_temp = result.order_by(StuBasicInfo.stu_id.desc()).offset(offset).limit(page_size).all()
+        students = format_student_data(students_temp)
+        return paginate_with_dict(students, total, page, page_size)
+    
+    # 全量模式（向后兼容）
     students_temp = result.all()
     students = format_student_data(students_temp)
-
     return students
 
 
