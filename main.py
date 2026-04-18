@@ -93,5 +93,6 @@ if __name__ == '__main__':
         app,
         host=settings.app.host,
         port=settings.app.port,
-        reload=settings.app.debug
+        reload=settings.app.debug,
+        access_log=False  # 关闭 Uvicorn 访问日志，使用自定义日志
     )
