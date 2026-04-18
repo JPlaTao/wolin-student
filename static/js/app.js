@@ -1,6 +1,15 @@
 /**
- * 沃林学生管理系统 - 前端应用
- * Vue 3 + Element Plus + Axios
+ * 沃林学生管理系统 - 主入口
+ * 整合各功能模块，统一管理状态
+ *
+ * 模块化重构说明：
+ * - auth: 认证模块（登录/注册/登出）
+ * - dashboard: 仪表板模块
+ * - chat: 智能问答模块
+ * - statistics: 高级统计模块
+ * - imageGen: 文生图模块
+ * - management: 数据管理（学生/班级/教师/成绩/就业）
+ * - userManagement: 用户管理
  */
 
 const { createApp, ref, onMounted, watch, nextTick } = Vue;
@@ -9,220 +18,7 @@ const { ElMessage, ElMessageBox } = ElementPlus;
 const app = createApp({
     setup() {
         // ===================================
-        // 状态管理
-        // ===================================
-
-        // 认证状态
-        const isLoggedIn = ref(false);
-        const authMode = ref('login');
-        const authUsername = ref('');
-        const authPassword = ref('');
-        const authRole = ref('user');  // 注册时选择的角色
-        const currentUser = ref(null);
-        const isAdmin = ref(false);  // 当前用户是否为管理员
-
-        // 导航状态
-        const activeTab = ref('dashboard');
-        const mgmtTab = ref('student');
-        const sidebarOpen = ref(true);
-        const isMobile = ref(window.innerWidth < 768);
-
-        // 侧边栏切换
-        const toggleSidebar = () => {
-            sidebarOpen.value = !sidebarOpen.value;
-        };
-
-        // 监听窗口大小变化
-        const handleResize = () => {
-            isMobile.value = window.innerWidth < 768;
-            if (!isMobile.value) {
-                sidebarOpen.value = true;
-            } else {
-                sidebarOpen.value = false;
-            }
-        };
-
-        // 初始化时检测移动设备
-        if (isMobile.value) {
-            sidebarOpen.value = false;
-        }
-
-        // 仪表板数据
-        const dashboard = ref({
-            studentCount: 0,
-            classCount: 0,
-            avgAge: 0,
-            employmentRate: 0,
-            topSalary: []
-        });
-
-        // 智能问答
-        const chatMessages = ref([{
-            id: 1,
-            role: 'ai',
-            type: 'text',
-            content: '✨ 你好！我是智能助手，可以问数据问题（如"学生有多少人？"或"李芳老师有多少个学生？"）或业务问题。我也支持多轮对话记忆，可以基于上下文连续提问。'
-        }]);
-        const currentQuestion = ref('');
-        const isLoading = ref(false);
-        const chatContainer = ref(null);
-        const currentSessionId = ref(null);
-
-        /**
-         * 获取用户会话ID（用户级别固定会话）
-         * 格式: user_{user_id}
-         * 未来扩展: 改为 list 存储多个会话
-         */
-        const getUserSessionId = () => {
-            const stored = localStorage.getItem('user_session_id');
-            if (stored) return stored;
-            // 如果有登录用户，使用用户ID生成固定session
-            const token = localStorage.getItem('access_token');
-            if (token) {
-                // 暂时用时间戳作为session（登录时后端会返回真正的user_id）
-                // 实际session_id由后端基于user_id生成
-                return null;
-            }
-            return null;
-        };
-
-        /**
-         * 初始化用户会话（登录成功后调用）
-         */
-        const initUserSession = (userId) => {
-            const sessionId = `user_${userId}`;
-            currentSessionId.value = sessionId;
-            localStorage.setItem('user_session_id', sessionId);
-            console.log('[Session] 初始化用户会话:', sessionId);
-        };
-
-        // 从 localStorage 恢复 session_id
-        const savedSessionId = localStorage.getItem('user_session_id');
-        if (savedSessionId) {
-            currentSessionId.value = savedSessionId;
-            console.log('[Session] 从 localStorage 恢复 session_id:', savedSessionId);
-        } else {
-            console.log('[Session] localStorage 中无 session_id，等待登录后初始化');
-        }
-
-        // 数据管理
-        const mgmtLoading = ref(false);
-        const students = ref([]);
-        const classes = ref([]);
-        const teachers = ref([]);
-        const users = ref([]);
-        const userLoading = ref(false);
-        const studentSearch = ref({ name: '', class_id: '' });
-
-        // 成绩
-        const examRecords = ref([]);
-        const examLoading = ref(false);
-        const examDialogVisible = ref(false);
-        const examForm = ref({ stu_id: '', seq_no: '', grade: '', exam_date: '' });
-        let editingExamKey = null;
-        const selectedExam = ref(null);
-        const examMaintenanceDialogVisible = ref(false);
-        const examQueryForm = ref({ stu_id: '', seq_no: '' });
-        const queriedExamData = ref({
-            found: false,
-            grade: null,
-            exam_date: null,
-            notFoundMsg: ''
-        });
-        const examQueryLoading = ref(false);
-        const maintenanceEditDialogVisible = ref(false);
-        const maintenanceEditForm = ref({ grade: '', exam_date: '' });
-        let currentQueryKey = null;
-
-        // 就业
-        const empSearch = ref({ stu_name: '', class_id: '' });
-        const employmentRecords = ref([]);
-        const empLoading = ref(false);
-        const employmentDialogVisible = ref(false);
-        const employmentForm = ref({
-            emp_id: null,
-            stu_id: '',
-            company: '',
-            salary: '',
-            offer_time: ''
-        });
-        let editingEmploymentId = null;
-        const selectedEmployment = ref(null);
-
-        // 用户管理
-        const userDialogVisible = ref(false);
-        const userForm = ref({
-            id: null,
-            username: '',
-            role: 'user',
-            is_active: true
-        });
-        let editingUserId = null;
-
-        // 表单状态
-        const studentDialogVisible = ref(false);
-        const classDialogVisible = ref(false);
-        const teacherDialogVisible = ref(false);
-        const studentForm = ref({
-            stu_name: '',
-            native_place: '',
-            graduated_school: '',
-            major: '',
-            admission_date: '',
-            graduation_date: '',
-            education: '本科',
-            age: '',
-            gender: '男',
-            class_id: '',
-            advisor_id: null
-        });
-        const classForm = ref({
-            class_name: '',
-            head_teacher_id: '',
-            start_time: ''
-        });
-        const teacherForm = ref({
-            teacher_name: '',
-            gender: '男',
-            role: 'lecturer',
-            phone: ''
-        });
-        let editingStudentId = null,
-            editingClassId = null,
-            editingTeacherId = null;
-        const studentFormRef = ref(null);
-        const studentRules = {
-            stu_name: [{ required: true, message: '请输入姓名' }],
-            native_place: [{ required: true, message: '请输入籍贯' }],
-            class_id: [{ required: true, message: '请选择班级' }],
-            age: [{ type: 'number', min: 0, max: 120, message: '年龄需0-120' }]
-        };
-        const teacherOptions = ref([]);
-        const headTeacherOptions = ref([]);
-
-        // 图表实例
-        let genderChart, scoreChart, salaryChart, durationChart, examSeqChart;
-
-        // ===================================
-        // 文生图
-        // ===================================
-
-        const imageForm = ref({
-            prompt: '',
-            negative_prompt: '',
-            size: '1280*1280',
-            n: 1,
-            prompt_extend: true,
-            watermark: false
-        });
-        const isGenerating = ref(false);
-        const generatedImages = ref([]);
-        const imageHistory = ref([]);
-        const showImagePreview = ref(false);
-        const previewImageUrl = ref('');
-
-        // ===================================
-        // 辅助函数
+        // 工具函数
         // ===================================
 
         /**
@@ -237,33 +33,30 @@ const app = createApp({
         };
 
         /**
-         * 重置会话ID（仅清除内存，用于刷新场景）
-         * 注意：user_session_id 是用户级别固定值，不应轻易清除
+         * 重置会话ID
          */
         const resetSessionId = () => {
-            // 只清除内存，不清除 localStorage
-            // session_id 是用户级别固定的，与用户绑定
             currentSessionId.value = localStorage.getItem('user_session_id');
         };
 
         /**
-         * 获取角色显示文本
+         * 初始化用户会话
          */
-        const getRoleText = (role) => {
-            const roleMap = {
-                'admin': '管理员',
-                'teacher': '教师',
-                'student': '学生',
-                'user': '普通用户'
-            };
-            return roleMap[role] || role;
+        const initUserSession = (userId) => {
+            const sessionId = `user_${userId}`;
+            currentSessionId.value = sessionId;
+            localStorage.setItem('user_session_id', sessionId);
+            console.log('[Session] 初始化用户会话:', sessionId);
         };
 
         /**
-         * 获取角色标签类
+         * 滚动到聊天底部
          */
-        const getRoleClass = (role) => {
-            return `role-${role}`;
+        const scrollToBottom = async () => {
+            await nextTick();
+            if (chatContainer.value) {
+                chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+            }
         };
 
         /**
@@ -277,16 +70,54 @@ const app = createApp({
         };
 
         // ===================================
-        // 认证相关
+        // 导航状态
         // ===================================
+        const activeTab = ref('dashboard');
+        const mgmtTab = ref('student');
+        const sidebarOpen = ref(true);
+        const isMobile = ref(window.innerWidth < 768);
 
-        /**
-         * 提交认证（登录/注册）
-         */
+        const toggleSidebar = () => {
+            sidebarOpen.value = !sidebarOpen.value;
+        };
+
+        const handleResize = () => {
+            isMobile.value = window.innerWidth < 768;
+            if (!isMobile.value) {
+                sidebarOpen.value = true;
+            } else {
+                sidebarOpen.value = false;
+            }
+        };
+
+        if (isMobile.value) {
+            sidebarOpen.value = false;
+        }
+
+        // ===================================
+        // 认证模块
+        // ===================================
+        const authMode = ref('login');
+        const authUsername = ref('');
+        const authPassword = ref('');
+        const authRole = ref('user');
+        const currentUser = ref(null);
+        const isLoggedIn = ref(false);
+        const isAdmin = ref(false);
+        const currentSessionId = ref(null);
+
+        const savedSessionId = localStorage.getItem('user_session_id');
+        if (savedSessionId) {
+            currentSessionId.value = savedSessionId;
+        }
+
+        const getUserSessionId = () => currentSessionId.value;
+
+        const getCurrentUser = () => currentUser.value;
+
         const submitAuth = async () => {
             try {
                 if (authMode.value === 'login') {
-                    // 登录前先清除旧的 token
                     delete axios.defaults.headers.common['Authorization'];
                     const res = await axios.post('/auth/login', {
                         username: authUsername.value,
@@ -301,7 +132,6 @@ const app = createApp({
                         userId: res.data.user_id
                     };
                     isAdmin.value = res.data.role === 'admin';
-                    // 初始化用户会话（基于 user_id 的固定会话）
                     initUserSession(res.data.user_id);
                     await refreshDashboard();
                     await loadManagementData();
@@ -320,9 +150,6 @@ const app = createApp({
             }
         };
 
-        /**
-         * 退出登录
-         */
         const logout = async () => {
             try {
                 await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
@@ -338,14 +165,9 @@ const app = createApp({
                 isAdmin.value = false;
                 resetSessionId();
                 ElMessage.success('已退出登录');
-            } catch (err) {
-                // 用户取消操作
-            }
+            } catch (err) { }
         };
 
-        /**
-         * 检查登录状态
-         */
         const checkLogin = async () => {
             const token = localStorage.getItem('access_token');
             if (token) {
@@ -356,119 +178,32 @@ const app = createApp({
                     currentUser.value = res.data;
                     isAdmin.value = res.data.role === 'admin';
                     resetSessionId();
+                    return true;
                 } catch (err) {
-                    // Token 无效，清除本地存储
                     localStorage.removeItem('access_token');
                     setAuthToken(null);
                     isLoggedIn.value = false;
                     currentUser.value = null;
                     isAdmin.value = false;
+                    return false;
                 }
             }
+            return false;
         };
 
         // ===================================
-        // 用户管理
+        // 仪表板模块
         // ===================================
+        const dashboard = ref({
+            studentCount: 0,
+            classCount: 0,
+            avgAge: 0,
+            employmentRate: 0,
+            topSalary: []
+        });
 
-        /**
-         * 加载用户列表
-         */
-        const loadUsers = async () => {
-            userLoading.value = true;
-            try {
-                const res = await axios.get('/auth/users');
-                users.value = res.data.data || [];
-            } catch (err) {
-                ElMessage.error('加载用户列表失败');
-            } finally {
-                userLoading.value = false;
-            }
-        };
-
-        /**
-         * 打开用户编辑对话框
-         */
-        const openUserDialog = (row) => {
-            if (row) {
-                editingUserId = row.id;
-                userForm.value = {
-                    id: row.id,
-                    username: row.username,
-                    role: row.role,
-                    is_active: row.is_active
-                };
-            } else {
-                editingUserId = null;
-                userForm.value = {
-                    id: null,
-                    username: '',
-                    role: 'user',
-                    is_active: true
-                };
-            }
-            userDialogVisible.value = true;
-        };
-
-        /**
-         * 保存用户
-         */
-        const saveUser = async () => {
-            if (!userForm.value.username || !userForm.value.role) {
-                ElMessage.warning('请填写完整信息');
-                return;
-            }
-
-            try {
-                if (editingUserId) {
-                    await axios.put(`/auth/users/${editingUserId}`, {
-                        role: userForm.value.role,
-                        is_active: userForm.value.is_active
-                    });
-                    ElMessage.success('用户更新成功');
-                } else {
-                    // 注册新用户
-                    await axios.post('/auth/register', {
-                        username: userForm.value.username,
-                        password: userForm.value.password || '123456',
-                        role: userForm.value.role
-                    });
-                    ElMessage.success('用户创建成功');
-                }
-                userDialogVisible.value = false;
-                await loadUsers();
-            } catch (err) {
-                ElMessage.error(err.response?.data?.detail || '操作失败');
-            }
-        };
-
-        /**
-         * 删除用户
-         */
-        const deleteUser = async (userId, username) => {
-            try {
-                await ElMessageBox.confirm(
-                    `确定要删除用户 "${username}" 吗？此操作不可恢复。`,
-                    '确认删除',
-                    {
-                        confirmButtonText: '确定',
-                        cancelButtonText: '取消',
-                        type: 'warning'
-                    }
-                );
-                await axios.delete(`/auth/users/${userId}`);
-                ElMessage.success('用户删除成功');
-                await loadUsers();
-            } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error(err.response?.data?.detail || '删除失败');
-                }
-            }
-        };
-
-        // ===================================
-        // 数据看板
-        // ===================================
+        let genderChart = null;
+        let scoreChart = null;
 
         const loadDashboardData = async () => {
             try {
@@ -502,10 +237,7 @@ const app = createApp({
 
                 genderChart.setOption({
                     tooltip: { trigger: 'axis' },
-                    legend: {
-                        data: ['男生', '女生'],
-                        textStyle: { color: '#ccc' }
-                    },
+                    legend: { data: ['男生', '女生'], textStyle: { color: '#ccc' } },
                     xAxis: {
                         type: 'category',
                         data: genderRes.data.data.map(c => c.class_name),
@@ -513,18 +245,8 @@ const app = createApp({
                     },
                     yAxis: { type: 'value', name: '人数' },
                     series: [
-                        {
-                            name: '男生',
-                            type: 'bar',
-                            data: genderRes.data.data.map(c => c.male),
-                            color: '#3b82f6'
-                        },
-                        {
-                            name: '女生',
-                            type: 'bar',
-                            data: genderRes.data.data.map(c => c.female),
-                            color: '#ec489a'
-                        }
+                        { name: '男生', type: 'bar', data: genderRes.data.data.map(c => c.male), color: '#3b82f6' },
+                        { name: '女生', type: 'bar', data: genderRes.data.data.map(c => c.female), color: '#ec489a' }
                     ]
                 });
 
@@ -536,11 +258,7 @@ const app = createApp({
                         axisLabel: { rotate: 30, color: '#aaa' }
                     },
                     yAxis: { type: 'value', name: '平均分' },
-                    series: [{
-                        type: 'bar',
-                        data: scoreRes.data.data.map(d => d.avg_score),
-                        color: '#10b981'
-                    }]
+                    series: [{ type: 'bar', data: scoreRes.data.data.map(d => d.avg_score), color: '#10b981' }]
                 });
             } catch (err) {
                 console.error('渲染仪表板图表失败:', err);
@@ -553,8 +271,11 @@ const app = createApp({
         };
 
         // ===================================
-        // 高级统计
+        // 高级统计模块
         // ===================================
+        let salaryChart = null;
+        let durationChart = null;
+        let examSeqChart = null;
 
         const renderAdvancedCharts = async () => {
             try {
@@ -630,8 +351,12 @@ const app = createApp({
         };
 
         // ===================================
-        // 数据管理
+        // 数据管理模块
         // ===================================
+        const mgmtLoading = ref(false);
+        const students = ref([]);
+        const classes = ref([]);
+        const teachers = ref([]);
 
         const loadManagementData = async () => {
             mgmtLoading.value = true;
@@ -657,14 +382,17 @@ const app = createApp({
                 }));
 
                 teachers.value = teacherRes.data.data || [];
-                teacherOptions.value = teachers.value;
-                headTeacherOptions.value = teachers.value.filter(t => t.role === 'headteacher');
             } catch (err) {
                 ElMessage.error('加载管理数据失败');
             } finally {
                 mgmtLoading.value = false;
             }
         };
+
+        // ===================================
+        // 学生管理
+        // ===================================
+        const studentSearch = ref({ name: '', class_id: '' });
 
         const loadStudents = async () => {
             mgmtLoading.value = true;
@@ -687,6 +415,23 @@ const app = createApp({
             }
         };
 
+        const studentDialogVisible = ref(false);
+        const studentForm = ref({
+            stu_name: '', native_place: '', graduated_school: '', major: '',
+            admission_date: '', graduation_date: '', education: '本科',
+            age: '', gender: '男', class_id: '', advisor_id: null
+        });
+        let editingStudentId = null;
+        const studentFormRef = ref(null);
+        const studentRules = {
+            stu_name: [{ required: true, message: '请输入姓名' }],
+            native_place: [{ required: true, message: '请输入籍贯' }],
+            class_id: [{ required: true, message: '请选择班级' }],
+            age: [{ type: 'number', min: 0, max: 120, message: '年龄需0-120' }]
+        };
+        const teacherOptions = ref([]);
+        const headTeacherOptions = ref([]);
+
         const openStudentDialog = (row) => {
             if (row) {
                 editingStudentId = row.stu_id;
@@ -694,17 +439,9 @@ const app = createApp({
             } else {
                 editingStudentId = null;
                 studentForm.value = {
-                    stu_name: '',
-                    native_place: '',
-                    graduated_school: '',
-                    major: '',
-                    admission_date: '',
-                    graduation_date: '',
-                    education: '本科',
-                    age: '',
-                    gender: '男',
-                    class_id: '',
-                    advisor_id: null
+                    stu_name: '', native_place: '', graduated_school: '', major: '',
+                    admission_date: '', graduation_date: '', education: '本科',
+                    age: '', gender: '男', class_id: '', advisor_id: null
                 };
             }
             studentDialogVisible.value = true;
@@ -728,34 +465,29 @@ const app = createApp({
 
         const deleteStudent = async (id) => {
             try {
-                await ElMessageBox.confirm('确定删除该学生？', '确认删除', {
-                    type: 'warning'
-                });
+                await ElMessageBox.confirm('确定删除该学生？', '确认删除', { type: 'warning' });
                 await axios.delete(`/students/${id}`);
                 await loadStudents();
                 ElMessage.success('学生删除成功！');
             } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error('删除失败');
-                }
+                if (err !== 'cancel') ElMessage.error('删除失败');
             }
         };
+
+        // ===================================
+        // 班级管理
+        // ===================================
+        const classDialogVisible = ref(false);
+        const classForm = ref({ class_name: '', head_teacher_id: '', start_time: '' });
+        let editingClassId = null;
 
         const openClassDialog = (row) => {
             if (row) {
                 editingClassId = row.class_id;
-                classForm.value = {
-                    class_name: row.class_name,
-                    head_teacher_id: row.head_teacher_id,
-                    start_time: row.start_time
-                };
+                classForm.value = { class_name: row.class_name, head_teacher_id: row.head_teacher_id, start_time: row.start_time };
             } else {
                 editingClassId = null;
-                classForm.value = {
-                    class_name: '',
-                    head_teacher_id: '',
-                    start_time: ''
-                };
+                classForm.value = { class_name: '', head_teacher_id: '', start_time: '' };
             }
             classDialogVisible.value = true;
         };
@@ -778,18 +510,21 @@ const app = createApp({
 
         const deleteClass = async (id) => {
             try {
-                await ElMessageBox.confirm('确定删除该班级？', '确认删除', {
-                    type: 'warning'
-                });
+                await ElMessageBox.confirm('确定删除该班级？', '确认删除', { type: 'warning' });
                 await axios.delete(`/class/${id}`);
                 await loadManagementData();
                 ElMessage.success('班级删除成功！');
             } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error('删除失败');
-                }
+                if (err !== 'cancel') ElMessage.error('删除失败');
             }
         };
+
+        // ===================================
+        // 教师管理
+        // ===================================
+        const teacherDialogVisible = ref(false);
+        const teacherForm = ref({ teacher_name: '', gender: '男', role: 'lecturer', phone: '' });
+        let editingTeacherId = null;
 
         const openTeacherDialog = (row) => {
             if (row) {
@@ -797,12 +532,7 @@ const app = createApp({
                 teacherForm.value = { ...row };
             } else {
                 editingTeacherId = null;
-                teacherForm.value = {
-                    teacher_name: '',
-                    gender: '男',
-                    role: 'lecturer',
-                    phone: ''
-                };
+                teacherForm.value = { teacher_name: '', gender: '男', role: 'lecturer', phone: '' };
             }
             teacherDialogVisible.value = true;
         };
@@ -825,56 +555,51 @@ const app = createApp({
 
         const deleteTeacher = async (id) => {
             try {
-                await ElMessageBox.confirm('确定删除该教师？', '确认删除', {
-                    type: 'warning'
-                });
+                await ElMessageBox.confirm('确定删除该教师？', '确认删除', { type: 'warning' });
                 await axios.delete(`/teacher/${id}`);
                 await loadManagementData();
                 ElMessage.success('教师删除成功！');
             } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error('删除失败');
-                }
+                if (err !== 'cancel') ElMessage.error('删除失败');
             }
         };
 
         // ===================================
         // 成绩管理
         // ===================================
+        const examRecords = ref([]);
+        const examLoading = ref(false);
+        const examDialogVisible = ref(false);
+        const examForm = ref({ stu_id: '', seq_no: '', grade: '', exam_date: '' });
+        let editingExamKey = null;
+        const selectedExam = ref(null);
+        const examMaintenanceDialogVisible = ref(false);
+        const examQueryForm = ref({ stu_id: '', seq_no: '' });
+        const queriedExamData = ref({ found: false, grade: null, exam_date: null, notFoundMsg: '' });
+        const examQueryLoading = ref(false);
+        const maintenanceEditDialogVisible = ref(false);
+        const maintenanceEditForm = ref({ grade: '', exam_date: '' });
+        let currentQueryKey = null;
 
         const loadExamRecords = async () => {
             examLoading.value = true;
             try {
                 const res = await axios.get('/exam/records');
                 examRecords.value = res.data.data || [];
-            } catch (err) {
-                examRecords.value = [];
-            } finally {
+            } catch (err) { examRecords.value = []; } finally {
                 examLoading.value = false;
             }
         };
 
-        const handleExamSelection = (row) => {
-            selectedExam.value = row;
-        };
+        const handleExamSelection = (row) => { selectedExam.value = row; };
 
         const openExamDialog = (row) => {
             if (row) {
                 editingExamKey = { stu_id: row.stu_id, seq_no: row.seq_no };
-                examForm.value = {
-                    stu_id: row.stu_id,
-                    seq_no: row.seq_no,
-                    grade: row.grade,
-                    exam_date: row.exam_date
-                };
+                examForm.value = { stu_id: row.stu_id, seq_no: row.seq_no, grade: row.grade, exam_date: row.exam_date };
             } else {
                 editingExamKey = null;
-                examForm.value = {
-                    stu_id: '',
-                    seq_no: '',
-                    grade: '',
-                    exam_date: ''
-                };
+                examForm.value = { stu_id: '', seq_no: '', grade: '', exam_date: '' };
             }
             examDialogVisible.value = true;
         };
@@ -882,9 +607,7 @@ const app = createApp({
         const saveExam = async () => {
             try {
                 if (editingExamKey) {
-                    await axios.put('/exam/', examForm.value, {
-                        params: { stu_id: editingExamKey.stu_id, seq_no: editingExamKey.seq_no }
-                    });
+                    await axios.put('/exam/', examForm.value, { params: { stu_id: editingExamKey.stu_id, seq_no: editingExamKey.seq_no } });
                     ElMessage.success('成绩更新成功！');
                 } else {
                     await axios.post('/exam/', examForm.value);
@@ -892,34 +615,21 @@ const app = createApp({
                 }
                 await loadExamRecords();
                 examDialogVisible.value = false;
-            } catch (err) {
-                ElMessage.error('操作失败');
-            }
+            } catch (err) { ElMessage.error('操作失败'); }
         };
 
         const deleteExam = async (row) => {
             try {
-                await ElMessageBox.confirm(
-                    `确定删除学生 ${row.stu_name} 第 ${row.seq_no} 次考试成绩吗？`,
-                    '确认删除',
-                    { type: 'warning' }
-                );
+                await ElMessageBox.confirm(`确定删除学生 ${row.stu_name} 第 ${row.seq_no} 次考试成绩吗？`, '确认删除', { type: 'warning' });
                 await axios.delete(`/exam/${row.stu_id}`, { params: { seq_no: row.seq_no } });
                 ElMessage.success('成绩删除成功！');
                 await loadExamRecords();
                 if (selectedExam.value === row) selectedExam.value = null;
-            } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error('删除失败');
-                }
-            }
+            } catch (err) { if (err !== 'cancel') ElMessage.error('删除失败'); }
         };
 
         const openExamMaintenanceDialog = () => {
-            examQueryForm.value = {
-                stu_id: selectedExam.value?.stu_id || '',
-                seq_no: selectedExam.value?.seq_no || ''
-            };
+            examQueryForm.value = { stu_id: selectedExam.value?.stu_id || '', seq_no: selectedExam.value?.seq_no || '' };
             queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '' };
             examMaintenanceDialogVisible.value = true;
         };
@@ -933,78 +643,42 @@ const app = createApp({
             try {
                 const res = await axios.get('/exam/records');
                 const records = res.data.data || [];
-                const target = records.find(r =>
-                    r.stu_id === examQueryForm.value.stu_id &&
-                    r.seq_no === examQueryForm.value.seq_no
-                );
+                const target = records.find(r => r.stu_id === examQueryForm.value.stu_id && r.seq_no === examQueryForm.value.seq_no);
                 if (target) {
-                    queriedExamData.value = {
-                        found: true,
-                        grade: target.grade,
-                        exam_date: target.exam_date,
-                        notFoundMsg: ''
-                    };
+                    queriedExamData.value = { found: true, grade: target.grade, exam_date: target.exam_date, notFoundMsg: '' };
                     currentQueryKey = { stu_id: target.stu_id, seq_no: target.seq_no };
                 } else {
-                    queriedExamData.value = {
-                        found: false,
-                        grade: null,
-                        exam_date: null,
-                        notFoundMsg: '未找到该学生的考试记录，请检查学号和序号'
-                    };
+                    queriedExamData.value = { found: false, grade: null, exam_date: null, notFoundMsg: '未找到该学生的考试记录' };
                 }
-            } catch (err) {
-                ElMessage.error('查询失败');
-            } finally {
-                examQueryLoading.value = false;
-            }
+            } catch (err) { ElMessage.error('查询失败'); } finally { examQueryLoading.value = false; }
         };
 
         const openMaintenanceEditForm = () => {
             if (!queriedExamData.value.found) return;
-            maintenanceEditForm.value = {
-                grade: queriedExamData.value.grade,
-                exam_date: queriedExamData.value.exam_date
-            };
+            maintenanceEditForm.value = { grade: queriedExamData.value.grade, exam_date: queriedExamData.value.exam_date };
             maintenanceEditDialogVisible.value = true;
         };
 
         const submitMaintenanceUpdate = async () => {
             try {
-                await axios.put('/exam/', {
-                    grade: maintenanceEditForm.value.grade,
-                    exam_date: maintenanceEditForm.value.exam_date
-                }, {
-                    params: { stu_id: currentQueryKey.stu_id, seq_no: currentQueryKey.seq_no }
-                });
+                await axios.put('/exam/', { grade: maintenanceEditForm.value.grade, exam_date: maintenanceEditForm.value.exam_date },
+                    { params: { stu_id: currentQueryKey.stu_id, seq_no: currentQueryKey.seq_no } });
                 ElMessage.success('修改成功');
                 await loadExamRecords();
                 examMaintenanceDialogVisible.value = false;
                 maintenanceEditDialogVisible.value = false;
-            } catch (err) {
-                ElMessage.error('修改失败');
-            }
+            } catch (err) { ElMessage.error('修改失败'); }
         };
 
         const deleteQueriedExam = async () => {
             if (!queriedExamData.value.found) return;
             try {
-                await ElMessageBox.confirm(
-                    `确定删除学号 ${currentQueryKey.stu_id} 第 ${currentQueryKey.seq_no} 次成绩吗？`,
-                    '确认删除',
-                    { type: 'warning' }
-                );
-                await axios.delete(`/exam/${currentQueryKey.stu_id}`, {
-                    params: { seq_no: currentQueryKey.seq_no }
-                });
+                await ElMessageBox.confirm(`确定删除学号 ${currentQueryKey.stu_id} 第 ${currentQueryKey.seq_no} 次成绩吗？`, '确认删除', { type: 'warning' });
+                await axios.delete(`/exam/${currentQueryKey.stu_id}`, { params: { seq_no: currentQueryKey.seq_no } });
                 ElMessage.success('删除成功');
                 await loadExamRecords();
                 examMaintenanceDialogVisible.value = false;
-            } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error('删除失败');
-                }
-            }
+            } catch (err) { if (err !== 'cancel') ElMessage.error('删除失败'); }
         };
 
         const resetExamMaintenance = () => {
@@ -1015,6 +689,13 @@ const app = createApp({
         // ===================================
         // 就业管理
         // ===================================
+        const empSearch = ref({ stu_name: '', class_id: '' });
+        const employmentRecords = ref([]);
+        const empLoading = ref(false);
+        const employmentDialogVisible = ref(false);
+        const employmentForm = ref({ emp_id: null, stu_id: '', company: '', salary: '', offer_time: '' });
+        let editingEmploymentId = null;
+        const selectedEmployment = ref(null);
 
         const loadEmploymentData = async () => {
             empLoading.value = true;
@@ -1022,51 +703,26 @@ const app = createApp({
                 const res = await axios.get('/employment/query');
                 let rawData = res.data.data || [];
                 let filteredData = rawData;
-
                 if (empSearch.value.class_id) {
                     filteredData = filteredData.filter(emp => emp.class_id === Number(empSearch.value.class_id));
                 }
                 if (empSearch.value.stu_name) {
-                    filteredData = filteredData.filter(emp =>
-                        emp.stu_name && emp.stu_name.includes(empSearch.value.stu_name.trim())
-                    );
+                    filteredData = filteredData.filter(emp => emp.stu_name && emp.stu_name.includes(empSearch.value.stu_name.trim()));
                 }
-
                 const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name]));
-                employmentRecords.value = filteredData.map(emp => ({
-                    ...emp,
-                    class_name: classMap.get(emp.class_id) || `班级${emp.class_id}`
-                }));
-            } catch (err) {
-                ElMessage.error('加载就业数据失败');
-            } finally {
-                empLoading.value = false;
-            }
+                employmentRecords.value = filteredData.map(emp => ({ ...emp, class_name: classMap.get(emp.class_id) || `班级${emp.class_id}` }));
+            } catch (err) { ElMessage.error('加载就业数据失败'); } finally { empLoading.value = false; }
         };
 
-        const handleEmploymentSelection = (row) => {
-            selectedEmployment.value = row;
-        };
+        const handleEmploymentSelection = (row) => { selectedEmployment.value = row; };
 
         const openEmploymentDialog = (row) => {
             if (row) {
                 editingEmploymentId = row.emp_id;
-                employmentForm.value = {
-                    emp_id: row.emp_id,
-                    stu_id: row.stu_id,
-                    company: row.company,
-                    salary: row.salary,
-                    offer_time: row.offer_time
-                };
+                employmentForm.value = { emp_id: row.emp_id, stu_id: row.stu_id, company: row.company, salary: row.salary, offer_time: row.offer_time };
             } else {
                 editingEmploymentId = null;
-                employmentForm.value = {
-                    emp_id: null,
-                    stu_id: '',
-                    company: '',
-                    salary: '',
-                    offer_time: ''
-                };
+                employmentForm.value = { emp_id: null, stu_id: '', company: '', salary: '', offer_time: '' };
             }
             employmentDialogVisible.value = true;
         };
@@ -1075,61 +731,113 @@ const app = createApp({
             try {
                 if (editingEmploymentId) {
                     await axios.put(`/employment/students/${employmentForm.value.stu_id}`, {
-                        company: employmentForm.value.company,
-                        salary: employmentForm.value.salary,
-                        offer_time: employmentForm.value.offer_time
+                        company: employmentForm.value.company, salary: employmentForm.value.salary, offer_time: employmentForm.value.offer_time
                     });
                     ElMessage.success('更新成功');
                 } else {
                     await axios.post('/employment/', {
-                        stu_id: employmentForm.value.stu_id,
-                        company: employmentForm.value.company,
-                        salary: employmentForm.value.salary,
-                        offer_time: employmentForm.value.offer_time
+                        stu_id: employmentForm.value.stu_id, company: employmentForm.value.company, salary: employmentForm.value.salary, offer_time: employmentForm.value.offer_time
                     });
                     ElMessage.success('新增成功');
                 }
                 await loadEmploymentData();
                 employmentDialogVisible.value = false;
-            } catch (err) {
-                ElMessage.error('操作失败');
-            }
+            } catch (err) { ElMessage.error('操作失败'); }
         };
 
         const deleteEmployment = async (row) => {
             try {
-                await ElMessageBox.confirm(
-                    `确定删除学生 ${row.stu_name} 的就业记录吗？`,
-                    '确认删除',
-                    { type: 'warning' }
-                );
+                await ElMessageBox.confirm(`确定删除学生 ${row.stu_name} 的就业记录吗？`, '确认删除', { type: 'warning' });
                 await axios.delete(`/employment/delete/${row.emp_id}`);
                 ElMessage.success('删除成功');
                 await loadEmploymentData();
                 if (selectedEmployment.value === row) selectedEmployment.value = null;
-            } catch (err) {
-                if (err !== 'cancel') {
-                    ElMessage.error('删除失败');
-                }
-            }
+            } catch (err) { if (err !== 'cancel') ElMessage.error('删除失败'); }
         };
 
         // ===================================
-        // 文生图
+        // 用户管理
         // ===================================
+        const users = ref([]);
+        const userLoading = ref(false);
+        const userDialogVisible = ref(false);
+        const userForm = ref({ id: null, username: '', role: 'user', is_active: true });
+        let editingUserId = null;
 
-        /**
-         * 生成图片
-         */
+        const loadUsers = async () => {
+            userLoading.value = true;
+            try {
+                const res = await axios.get('/auth/users');
+                users.value = res.data.data || [];
+            } catch (err) { ElMessage.error('加载用户列表失败'); } finally { userLoading.value = false; }
+        };
+
+        const openUserDialog = (row) => {
+            if (row) {
+                editingUserId = row.id;
+                userForm.value = { id: row.id, username: row.username, role: row.role, is_active: row.is_active };
+            } else {
+                editingUserId = null;
+                userForm.value = { id: null, username: '', role: 'user', is_active: true };
+            }
+            userDialogVisible.value = true;
+        };
+
+        const saveUser = async () => {
+            if (!userForm.value.username || !userForm.value.role) {
+                ElMessage.warning('请填写完整信息');
+                return;
+            }
+            try {
+                if (editingUserId) {
+                    await axios.put(`/auth/users/${editingUserId}`, { role: userForm.value.role, is_active: userForm.value.is_active });
+                    ElMessage.success('用户更新成功');
+                } else {
+                    await axios.post('/auth/register', { username: userForm.value.username, password: userForm.value.password || '123456', role: userForm.value.role });
+                    ElMessage.success('用户创建成功');
+                }
+                userDialogVisible.value = false;
+                await loadUsers();
+            } catch (err) { ElMessage.error(err.response?.data?.detail || '操作失败'); }
+        };
+
+        const deleteUser = async (userId, username) => {
+            if (currentUser.value?.username === username) {
+                ElMessage.warning('不能删除当前登录用户');
+                return;
+            }
+            try {
+                await ElMessageBox.confirm(`确定要删除用户 "${username}" 吗？此操作不可恢复。`, '确认删除', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' });
+                await axios.delete(`/auth/users/${userId}`);
+                ElMessage.success('用户删除成功');
+                await loadUsers();
+            } catch (err) { if (err !== 'cancel') ElMessage.error(err.response?.data?.detail || '删除失败'); }
+        };
+
+        const getRoleText = (role) => {
+            const roleMap = { 'admin': '管理员', 'teacher': '教师', 'student': '学生', 'user': '普通用户' };
+            return roleMap[role] || role;
+        };
+
+        const getRoleClass = (role) => `role-${role}`;
+
+        // ===================================
+        // 文生图模块
+        // ===================================
+        const imageForm = ref({ prompt: '', negative_prompt: '', size: '1280*1280', n: 1, prompt_extend: true, watermark: false });
+        const isGenerating = ref(false);
+        const generatedImages = ref([]);
+        const imageHistory = ref([]);
+        const showImagePreview = ref(false);
+        const previewImageUrl = ref('');
+
         const generateImage = async () => {
             if (!imageForm.value.prompt.trim()) {
                 ElMessage.warning('请输入提示词');
                 return;
             }
-
             isGenerating.value = true;
             generatedImages.value = [];
-
             try {
                 const res = await axios.post('/image/generate', {
                     prompt: imageForm.value.prompt,
@@ -1139,67 +847,24 @@ const app = createApp({
                     prompt_extend: imageForm.value.prompt_extend,
                     watermark: imageForm.value.watermark
                 });
-
                 const data = res.data;
                 generatedImages.value = data.images;
-
-                // 添加到历史记录
                 const now = new Date();
                 const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-                imageHistory.value.unshift({
-                    prompt: imageForm.value.prompt,
-                    size: data.size,
-                    image_count: data.image_count,
-                    images: data.images,
-                    time: timeStr
-                });
-
-                // 限制历史记录数量
-                if (imageHistory.value.length > 10) {
-                    imageHistory.value = imageHistory.value.slice(0, 10);
-                }
-
+                imageHistory.value.unshift({ prompt: imageForm.value.prompt, size: data.size, image_count: data.image_count, images: data.images, time: timeStr });
+                if (imageHistory.value.length > 10) imageHistory.value = imageHistory.value.slice(0, 10);
                 ElMessage.success(`成功生成 ${data.image_count} 张图片`);
-            } catch (err) {
-                ElMessage.error(err.response?.data?.detail || '图片生成失败');
-            } finally {
-                isGenerating.value = false;
-            }
+            } catch (err) { ElMessage.error(err.response?.data?.detail || '图片生成失败'); } finally { isGenerating.value = false; }
         };
 
-        /**
-         * 重置表单
-         */
         const resetImageForm = () => {
-            imageForm.value = {
-                prompt: '',
-                negative_prompt: '',
-                size: '1280*1280',
-                n: 1,
-                prompt_extend: true,
-                watermark: false
-            };
+            imageForm.value = { prompt: '', negative_prompt: '', size: '1280*1280', n: 1, prompt_extend: true, watermark: false };
             generatedImages.value = [];
         };
 
-        /**
-         * 处理图片加载错误
-         */
-        const handleImageError = (index) => {
-            ElMessage.warning(`图片 ${index + 1} 加载失败，请点击"预览"尝试打开`);
-        };
+        const handleImageError = (index) => ElMessage.warning(`图片 ${index + 1} 加载失败`);
+        const previewImage = (url) => { previewImageUrl.value = url; showImagePreview.value = true; };
 
-        /**
-         * 预览图片
-         */
-        const previewImage = (url) => {
-            previewImageUrl.value = url;
-            showImagePreview.value = true;
-        };
-
-        /**
-         * 下载图片
-         */
         const downloadImage = async (url, index) => {
             try {
                 ElMessage.info('正在下载...');
@@ -1210,41 +875,30 @@ const app = createApp({
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } catch (err) {
-                ElMessage.error('下载失败，请右键点击"查看原图"手动保存');
-            }
+            } catch (err) { ElMessage.error('下载失败'); }
         };
 
         // ===================================
-        // 智能问答 - 流式输出
+        // 智能问答模块
         // ===================================
+        const chatMessages = ref([{
+            id: 1, role: 'ai', type: 'text',
+            content: '✨ 你好！我是智能助手，可以问数据问题或业务问题。支持多轮对话记忆。'
+        }]);
+        const currentQuestion = ref('');
+        const chatContainer = ref(null);
 
-        // 流式消息状态
         const streamingState = ref({
-            active: false,
-            messageId: null,
-            currentContent: '',
-            currentSql: '',
-            thinkingMessage: '',
-            finalData: null,
-            type: null,
-            isSingleValue: false
+            active: false, messageId: null, currentContent: '', currentSql: '',
+            thinkingMessage: '', finalData: null, type: null, isSingleValue: false, isComplete: false
         });
 
-        /**
-         * 格式化 SQL 结果为 HTML
-         */
         const formatSqlResult = (data, count, isFullSave) => {
-            if (count === 0) {
-                return '未查询到相关数据。';
-            }
-
+            if (count === 0) return '未查询到相关数据。';
             if (count === 1 && Object.keys(data[0]).length === 1) {
                 const key = Object.keys(data[0])[0];
-                const value = data[0][key];
-                return `${key}：${value}`;
+                return `${key}：${data[0][key]}`;
             }
-
             let tableHtml = '<table class="result-table"><thead><tr>';
             const headers = Object.keys(data[0]);
             headers.forEach(h => { tableHtml += `<th>${h}</th>`; });
@@ -1255,113 +909,78 @@ const app = createApp({
                 tableHtml += '</tr>';
             });
             tableHtml += '</tbody></table>';
-            if (count > 10) {
-                tableHtml += `<p class="text-xs text-slate-400 mt-2">共 ${count} 条记录，仅显示前 10 条。</p>`;
-            }
-            if (!isFullSave) {
-                tableHtml += `<p class="text-xs text-amber-400 mt-2"><i class="fas fa-info-circle"></i> 数据量较大，已存储完整结果供后续分析。</p>`;
-            }
+            if (count > 10) tableHtml += `<p class="text-xs text-slate-400 mt-2">共 ${count} 条记录，仅显示前 10 条。</p>`;
+            if (!isFullSave) tableHtml += `<p class="text-xs text-amber-400 mt-2"><i class="fas fa-info-circle"></i> 数据量较大，已存储完整结果。</p>`;
             return tableHtml;
         };
 
-        /**
-         * 更新流式消息内容（简化版）
-         */
         const updateStreamingMessage = () => {
             const msgIndex = chatMessages.value.findIndex(m => m.id === streamingState.value.messageId);
             if (msgIndex === -1) return;
-
             const state = streamingState.value;
             let content = '';
-
-            // 显示 SQL（如果有）
             if (state.currentSql) {
                 content += `<div class="sql-display mb-3"><div class="text-slate-400 text-xs mb-1">生成的SQL：</div><code class="bg-slate-800 px-3 py-2 rounded block text-sm text-green-400 overflow-x-auto">${state.currentSql.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></div>`;
             }
-
-            // 显示数据结果（如果是 SQL 类型）
             if (state.type === 'sql' && state.finalData) {
-                const formatted = formatSqlResult(state.finalData.data, state.finalData.row_count, state.finalData.full_save);
-                content += `<div class="sql-result">${formatted}</div>`;
+                content += `<div class="sql-result">${formatSqlResult(state.finalData.data, state.finalData.row_count, state.finalData.full_save)}</div>`;
             }
-
-            // 显示流式内容
             if (state.currentContent) {
-                if (state.type === 'sql') {
-                    content += `<div class="answer-text">${renderMarkdown(state.currentContent)}</div>`;
+                if (state.isComplete) {
+                    if (state.type === 'sql') content += `<div class="answer-text">${renderMarkdown(state.currentContent)}</div>`;
+                    else content += renderMarkdown(state.currentContent);
                 } else {
-                    content += renderMarkdown(state.currentContent);
+                    const escapedContent = state.currentContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    content += `<pre class="whitespace-pre-wrap break-words text-slate-200">${escapedContent}</pre>`;
                 }
             }
-
-            // 如果正在加载且有思考消息，显示在加载动画位置
             if (state.active && state.thinkingMessage) {
                 content = `<div class="text-blue-400 text-sm mb-2"><i class="fas fa-spinner fa-spin mr-1"></i>${state.thinkingMessage}</div>` + content;
             }
-
             chatMessages.value[msgIndex].content = content;
         };
 
-        /**
-         * 滚动到底部
-         */
-        const scrollToBottom = async () => {
-            await nextTick();
-            if (chatContainer.value) {
-                chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        const handleStreamEvent = async (event) => {
+            const state = streamingState.value;
+            switch (event.type) {
+                case 'intent': state.type = event.data === 'sql' ? 'sql' : 'text'; break;
+                case 'thinking': state.thinkingMessage = event.data; updateStreamingMessage(); break;
+                case 'sql': state.currentSql = event.data; state.thinkingMessage = ''; updateStreamingMessage(); break;
+                case 'data': state.finalData = event.data; state.type = 'sql'; state.thinkingMessage = ''; updateStreamingMessage(); break;
+                case 'chunk': state.currentContent += event.data; updateStreamingMessage(); break;
+                case 'done':
+                    state.thinkingMessage = ''; state.active = false; state.isComplete = true;
+                    updateStreamingMessage();
+                    break;
+                case 'error':
+                    state.thinkingMessage = ''; state.active = false; state.isComplete = true;
+                    const msgIndex = chatMessages.value.findIndex(m => m.id === state.messageId);
+                    if (msgIndex !== -1) chatMessages.value[msgIndex].content += `<div class="text-red-400 mt-2">错误: ${event.data}</div>`;
+                    updateStreamingMessage();
+                    break;
             }
         };
 
-        /**
-         * 发送问题 - 流式版本
-         */
         const sendQuestion = async () => {
             if (!currentQuestion.value.trim()) return;
-
             const question = currentQuestion.value;
             const userMsgId = Date.now();
-
-            // 添加用户消息
-            chatMessages.value.push({
-                id: userMsgId,
-                role: 'user',
-                type: 'text',
-                content: question
-            });
-
+            chatMessages.value.push({ id: userMsgId, role: 'user', type: 'text', content: question });
             currentQuestion.value = '';
-            isLoading.value = true;
 
-            // 初始化流式状态
             const aiMsgId = Date.now() + 1;
             streamingState.value = {
-                active: true,
-                messageId: aiMsgId,
-                currentContent: '',
-                currentSql: '',
-                thinkingMessage: '正在分析问题...',
-                finalData: null,
-                type: null,
-                isSingleValue: false
+                active: true, messageId: aiMsgId, currentContent: '', currentSql: '',
+                thinkingMessage: '正在分析问题...', finalData: null, type: null, isSingleValue: false, isComplete: false
             };
-
-            // 添加 AI 消息占位
-            chatMessages.value.push({
-                id: aiMsgId,
-                role: 'ai',
-                type: 'text',
-                content: ''
-            });
-
+            chatMessages.value.push({ id: aiMsgId, role: 'ai', type: 'text', content: '' });
             await scrollToBottom();
 
             try {
                 const payload = { question };
-                if (currentSessionId.value) {
-                    payload.session_id = currentSessionId.value;
-                }
+                const sessionId = localStorage.getItem('user_session_id');
+                if (sessionId) payload.session_id = sessionId;
 
-                // 使用 fetch 进行流式请求
                 const response = await fetch('/query/stream', {
                     method: 'POST',
                     headers: {
@@ -1371,152 +990,59 @@ const app = createApp({
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    throw new Error(`请求失败: ${response.status}`);
-                }
-
-                // 保存 session_id
-                if (currentSessionId.value) {
-                    localStorage.setItem('current_session_id', currentSessionId.value);
-                }
+                if (!response.ok) throw new Error(`请求失败: ${response.status}`);
+                if (sessionId) localStorage.setItem('current_session_id', sessionId);
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-
                 while (true) {
                     const { done, value } = await reader.read();
-
                     if (done) break;
-
                     const text = decoder.decode(value, { stream: true });
-
-                    // 解析 SSE 事件
-                    // 格式: event: type\ndata: json\n\n
                     const lines = text.split('\n');
-                    let eventType = null;
-                    let eventData = null;
-
+                    let eventType = null, eventData = null;
                     for (const line of lines) {
-                        if (line.startsWith('event: ')) {
-                            eventType = line.slice(7).trim();
-                        } else if (line.startsWith('data: ')) {
+                        if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+                        else if (line.startsWith('data: ')) {
                             const dataStr = line.slice(6).trim();
                             if (dataStr) {
-                                try {
-                                    eventData = JSON.parse(dataStr);
-                                } catch {
-                                    eventData = dataStr;
-                                }
+                                try { eventData = JSON.parse(dataStr); } catch { eventData = dataStr; }
                             }
                         } else if (line === '') {
-                            // 空行表示一个完整事件的结束
-                            if (eventType && eventData !== null) {
-                                await handleStreamEvent({ type: eventType, data: eventData });
-                            }
-                            eventType = null;
-                            eventData = null;
+                            if (eventType && eventData !== null) await handleStreamEvent({ type: eventType, data: eventData });
+                            eventType = null; eventData = null;
                         }
                     }
-
-                    // 控制渲染频率
                     await scrollToBottom();
                 }
-
             } catch (err) {
                 console.error('流式请求错误:', err);
                 streamingState.value.thinkingMessage = '';
+                streamingState.value.isComplete = true;
                 updateStreamingMessage();
                 const msgIndex = chatMessages.value.findIndex(m => m.id === streamingState.value.messageId);
-                if (msgIndex !== -1) {
-                    chatMessages.value[msgIndex].content += `<div class="text-red-400 mt-2">请求失败: ${err.message}</div>`;
-                }
+                if (msgIndex !== -1) chatMessages.value[msgIndex].content += `<div class="text-red-400 mt-2">请求失败: ${err.message}</div>`;
             } finally {
-                isLoading.value = false;
-                streamingState.value.active = false;
-                streamingState.value.thinkingMessage = '';
-                updateStreamingMessage();
+                if (!streamingState.value.isComplete) {
+                    streamingState.value.isComplete = true;
+                    updateStreamingMessage();
+                }
                 await scrollToBottom();
-            }
-        };
-
-        /**
-         * 处理流式事件
-         */
-        const handleStreamEvent = async (event) => {
-            const state = streamingState.value;
-
-            switch (event.type) {
-                case 'intent':
-                    // 意图分类结果
-                    state.type = event.data === 'sql' ? 'sql' : 'text';
-                    break;
-
-                case 'thinking':
-                    // 思考状态更新
-                    state.thinkingMessage = event.data;
-                    updateStreamingMessage();
-                    break;
-
-                case 'sql':
-                    // SQL 生成完成
-                    state.currentSql = event.data;
-                    state.thinkingMessage = '';
-                    updateStreamingMessage();
-                    break;
-
-                case 'data':
-                    // SQL 执行结果
-                    state.finalData = event.data;
-                    state.type = 'sql';
-                    state.thinkingMessage = '';
-                    updateStreamingMessage();
-                    break;
-
-                case 'chunk':
-                    // 内容片段
-                    state.currentContent += event.data;
-                    updateStreamingMessage();
-                    break;
-
-                case 'done':
-                    // 完成
-                    state.thinkingMessage = '';
-                    state.active = false;
-                    updateStreamingMessage();
-                    break;
-
-                case 'error':
-                    // 错误
-                    state.thinkingMessage = '';
-                    state.active = false;
-                    const msgIndex = chatMessages.value.findIndex(m => m.id === state.messageId);
-                    if (msgIndex !== -1) {
-                        chatMessages.value[msgIndex].content += `<div class="text-red-400 mt-2">错误: ${event.data}</div>`;
-                    }
-                    updateStreamingMessage();
-                    break;
             }
         };
 
         // ===================================
         // 生命周期钩子
         // ===================================
-
         watch(activeTab, async (newVal) => {
-            if (newVal === 'dashboard') {
-                await refreshDashboard();
-            } else if (newVal === 'statistics') {
-                await renderAdvancedCharts();
-            } else if (newVal === 'management') {
+            if (newVal === 'dashboard') await refreshDashboard();
+            else if (newVal === 'statistics') await renderAdvancedCharts();
+            else if (newVal === 'management') {
                 await loadManagementData();
                 if (mgmtTab.value === 'student') await loadStudents();
                 else if (mgmtTab.value === 'exam') await loadExamRecords();
                 else if (mgmtTab.value === 'employment') await loadEmploymentData();
-            } else if (newVal === 'userManagement') {
-                await loadUsers();
-            } else if (newVal === 'imageGen') {
-                // 文生图页面无需额外加载
-            }
+            } else if (newVal === 'userManagement') await loadUsers();
         });
 
         watch(mgmtTab, async (newTab) => {
@@ -1528,141 +1054,62 @@ const app = createApp({
         });
 
         onMounted(async () => {
-            await checkLogin();
-            if (isLoggedIn.value) {
+            const loggedIn = await checkLogin();
+            if (loggedIn) {
                 await refreshDashboard();
                 await loadManagementData();
                 await loadStudents();
             }
-
-            // 添加窗口大小变化监听
             window.addEventListener('resize', handleResize);
             handleResize();
         });
 
         // ===================================
-        // 返回值
+        // 返回
         // ===================================
-
         return {
             // 认证
-            isLoggedIn,
-            authMode,
-            authUsername,
-            authPassword,
-            authRole,
-            currentUser,
-            isAdmin,
-            submitAuth,
-            logout,
-            checkLogin,
+            isLoggedIn, authMode, authUsername, authPassword, authRole,
+            currentUser, isAdmin, submitAuth, logout, checkLogin,
 
             // 导航
-            activeTab,
-            mgmtTab,
-            sidebarOpen,
-            isMobile,
-            toggleSidebar,
+            activeTab, mgmtTab, sidebarOpen, isMobile, toggleSidebar,
 
             // 仪表板
-            dashboard,
-            refreshDashboard,
+            dashboard, refreshDashboard,
 
             // 智能问答
-            chatMessages,
-            currentQuestion,
-            isLoading,
-            sendQuestion,
-            chatContainer,
-            renderMarkdown,
-            streamingState,
+            chatMessages, currentQuestion, isLoading: ref(false), sendQuestion, chatContainer, renderMarkdown, streamingState,
 
             // 文生图
-            imageForm,
-            isGenerating,
-            generatedImages,
-            imageHistory,
-            showImagePreview,
-            previewImageUrl,
-            generateImage,
-            resetImageForm,
-            handleImageError,
-            previewImage,
-            downloadImage,
+            imageForm, isGenerating, generatedImages, imageHistory, showImagePreview, previewImageUrl,
+            generateImage, resetImageForm, handleImageError, previewImage, downloadImage,
 
             // 数据管理
-            students,
-            classes,
-            teachers,
-            mgmtLoading,
-            studentSearch,
-            loadStudents,
-            studentDialogVisible,
-            classDialogVisible,
-            teacherDialogVisible,
-            studentForm,
-            classForm,
-            teacherForm,
-            studentFormRef,
-            studentRules,
-            openStudentDialog,
-            saveStudent,
-            deleteStudent,
-            openClassDialog,
-            saveClass,
-            deleteClass,
-            openTeacherDialog,
-            saveTeacher,
-            deleteTeacher,
-            teacherOptions,
-            headTeacherOptions,
+            students, classes, teachers, mgmtLoading, studentSearch, loadStudents,
+            studentDialogVisible, classDialogVisible, teacherDialogVisible,
+            studentForm, classForm, teacherForm, studentFormRef, studentRules,
+            openStudentDialog, saveStudent, deleteStudent,
+            openClassDialog, saveClass, deleteClass,
+            openTeacherDialog, saveTeacher, deleteTeacher,
+            teacherOptions, headTeacherOptions,
 
             // 成绩
-            examRecords,
-            examLoading,
-            examDialogVisible,
-            examForm,
-            openExamDialog,
-            saveExam,
-            deleteExam,
-            selectedExam,
-            handleExamSelection,
-            examMaintenanceDialogVisible,
-            examQueryForm,
-            queriedExamData,
-            examQueryLoading,
-            queryExamRecord,
-            openExamMaintenanceDialog,
-            maintenanceEditDialogVisible,
-            maintenanceEditForm,
-            openMaintenanceEditForm,
-            submitMaintenanceUpdate,
-            deleteQueriedExam,
-            resetExamMaintenance,
+            examRecords, examLoading, examDialogVisible, examForm,
+            openExamDialog, saveExam, deleteExam, selectedExam, handleExamSelection,
+            examMaintenanceDialogVisible, examQueryForm, queriedExamData, examQueryLoading,
+            queryExamRecord, openExamMaintenanceDialog, maintenanceEditDialogVisible,
+            maintenanceEditForm, openMaintenanceEditForm, submitMaintenanceUpdate,
+            deleteQueriedExam, resetExamMaintenance,
 
             // 就业
-            empSearch,
-            employmentRecords,
-            empLoading,
-            loadEmploymentData,
-            selectedEmployment,
-            handleEmploymentSelection,
-            employmentDialogVisible,
-            employmentForm,
-            openEmploymentDialog,
-            saveEmployment,
-            deleteEmployment,
+            empSearch, employmentRecords, empLoading, loadEmploymentData,
+            selectedEmployment, handleEmploymentSelection, employmentDialogVisible, employmentForm,
+            openEmploymentDialog, saveEmployment, deleteEmployment,
 
             // 用户管理
-            users,
-            userLoading,
-            userDialogVisible,
-            userForm,
-            openUserDialog,
-            saveUser,
-            deleteUser,
-            getRoleText,
-            getRoleClass
+            users, userLoading, userDialogVisible, userForm,
+            openUserDialog, saveUser, deleteUser, getRoleText, getRoleClass
         };
     }
 });
