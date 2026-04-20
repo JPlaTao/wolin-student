@@ -15,7 +15,8 @@ from api import (
     statistics_api,
     query_agent,
     auth_api,
-    image_gen
+    image_gen,
+    email_api
 )
 from services.knowledge_base import build_knowledge_base
 from utils.logger import get_logger
@@ -72,6 +73,7 @@ app.include_router(statistics_api.router)
 app.include_router(query_agent.router)
 app.include_router(auth_api.router)  # 认证路由
 app.include_router(image_gen.router)  # 文生图路由
+app.include_router(email_api.router)  # 邮件路由
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -954,6 +954,82 @@ const app = createApp({
         };
 
         // ===================================
+        // 邮件模块
+        // ===================================
+        const emailForm = ref({
+            to: '',
+            subject: '',
+            content: '',
+            smtp_host: '',
+            smtp_port: 587,
+            use_tls: true,
+            username: '',
+            password: '',
+            from_name: ''
+        });
+        const emailSending = ref(false);
+
+        const sendEmail = async () => {
+            // 验证必填项
+            if (!emailForm.value.to.trim()) {
+                ElMessage.warning('请填写收件人邮箱');
+                return;
+            }
+            if (!emailForm.value.subject.trim()) {
+                ElMessage.warning('请填写邮件主题');
+                return;
+            }
+            if (!emailForm.value.content.trim()) {
+                ElMessage.warning('请填写邮件内容');
+                return;
+            }
+
+            // 解析收件人列表
+            const toList = emailForm.value.to.split(',').map(email => email.trim()).filter(email => email);
+
+            // 构建请求数据
+            const requestData = {
+                to: toList,
+                subject: emailForm.value.subject,
+                content: emailForm.value.content
+            };
+
+            // 添加可选参数
+            if (emailForm.value.smtp_host) requestData.smtp_host = emailForm.value.smtp_host;
+            if (emailForm.value.smtp_port && emailForm.value.smtp_port !== '') requestData.smtp_port = parseInt(emailForm.value.smtp_port);
+            if (emailForm.value.use_tls !== undefined && emailForm.value.use_tls !== null) requestData.use_tls = emailForm.value.use_tls;
+            if (emailForm.value.username) requestData.username = emailForm.value.username;
+            if (emailForm.value.password) requestData.password = emailForm.value.password;
+            if (emailForm.value.from_name) requestData.from_name = emailForm.value.from_name;
+
+            emailSending.value = true;
+            try {
+                const res = await axios.post('/api/email/send', requestData);
+                if (res.data.success) {
+                    ElMessage.success(`邮件发送成功！已发送给 ${toList.length} 个收件人`);
+                }
+            } catch (err) {
+                ElMessage.error(err.response?.data?.detail || '邮件发送失败');
+            } finally {
+                emailSending.value = false;
+            }
+        };
+
+        const resetEmailForm = () => {
+            emailForm.value = {
+                to: '',
+                subject: '',
+                content: '',
+                smtp_host: '',
+                smtp_port: 587,
+                use_tls: true,
+                username: '',
+                password: '',
+                from_name: ''
+            };
+        };
+
+        // ===================================
         // 智能问答模块
         // ===================================
         const chatMessages = ref([{
@@ -1165,6 +1241,9 @@ const app = createApp({
             // 文生图
             imageForm, isGenerating, generatedImages, imageHistory, showImagePreview, previewImageUrl,
             generateImage, resetImageForm, handleImageError, previewImage, downloadImage,
+
+            // 邮件
+            emailForm, emailSending, sendEmail, resetEmailForm,
 
             // 数据管理
             students, classes, teachers, mgmtLoading, studentSearch, loadStudents,

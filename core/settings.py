@@ -84,13 +84,25 @@ class AppConfig(BaseModel):
     version: str = Field(default="1.0.0", description="版本号")
 
 
+class EmailConfig(BaseModel):
+    """邮件配置"""
+    enabled: bool = Field(default=True, description="是否启用邮件功能")
+    default_smtp_host: str = Field(default="smtp.qq.com", description="默认SMTP服务器")
+    default_smtp_port: int = Field(default=587, ge=1, le=65535, description="默认SMTP端口")
+    default_use_tls: bool = Field(default=True, description="默认是否使用TLS")
+    default_username: str = Field(default="", description="默认发件邮箱")
+    default_password: str = Field(default="", description="默认发件邮箱授权码")
+    default_from_name: str = Field(default="学生管理系统", description="默认发件人名称")
+
+
 class Settings(BaseModel):
     """全局配置"""
     database: DatabaseConfig
     jwt: JWTConfig
     api_keys: APIKeysConfig
-    llm: LLMConfig = Field(default_factory=LLMConfig)  # LLM 配置，支持默认工厂
+    llm: LLMConfig = Field(default_factory=LLMConfig)
     app: AppConfig
+    email: EmailConfig = Field(default_factory=EmailConfig)
 
 
 def _find_config_file() -> Path:

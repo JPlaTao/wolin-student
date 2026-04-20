@@ -171,6 +171,15 @@
                 </a>
                 <a
                     href="#"
+                    @click.prevent="activeTab = 'email'"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'email' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '发送邮件' : ''"
+                >
+                    <i class="fas fa-envelope w-5"></i>
+                    <span v-show="!sidebarCollapsed">发送邮件</span>
+                </a>
+                <a
+                    href="#"
                     @click.prevent="activeTab = 'management'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'management' ? 'app-nav-item-active' : '']"
                     :title="sidebarCollapsed ? '数据管理' : ''"
@@ -385,6 +394,104 @@
                 <div class="chart-box">
                     <h3 class="font-semibold mb-3 text-sm md:text-base app-text-primary">📈 每次考试班级平均分排名</h3>
                     <div id="examSeqChart" style="height: 300px;"></div>
+                </div>
+</div>
+
+            <!-- 发送邮件 -->
+            <div v-if="activeTab === 'email'" class="space-y-4 md:space-y-6">
+                <div class="card-hover rounded-2xl p-6">
+                    <h2 class="text-xl font-semibold mb-2 app-text-primary">
+                        <i class="fas fa-envelope text-blue-400"></i> 发送邮件
+                    </h2>
+                    <p class="text-sm app-text-muted mb-6">向指定邮箱发送自定义邮件内容，支持使用自己的邮箱发送</p>
+
+                    <el-form :model="emailForm" label-position="top" class="email-form">
+                        <el-form-item label="收件人邮箱" required>
+                            <el-input
+                                v-model="emailForm.to"
+                                placeholder="多个邮箱用逗号分隔，如: a@example.com, b@example.com"
+                            ></el-input>
+                        </el-form-item>
+
+                        <el-form-item label="邮件主题" required>
+                            <el-input
+                                v-model="emailForm.subject"
+                                placeholder="请输入邮件主题"
+                            ></el-input>
+                        </el-form-item>
+
+                        <el-form-item label="邮件内容" required>
+                            <el-input
+                                type="textarea"
+                                v-model="emailForm.content"
+                                :rows="6"
+                                placeholder="请输入邮件内容"
+                            ></el-input>
+                        </el-form-item>
+
+                        <!-- 高级选项 -->
+                        <div class="mt-4 p-4 rounded-xl app-panel">
+                            <div class="flex items-center gap-2 mb-4">
+                                <i class="fas fa-cog text-gray-400"></i>
+                                <span class="font-medium app-text-primary">发送者配置</span>
+                                <span class="text-xs app-text-muted">（可选，不填则使用系统默认配置）</span>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <el-form-item label="SMTP 服务器">
+                                    <el-input
+                                        v-model="emailForm.smtp_host"
+                                        placeholder="如: smtp.qq.com"
+                                    ></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="SMTP 端口">
+                                    <el-input
+                                        v-model.number="emailForm.smtp_port"
+                                        placeholder="如: 587"
+                                    ></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="使用 TLS">
+                                    <el-switch
+                                        v-model="emailForm.use_tls"
+                                        active-text="是"
+                                        inactive-text="否"
+                                    ></el-switch>
+                                </el-form-item>
+
+                                <el-form-item label="发件邮箱">
+                                    <el-input
+                                        v-model="emailForm.username"
+                                        placeholder="你的邮箱地址"
+                                    ></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="授权码">
+                                    <el-input
+                                        v-model="emailForm.password"
+                                        type="password"
+                                        placeholder="邮箱授权码（非登录密码）"
+                                        show-password
+                                    ></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="发件人名称">
+                                    <el-input
+                                        v-model="emailForm.from_name"
+                                        placeholder="显示在邮件中的发件人名称"
+                                    ></el-input>
+                                </el-form-item>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex justify-end">
+                            <el-button @click="resetEmailForm" class="mr-3">重置</el-button>
+                            <el-button type="primary" @click="sendEmail" :loading="emailSending" class="email-send-btn">
+                                <i class="fas fa-paper-plane mr-2"></i>发送邮件
+                            </el-button>
+                        </div>
+                    </el-form>
                 </div>
             </div>
 
