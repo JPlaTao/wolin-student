@@ -146,6 +146,100 @@ body {
     transition: background-color 0.3s, color 0.3s;
 }
 
+/* ===================================
+   应用布局：用 CSS 变量覆盖硬编码色
+   目标：亮/暗主题切换时保持一致，不互相污染
+   =================================== */
+
+.app-text-primary {
+    color: var(--text-primary) !important;
+}
+
+.app-text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+.app-text-muted {
+    color: var(--text-muted) !important;
+}
+
+.app-border {
+    border-color: var(--border-secondary) !important;
+}
+
+.app-input {
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+}
+
+.app-input::placeholder {
+    color: var(--text-placeholder) !important;
+}
+
+.app-sidebar {
+    background: color-mix(in srgb, var(--bg-secondary) 92%, transparent) !important;
+    border-color: var(--border-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+.app-collapse-btn {
+    background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
+    color: var(--text-muted);
+    border: 1px solid var(--border-secondary);
+    transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.app-collapse-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    transform: translateY(-1px);
+}
+
+.app-topbar {
+    background: color-mix(in srgb, var(--bg-secondary) 92%, transparent) !important;
+    border-color: var(--border-secondary) !important;
+}
+
+.app-main {
+    background: radial-gradient(
+        ellipse at 20% 30%,
+        color-mix(in srgb, var(--bg-primary) 85%, transparent),
+        var(--bg-primary)
+    ) !important;
+    color: var(--text-primary);
+}
+
+.app-panel {
+    background: color-mix(in srgb, var(--bg-card) 85%, transparent) !important;
+    border-color: color-mix(in srgb, var(--border-primary) 30%, var(--border-secondary)) !important;
+}
+
+.app-panel-header,
+.app-panel-footer {
+    background: color-mix(in srgb, var(--bg-card) 92%, transparent) !important;
+}
+
+/* 侧边栏导航项（替代 Tailwind 的暗色 hover/selected） */
+.app-nav-item {
+    color: var(--text-muted) !important;
+}
+
+.app-nav-item:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-secondary) !important;
+}
+
+.app-nav-item-active {
+    background: var(--gradient-primary) !important;
+    color: #ffffff !important;
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+}
+
+.app-nav-item-active:hover {
+    background: var(--gradient-primary) !important;
+    color: #ffffff !important;
+}
+
 /* 滚动条样式 */
 ::-webkit-scrollbar {
     width: 6px;
@@ -174,10 +268,12 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-secondary);
     cursor: default;
+    border-radius: 20px;
+    box-shadow: var(--shadow-card);
 }
 
 .card-hover:hover {
-    transform: translateY(-6px);
+    transform: translateY(-4px);
     box-shadow: var(--shadow-card-hover);
     border-color: var(--border-primary);
 }
@@ -210,9 +306,10 @@ body {
 .chart-box {
     background: var(--bg-card);
     backdrop-filter: blur(8px);
-    border-radius: 24px;
+    border-radius: 20px;
     border: 1px solid var(--border-primary);
     padding: 1rem;
+    box-shadow: var(--shadow-card);
 }
 
 /* 结果表格 */
@@ -648,30 +745,24 @@ body {
    =================================== */
 
 .theme-switch-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
     display: flex;
     gap: 8px;
-    padding: 8px;
-    background: var(--bg-card);
-    border-radius: 24px;
+    padding: 6px 8px;
+    background: transparent;
+    border-radius: 14px;
     border: 1px solid var(--border-secondary);
-    backdrop-filter: blur(12px);
-    box-shadow: var(--shadow-card);
 }
 
 .theme-btn {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     border: 2px solid transparent;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 12px;
     transition: all 0.2s;
     background: var(--bg-secondary);
     color: var(--text-muted);

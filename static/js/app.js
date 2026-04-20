@@ -75,10 +75,16 @@ const app = createApp({
         const activeTab = ref('dashboard');
         const mgmtTab = ref('student');
         const sidebarOpen = ref(true);
+        const sidebarCollapsed = ref(false);
         const isMobile = ref(window.innerWidth < 768);
 
+        // 侧边栏切换
         const toggleSidebar = () => {
             sidebarOpen.value = !sidebarOpen.value;
+        };
+
+        const toggleSidebarCollapsed = () => {
+            sidebarCollapsed.value = !sidebarCollapsed.value;
         };
 
         const handleResize = () => {
@@ -374,10 +380,10 @@ const app = createApp({
 
                 const rawStudents = studentRes.data.data || [];
                 studentPagination.value.total = studentRes.data.total || rawStudents.length;
-                
+
                 const classDict = classRes.data.data || {};
                 classPagination.value.total = Object.keys(classDict).length;
-                
+
                 classes.value = Object.values(classDict).map(c => ({
                     ...c,
                     head_teacher_name: c.head_teacher_name || '未知'
@@ -409,7 +415,7 @@ const app = createApp({
                 const params = {};
                 if (studentSearch.value.name) params.stu_name = studentSearch.value.name;
                 if (studentSearch.value.class_id) params.class_id = studentSearch.value.class_id;
-                
+
                 // 添加分页参数
                 params.page = studentPagination.value.currentPage;
                 params.page_size = studentPagination.value.pageSize;
@@ -417,7 +423,7 @@ const app = createApp({
                 const res = await axios.get('/students', { params });
                 const rawStudents = res.data.data || [];
                 studentPagination.value.total = res.data.total || rawStudents.length;
-                
+
                 const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name]));
                 students.value = rawStudents.map(s => ({
                     ...s,
@@ -477,7 +483,7 @@ const app = createApp({
         const openStudentDialog = async (row) => {
             // 加载顾问列表
             await loadCounselors();
-            
+
             if (row) {
                 editingStudentId = row.stu_id;
                 studentForm.value = { ...row, advisor_id: row.advisor_id || null };
@@ -1123,8 +1129,8 @@ const app = createApp({
         });
 
         onMounted(async () => {
-            const loggedIn = await checkLogin();
-            if (loggedIn) {
+            await checkLogin();
+            if (isLoggedIn.value) {
                 await refreshDashboard();
                 await loadManagementData();
                 await loadStudents();
@@ -1142,7 +1148,13 @@ const app = createApp({
             currentUser, isAdmin, submitAuth, logout, checkLogin,
 
             // 导航
-            activeTab, mgmtTab, sidebarOpen, isMobile, toggleSidebar,
+            activeTab,
+            mgmtTab,
+            sidebarOpen,
+            sidebarCollapsed,
+            isMobile,
+            toggleSidebar,
+            toggleSidebarCollapsed,
 
             // 仪表板
             dashboard, refreshDashboard,
@@ -1162,7 +1174,7 @@ const app = createApp({
             openClassDialog, saveClass, deleteClass,
             openTeacherDialog, saveTeacher, deleteTeacher,
             teacherOptions, headTeacherOptions,
-            
+
             // 分页
             studentPagination, classPagination, teacherPagination,
             handleStudentPageChange, handleStudentSizeChange, handleStudentSearch,

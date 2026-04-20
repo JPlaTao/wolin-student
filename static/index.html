@@ -41,42 +41,30 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 <body>
-    <!-- 主题切换按钮 -->
-    <div class="theme-switch-container" id="themeSwitcher">
-        <button class="theme-btn light" onclick="setTheme('light')" title="亮色主题">
-            <i class="fas fa-sun"></i>
-        </button>
-        <button class="theme-btn dark" onclick="setTheme('dark')" title="暗色主题">
-            <i class="fas fa-moon"></i>
-        </button>
-        <button class="theme-btn system" onclick="setTheme('system')" title="跟随系统">
-            <i class="fas fa-desktop"></i>
-        </button>
-    </div>
 <div id="app">
     <!-- 登录/注册模态框 -->
     <div v-if="!isLoggedIn" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
         <div class="modal-container rounded-2xl p-6 w-full max-w-96">
-            <h2 class="text-2xl font-bold text-white mb-4">
+            <h2 class="text-2xl font-bold mb-4 app-text-primary">
                 {{ authMode === 'login' ? '登录' : '注册' }}
             </h2>
             <input
                 type="text"
                 v-model="authUsername"
                 placeholder="用户名"
-                class="w-full mb-3 px-4 py-2 rounded-xl bg-slate-800 text-white border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                class="w-full mb-3 px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
             >
             <input
                 type="password"
                 v-model="authPassword"
                 placeholder="密码"
-                class="w-full mb-3 px-4 py-2 rounded-xl bg-slate-800 text-white border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                class="w-full mb-3 px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
             >
             <div v-if="authMode === 'register'" class="mb-4">
-                <label class="block text-slate-400 text-sm mb-2">选择身份角色</label>
+                <label class="block text-sm mb-2 app-text-muted">选择身份角色</label>
                 <select
                     v-model="authRole"
-                    class="w-full px-4 py-2 rounded-xl bg-slate-800 text-white border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    class="w-full px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                 >
                     <option value="user">普通用户</option>
                     <option value="student">学生</option>
@@ -93,7 +81,7 @@
             >
                 {{ authMode === 'login' ? '登录' : '注册' }}
             </button>
-            <p class="text-center text-slate-400 mt-3 text-sm">
+            <p class="text-center mt-3 text-sm app-text-muted">
                 <span v-if="authMode === 'login'">
                     没有账号？ <a href="#" @click.prevent="authMode='register'" class="text-blue-400">立即注册</a>
                 </span>
@@ -116,22 +104,31 @@
         <!-- 侧边栏 -->
         <aside
             :class="[
-                'fixed md:static inset-y-0 left-0 z-30 bg-slate-900/95 backdrop-blur-xl border-r border-slate-800 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out',
+                'fixed md:static inset-y-0 left-0 z-30 backdrop-blur-xl border-r flex flex-col shadow-2xl transition-transform duration-300 ease-in-out app-sidebar',
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
-                'w-72'
+                sidebarCollapsed ? 'w-20' : 'w-72'
             ]"
         >
             <!-- Logo -->
-            <div class="p-4 md:p-6 border-b border-slate-800">
+            <div class="p-4 md:p-6 border-b app-border">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
                         <i class="fas fa-graduation-cap text-white text-xl"></i>
                     </div>
-                    <div>
-                        <h1 class="text-lg md:text-xl font-bold text-white">沃林学生管理系统</h1>
-                        <p class="text-xs text-slate-400 mt-0.5 hidden md:block">智能数据分析 · 极致体验</p>
+                    <div v-show="!sidebarCollapsed">
+                        <h1 class="text-lg md:text-xl font-bold app-text-primary">沃林学生管理系统</h1>
+                        <p class="text-xs mt-0.5 hidden md:block app-text-muted">智能数据分析 · 极致体验</p>
                     </div>
                 </div>
+                <!-- 桌面端收起/展开 -->
+                <button
+                    class="hidden md:flex items-center justify-center mt-4 w-full py-2 rounded-xl app-collapse-btn"
+                    @click="toggleSidebarCollapsed"
+                    :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+                >
+                    <i :class="sidebarCollapsed ? 'fas fa-angles-right' : 'fas fa-angles-left'"></i>
+                    <span class="ml-2 text-sm" v-show="!sidebarCollapsed">收起</span>
+                </button>
             </div>
 
             <!-- 导航菜单 -->
@@ -139,56 +136,62 @@
                 <a
                     href="#"
                     @click.prevent="activeTab = 'dashboard'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'dashboard' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'dashboard' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '数据看板' : ''"
                 >
                     <i class="fas fa-chart-line w-5"></i>
-                    <span>数据看板</span>
+                    <span v-show="!sidebarCollapsed">数据看板</span>
                 </a>
                 <a
                     href="#"
                     @click.prevent="activeTab = 'query'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'query' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'query' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '智能问答' : ''"
                 >
                     <i class="fas fa-comment-dots w-5"></i>
-                    <span>智能问答</span>
+                    <span v-show="!sidebarCollapsed">智能问答</span>
                 </a>
                 <a
                     href="#"
                     @click.prevent="activeTab = 'statistics'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'statistics' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'statistics' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '高级统计' : ''"
                 >
                     <i class="fas fa-chart-bar w-5"></i>
-                    <span>高级统计</span>
+                    <span v-show="!sidebarCollapsed">高级统计</span>
                 </a>
                 <a
                     href="#"
                     @click.prevent="activeTab = 'imageGen'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'imageGen' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'imageGen' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '文生图片' : ''"
                 >
                     <i class="fas fa-image w-5"></i>
-                    <span>文生图片</span>
+                    <span v-show="!sidebarCollapsed">文生图片</span>
                 </a>
                 <a
                     href="#"
                     @click.prevent="activeTab = 'management'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'management' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'management' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '数据管理' : ''"
                 >
                     <i class="fas fa-database w-5"></i>
-                    <span>数据管理</span>
+                    <span v-show="!sidebarCollapsed">数据管理</span>
                 </a>
                 <a
                     v-if="isAdmin"
                     href="#"
                     @click.prevent="activeTab = 'userManagement'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200', activeTab === 'userManagement' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800']"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'userManagement' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '用户管理' : ''"
                 >
                     <i class="fas fa-users-cog w-5"></i>
-                    <span>用户管理</span>
+                    <span v-show="!sidebarCollapsed">用户管理</span>
                 </a>
             </nav>
 
             <!-- 用户信息 -->
-            <div class="p-4 border-t border-slate-800">
+            <div class="p-4 border-t app-border">
                 <div v-if="currentUser" class="user-info-card">
                     <div class="user-avatar">
                         {{ currentUser.username.charAt(0).toUpperCase() }}
@@ -202,6 +205,21 @@
                         </div>
                     </div>
                 </div>
+                <!-- 主题切换（集成在侧边栏左下角，低强调） -->
+                <div class="mt-3 flex items-center justify-between theme-switch-container" id="themeSwitcher">
+                    <span class="text-xs app-text-muted" v-show="!sidebarCollapsed">主题</span>
+                    <div class="flex items-center gap-2">
+                        <button class="theme-btn light" onclick="setTheme('light')" title="亮色主题">
+                            <i class="fas fa-sun"></i>
+                        </button>
+                        <button class="theme-btn dark" onclick="setTheme('dark')" title="暗色主题">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="theme-btn system" onclick="setTheme('system')" title="跟随系统">
+                            <i class="fas fa-desktop"></i>
+                        </button>
+                    </div>
+                </div>
                 <button @click="logout" class="w-full mt-3 text-red-400 hover:text-red-300 transition text-center text-sm">
                     <i class="fas fa-sign-out-alt"></i> 退出登录
                 </button>
@@ -209,24 +227,24 @@
         </aside>
 
         <!-- 移动端顶部导航栏 -->
-        <div class="md:hidden fixed top-0 left-0 right-0 z-10 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-            <button @click="toggleSidebar" class="text-white text-xl p-2">
+        <div class="md:hidden fixed top-0 left-0 right-0 z-10 backdrop-blur-xl border-b px-4 py-3 flex items-center justify-between app-topbar">
+            <button @click="toggleSidebar" class="app-text-primary text-xl p-2">
                 <i :class="sidebarOpen ? 'fas fa-times' : 'fas fa-bars'"></i>
             </button>
-            <h1 class="text-white font-bold text-base">沃林学生管理系统</h1>
+            <h1 class="app-text-primary font-bold text-base">沃林学生管理系统</h1>
             <div class="w-10"></div>
         </div>
 
         <!-- 主内容区 -->
-        <main class="flex-1 overflow-y-auto p-3 md:p-6 bg-gradient-to-br from-slate-900/40 to-black/40 pt-16 md:pt-6">
+        <main class="flex-1 overflow-y-auto p-3 md:p-6 pt-16 md:pt-6 app-main">
             <!-- 数据看板 -->
             <div v-if="activeTab === 'dashboard'" class="space-y-4 md:space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                     <div class="card-hover rounded-2xl p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-slate-400 text-sm">学生总数</p>
-                                <p class="text-3xl font-bold text-white mt-1">{{ dashboard.studentCount }}</p>
+                                <p class="text-sm app-text-muted">学生总数</p>
+                                <p class="text-3xl font-bold mt-1 app-text-primary">{{ dashboard.studentCount }}</p>
                             </div>
                             <i class="fas fa-users text-4xl text-blue-500/80"></i>
                         </div>
@@ -234,8 +252,8 @@
                     <div class="card-hover rounded-2xl p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-slate-400 text-sm">班级数量</p>
-                                <p class="text-3xl font-bold text-white mt-1">{{ dashboard.classCount }}</p>
+                                <p class="text-sm app-text-muted">班级数量</p>
+                                <p class="text-3xl font-bold mt-1 app-text-primary">{{ dashboard.classCount }}</p>
                             </div>
                             <i class="fas fa-school text-4xl text-emerald-500/80"></i>
                         </div>
@@ -243,8 +261,8 @@
                     <div class="card-hover rounded-2xl p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-slate-400 text-sm">平均年龄</p>
-                                <p class="text-3xl font-bold text-white mt-1">{{ dashboard.avgAge }}</p>
+                                <p class="text-sm app-text-muted">平均年龄</p>
+                                <p class="text-3xl font-bold mt-1 app-text-primary">{{ dashboard.avgAge }}</p>
                             </div>
                             <i class="fas fa-calendar-alt text-4xl text-amber-500/80"></i>
                         </div>
@@ -252,8 +270,8 @@
                     <div class="card-hover rounded-2xl p-5">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-slate-400 text-sm">就业率</p>
-                                <p class="text-3xl font-bold text-white mt-1">{{ dashboard.employmentRate }}%</p>
+                                <p class="text-sm app-text-muted">就业率</p>
+                                <p class="text-3xl font-bold mt-1 app-text-primary">{{ dashboard.employmentRate }}%</p>
                             </div>
                             <i class="fas fa-briefcase text-4xl text-rose-500/80"></i>
                         </div>
@@ -262,13 +280,13 @@
                 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     <div class="chart-box">
-                        <h3 class="text-white font-semibold mb-3">
+                        <h3 class="font-semibold mb-3 app-text-primary">
                             <i class="fas fa-venus-mars text-pink-400"></i> 班级男女比例
                         </h3>
                         <div id="genderChart" style="height: 350px;"></div>
                     </div>
                     <div class="chart-box">
-                        <h3 class="text-white font-semibold mb-3">
+                        <h3 class="font-semibold mb-3 app-text-primary">
                             <i class="fas fa-chart-line text-green-400"></i> 各班平均成绩排名
                         </h3>
                         <div id="scoreChart" style="height: 350px;"></div>
@@ -276,12 +294,12 @@
                 </div>
                 
                 <div class="card-hover rounded-2xl p-5">
-                    <h3 class="text-white font-semibold mb-3">
+                    <h3 class="font-semibold mb-3 app-text-primary">
                         <i class="fas fa-dollar-sign text-yellow-400"></i> 薪资前五名
                     </h3>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full text-left text-sm text-slate-300">
-                            <thead class="bg-slate-700/50">
+                        <table class="min-w-full text-left text-sm app-text-secondary">
+                            <thead class="app-border" style="background: var(--bg-secondary);">
                                 <tr>
                                     <th class="py-2 px-3">姓名</th>
                                     <th>班级</th>
@@ -304,22 +322,22 @@
 
             <!-- 智能问答 -->
             <div v-if="activeTab === 'query'" class="h-full flex flex-col">
-                <div class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 overflow-hidden flex flex-col flex-1 shadow-2xl">
-                    <div class="p-4 border-b border-slate-700 bg-slate-800/60">
-                        <h2 class="text-xl font-semibold text-white">
+                <div class="backdrop-blur-xl rounded-2xl border overflow-hidden flex flex-col flex-1 shadow-2xl app-panel">
+                    <div class="p-4 border-b app-border app-panel-header">
+                        <h2 class="text-xl font-semibold app-text-primary">
                             <i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手
                         </h2>
-                        <p class="text-slate-400 text-sm mt-1">
+                        <p class="text-sm mt-1 app-text-muted">
                             支持自然语言查询数据，也可以问业务问题（支持多轮对话记忆）
                         </p>
                     </div>
                     <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
                         <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
-                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-slate-200'" class="max-w-[80%] px-4 py-2 shadow-md">
+                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai app-text-secondary'" class="max-w-[80%] px-4 py-2 shadow-md">
                                 <div v-if="msg.type === 'sql'">
                                     <div v-if="msg.isSingleValue" class="text-base">{{ msg.content }}</div>
                                     <div v-else v-html="msg.content"></div>
-                                    <details class="mt-2 text-xs text-slate-300">
+                                    <details class="mt-2 text-xs app-text-muted">
                                         <summary>查看SQL</summary>
                                         <code class="block bg-black/30 p-2 rounded mt-1">{{ msg.sql }}</code>
                                     </details>
@@ -332,13 +350,13 @@
                             </div>
                         </div>
                     </div>
-                    <div class="p-3 md:p-4 border-t border-slate-700 bg-slate-800/60">
+                    <div class="p-3 md:p-4 border-t app-border app-panel-footer">
                         <div class="flex gap-2 md:gap-3">
                             <input
                                 type="text"
                                 v-model="currentQuestion"
                                 @keyup.enter="sendQuestion"
-                                class="flex-1 bg-slate-700 border border-blue-500 rounded-xl px-3 md:px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base"
+                                class="flex-1 border border-blue-500 rounded-xl px-3 md:px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base app-input"
                                 placeholder="例如：学生有多少人？ 李芳老师有多少个学生？ 每个班级的平均分？"
                             >
                             <button
@@ -356,16 +374,16 @@
             <div v-if="activeTab === 'statistics'" class="space-y-4 md:space-y-6">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     <div class="chart-box">
-                        <h3 class="text-white font-semibold mb-3 text-sm md:text-base">📊 薪资分布区间</h3>
+                        <h3 class="font-semibold mb-3 text-sm md:text-base app-text-primary">📊 薪资分布区间</h3>
                         <div id="salaryDistChart" style="height: 250px;"></div>
                     </div>
                     <div class="chart-box">
-                        <h3 class="text-white font-semibold mb-3 text-sm md:text-base">⏱️ 班级平均就业时长（天）</h3>
+                        <h3 class="font-semibold mb-3 text-sm md:text-base app-text-primary">⏱️ 班级平均就业时长（天）</h3>
                         <div id="durationChart" style="height: 250px;"></div>
                     </div>
                 </div>
                 <div class="chart-box">
-                    <h3 class="text-white font-semibold mb-3 text-sm md:text-base">📈 每次考试班级平均分排名</h3>
+                    <h3 class="font-semibold mb-3 text-sm md:text-base app-text-primary">📈 每次考试班级平均分排名</h3>
                     <div id="examSeqChart" style="height: 300px;"></div>
                 </div>
             </div>
@@ -502,7 +520,7 @@
                             <el-button type="primary" @click="openExamMaintenanceDialog">
                                 <i class="fas fa-tools"></i> 成绩维护
                             </el-button>
-                            <span class="text-sm text-slate-400 ml-2">
+                            <span class="text-sm ml-2 app-text-muted">
                                 点击表格行可选中，维护弹窗将自动填充学号/序号
                             </span>
                         </div>
@@ -746,9 +764,9 @@
                             <el-button type="primary" @click="queryExamRecord" :loading="examQueryLoading">查询成绩</el-button>
                         </el-form-item>
                     </el-form>
-                    <div v-if="queriedExamData.found" class="mt-4 p-3 bg-slate-800/60 rounded-xl border border-blue-500/40">
-                        <p><span class="text-slate-300">成绩：</span><span class="text-white font-bold">{{ queriedExamData.grade }}</span></p>
-                        <p><span class="text-slate-300">考试日期：</span><span class="text-white">{{ queriedExamData.exam_date || '无' }}</span></p>
+                    <div v-if="queriedExamData.found" class="mt-4 p-3 rounded-xl border border-blue-500/40" style="background: var(--bg-card);">
+                        <p><span class="app-text-muted">成绩：</span><span class="app-text-primary font-bold">{{ queriedExamData.grade }}</span></p>
+                        <p><span class="app-text-muted">考试日期：</span><span class="app-text-primary">{{ queriedExamData.exam_date || '无' }}</span></p>
                     </div>
                     <div v-if="queriedExamData.notFoundMsg" class="mt-4 text-amber-400 text-sm">{{ queriedExamData.notFoundMsg }}</div>
                     <template #footer>
@@ -800,44 +818,44 @@
             </div>
 
             <!-- 文生图片 -->
-            <div v-if="activeTab === 'imageGen'" class="space-y-4 md:space-y-6">
-                <div class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 p-4 md:p-6 shadow-2xl">
-                    <h2 class="text-xl font-semibold text-white mb-4">
+                <div v-if="activeTab === 'imageGen'" class="space-y-4 md:space-y-6">
+                <div class="backdrop-blur-xl rounded-2xl border border-blue-500/30 p-4 md:p-6 shadow-2xl app-panel">
+                    <h2 class="text-xl font-semibold mb-4 app-text-primary">
                         <i class="fas fa-image text-purple-400"></i> AI 文生图片
                     </h2>
-                    <p class="text-slate-400 text-sm mb-4">
+                    <p class="text-sm mb-4 app-text-muted">
                         使用通义万相 wan2.6-t2i 模型生成图片。支持中英文描述，请详细描述画面内容、风格和构图。
                     </p>
 
                     <!-- 生成表单 -->
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-slate-300 text-sm mb-2">正向提示词 <span class="text-red-400">*</span></label>
+                            <label class="block text-sm mb-2 app-text-secondary">正向提示词 <span class="text-red-400">*</span></label>
                             <textarea
                                 v-model="imageForm.prompt"
-                                class="w-full bg-slate-700 border border-blue-500/50 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                                class="w-full border border-blue-500/50 rounded-xl px-4 py-3 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none app-input"
                                 rows="3"
                                 placeholder="例如：一间有着精致窗户的花店，漂亮的木质门，摆放着花朵，阳光透过窗户洒进来"
                             ></textarea>
-                            <p class="text-slate-500 text-xs mt-1">描述期望生成的图像内容、风格和构图，支持中英文，不超过2100字符</p>
+                            <p class="text-xs mt-1 app-text-muted">描述期望生成的图像内容、风格和构图，支持中英文，不超过2100字符</p>
                         </div>
 
                         <div>
-                            <label class="block text-slate-300 text-sm mb-2">反向提示词</label>
+                            <label class="block text-sm mb-2 app-text-secondary">反向提示词</label>
                             <input
                                 v-model="imageForm.negative_prompt"
                                 type="text"
-                                class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                class="w-full border border-slate-600 rounded-xl px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                                 placeholder="描述不希望出现的内容，如：低分辨率，手指畸形"
                             >
                         </div>
 
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
-                                <label class="block text-slate-300 text-sm mb-2">图像尺寸</label>
+                                <label class="block text-sm mb-2 app-text-secondary">图像尺寸</label>
                                 <select
                                     v-model="imageForm.size"
-                                    class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    class="w-full border border-slate-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                                 >
                                     <option value="1280*1280">1:1 方图 (1280×1280)</option>
                                     <option value="1472*1104">4:3 横图 (1472×1104)</option>
@@ -848,10 +866,10 @@
                             </div>
 
                             <div>
-                                <label class="block text-slate-300 text-sm mb-2">图片数量</label>
+                                <label class="block text-sm mb-2 app-text-secondary">图片数量</label>
                                 <select
                                     v-model="imageForm.n"
-                                    class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    class="w-full border border-slate-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                                 >
                                     <option :value="1">1 张</option>
                                     <option :value="2">2 张</option>
@@ -861,10 +879,10 @@
                             </div>
 
                             <div>
-                                <label class="block text-slate-300 text-sm mb-2">智能改写</label>
+                                <label class="block text-sm mb-2 app-text-secondary">智能改写</label>
                                 <select
                                     v-model="imageForm.prompt_extend"
-                                    class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    class="w-full border border-slate-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                                 >
                                     <option :value="true">开启</option>
                                     <option :value="false">关闭</option>
@@ -872,10 +890,10 @@
                             </div>
 
                             <div>
-                                <label class="block text-slate-300 text-sm mb-2">水印</label>
+                                <label class="block text-sm mb-2 app-text-secondary">水印</label>
                                 <select
                                     v-model="imageForm.watermark"
-                                    class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    class="w-full border border-slate-600 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                                 >
                                     <option :value="false">无水印</option>
                                     <option :value="true">添加水印</option>
@@ -892,10 +910,7 @@
                                 <i :class="isGenerating ? 'fas fa-spinner fa-pulse' : 'fas fa-magic'"></i>
                                 {{ isGenerating ? '生成中...' : '生成图片' }}
                             </button>
-                            <button
-                                @click="resetImageForm"
-                                class="bg-slate-700 hover:bg-slate-600 transition px-4 py-2 rounded-xl text-slate-300"
-                            >
+                            <button @click="resetImageForm" class="transition px-4 py-2 rounded-xl app-text-secondary" style="background: var(--bg-secondary);">
                                 <i class="fas fa-redo"></i> 重置
                             </button>
                         </div>
@@ -903,8 +918,8 @@
                 </div>
 
                 <!-- 生成结果 -->
-                <div v-if="generatedImages.length > 0" class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 p-4 md:p-6 shadow-2xl">
-                    <h3 class="text-lg font-semibold text-white mb-4">
+                <div v-if="generatedImages.length > 0" class="backdrop-blur-xl rounded-2xl border border-blue-500/30 p-4 md:p-6 shadow-2xl app-panel">
+                    <h3 class="text-lg font-semibold mb-4 app-text-primary">
                         <i class="fas fa-images text-green-400"></i> 生成结果
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -933,27 +948,28 @@
                                     <i class="fas fa-download"></i> 下载
                                 </button>
                             </div>
-                            <p class="text-center text-slate-400 text-xs py-2 bg-slate-800/80">
+                            <p class="text-center text-xs py-2 app-text-muted" style="background: color-mix(in srgb, var(--bg-secondary) 80%, transparent);">
                                 图片 {{ index + 1 }}
                             </p>
                         </div>
                     </div>
-                    <p class="text-slate-500 text-xs mt-4">
+                    <p class="text-xs mt-4 app-text-muted">
                         <i class="fas fa-exclamation-circle"></i>
                         注意：图片链接有效期为24小时，请及时保存
                     </p>
                 </div>
 
                 <!-- 历史记录 -->
-                <div v-if="imageHistory.length > 0" class="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 md:p-6 shadow-2xl">
-                    <h3 class="text-lg font-semibold text-white mb-4">
+                <div v-if="imageHistory.length > 0" class="backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 md:p-6 shadow-2xl app-panel">
+                    <h3 class="text-lg font-semibold mb-4 app-text-primary">
                         <i class="fas fa-history text-amber-400"></i> 历史记录
                     </h3>
                     <div class="space-y-3">
                         <div
                             v-for="(item, idx) in imageHistory"
                             :key="idx"
-                            class="bg-slate-700/50 rounded-xl p-3 flex items-center gap-3"
+                            class="rounded-xl p-3 flex items-center gap-3"
+                            style="background: color-mix(in srgb, var(--bg-secondary) 55%, transparent);"
                         >
                             <div class="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-600">
                                 <img
@@ -963,8 +979,8 @@
                                 />
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-white text-sm truncate">{{ item.prompt }}</p>
-                                <p class="text-slate-400 text-xs mt-1">{{ item.size }} · {{ item.image_count }}张 · {{ item.time }}</p>
+                                <p class="text-sm truncate app-text-primary">{{ item.prompt }}</p>
+                                <p class="text-xs mt-1 app-text-muted">{{ item.size }} · {{ item.image_count }}张 · {{ item.time }}</p>
                             </div>
                         </div>
                     </div>
@@ -975,14 +991,14 @@
             <div v-if="activeTab === 'userManagement'" class="space-y-4 md:space-y-6">
                 <div class="card-hover rounded-2xl p-4 md:p-5">
                     <div class="mb-3 md:mb-4 flex justify-between items-center flex-wrap gap-2">
-                        <h3 class="text-white font-semibold text-base md:text-lg">
+                        <h3 class="font-semibold text-base md:text-lg app-text-primary">
                             <i class="fas fa-users-cog text-blue-400"></i> 用户管理
                         </h3>
                         <el-button type="success" @click="openUserDialog(null)" size="small md:default">
                             <i class="fas fa-user-plus"></i> <span class="hidden md:inline">新增用户</span>
                         </el-button>
                     </div>
-                    <div class="mb-3 md:mb-4 text-slate-400 text-xs md:text-sm">
+                    <div class="mb-3 md:mb-4 text-xs md:text-sm app-text-muted">
                         <i class="fas fa-info-circle"></i> 管理员模式下，您可以管理所有系统用户
                     </div>
                     <el-table :data="users" stripe v-loading="userLoading">

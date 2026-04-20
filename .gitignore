@@ -20,6 +20,7 @@ chroma_db/
 .env
 .env.local
 .env.*.local
+.config.json
 
 # Testing
 test_report.json
