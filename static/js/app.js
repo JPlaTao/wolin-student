@@ -141,6 +141,9 @@ const app = createApp({
                     initUserSession(res.data.user_id);
                     await refreshDashboard();
                     await loadManagementData();
+                    // 初始化邮件模块
+                    await fetchEmailProviders();
+                    await fetchEmailConfig();
                     ElMessage.success('登录成功');
                 } else {
                     await axios.post('/auth/register', {
@@ -959,18 +962,100 @@ const app = createApp({
         const emailForm = ref({
             to: '',
             subject: '',
-            content: '',
-            smtp_host: '',
-            smtp_port: 587,
-            use_tls: true,
-            username: '',
-            password: '',
-            from_name: ''
+            content: ''
         });
         const emailSending = ref(false);
+        const emailConfig = ref(null);  // 用户邮箱配置
+        const emailProviders = ref([]);  // 支持的服务商列表
+        const emailConfigDialogVisible = ref(false);
+        const emailConfigSaving = ref(false);
+        const emailConfigForm = ref({
+            provider: '',
+            email_address: '',
+            auth_code: '',
+            from_name: ''
+        });
+
+        // 获取支持的邮箱服务商列表
+        const fetchEmailProviders = async () => {
+            try {
+                const res = await axios.get('/api/email/providers');
+                emailProviders.value = res.data.providers;
+            } catch (err) {
+                console.error('获取服务商列表失败', err);
+            }
+        };
+
+        // 获取用户邮箱配置
+        const fetchEmailConfig = async () => {
+            try {
+                const res = await axios.get('/api/email/config');
+                emailConfig.value = {
+                    ...res.data,
+                    provider_name: emailProviders.value.find(p => p.value === res.data.provider)?.label || res.data.provider
+                };
+            } catch (err) {
+                if (err.response?.status !== 404) {
+                    console.error('获取邮箱配置失败', err);
+                }
+                emailConfig.value = null;
+            }
+        };
+
+        // 显示邮箱配置弹窗
+        const showEmailConfigDialog = () => {
+            if (emailConfig.value) {
+                // 编辑模式：填充现有数据
+                emailConfigForm.value = {
+                    provider: emailConfig.value.provider,
+                    email_address: emailConfig.value.email_address,
+                    auth_code: '',  // 不回显授权码
+                    from_name: emailConfig.value.from_name || ''
+                };
+            } else {
+                // 新增模式
+                emailConfigForm.value = {
+                    provider: '',
+                    email_address: '',
+                    auth_code: '',
+                    from_name: ''
+                };
+            }
+            emailConfigDialogVisible.value = true;
+        };
+
+        // 保存邮箱配置
+        const saveEmailConfig = async () => {
+            if (!emailConfigForm.value.provider) {
+                ElMessage.warning('请选择邮箱服务商');
+                return;
+            }
+            if (!emailConfigForm.value.email_address) {
+                ElMessage.warning('请填写邮箱地址');
+                return;
+            }
+            if (!emailConfigForm.value.auth_code) {
+                ElMessage.warning('请填写授权码');
+                return;
+            }
+
+            emailConfigSaving.value = true;
+            try {
+                const res = await axios.post('/api/email/config', emailConfigForm.value);
+                emailConfig.value = {
+                    ...res.data,
+                    provider_name: emailProviders.value.find(p => p.value === res.data.provider)?.label || res.data.provider
+                };
+                emailConfigDialogVisible.value = false;
+                ElMessage.success('邮箱配置保存成功');
+            } catch (err) {
+                ElMessage.error(err.response?.data?.detail || '保存失败');
+            } finally {
+                emailConfigSaving.value = false;
+            }
+        };
 
         const sendEmail = async () => {
-            // 验证必填项
             if (!emailForm.value.to.trim()) {
                 ElMessage.warning('请填写收件人邮箱');
                 return;
@@ -984,31 +1069,24 @@ const app = createApp({
                 return;
             }
 
-            // 解析收件人列表
             const toList = emailForm.value.to.split(',').map(email => email.trim()).filter(email => email);
-
-            // 构建请求数据
-            const requestData = {
-                to: toList,
-                subject: emailForm.value.subject,
-                content: emailForm.value.content
-            };
-
-            // 添加可选参数
-            if (emailForm.value.smtp_host) requestData.smtp_host = emailForm.value.smtp_host;
-            if (emailForm.value.smtp_port && emailForm.value.smtp_port !== '') requestData.smtp_port = parseInt(emailForm.value.smtp_port);
-            if (emailForm.value.use_tls !== undefined && emailForm.value.use_tls !== null) requestData.use_tls = emailForm.value.use_tls;
-            if (emailForm.value.username) requestData.username = emailForm.value.username;
-            if (emailForm.value.password) requestData.password = emailForm.value.password;
-            if (emailForm.value.from_name) requestData.from_name = emailForm.value.from_name;
 
             emailSending.value = true;
             try {
-                const res = await axios.post('/api/email/send', requestData);
+                const res = await axios.post('/api/email/send', {
+                    to: toList,
+                    subject: emailForm.value.subject,
+                    content: emailForm.value.content
+                });
                 if (res.data.success) {
                     ElMessage.success(`邮件发送成功！已发送给 ${toList.length} 个收件人`);
+                    resetEmailForm();
                 }
             } catch (err) {
+                if (err.response?.status === 400 && err.response?.data?.detail?.includes('配置')) {
+                    emailConfig.value = null;
+                    showEmailConfigDialog();
+                }
                 ElMessage.error(err.response?.data?.detail || '邮件发送失败');
             } finally {
                 emailSending.value = false;
@@ -1016,17 +1094,7 @@ const app = createApp({
         };
 
         const resetEmailForm = () => {
-            emailForm.value = {
-                to: '',
-                subject: '',
-                content: '',
-                smtp_host: '',
-                smtp_port: 587,
-                use_tls: true,
-                username: '',
-                password: '',
-                from_name: ''
-            };
+            emailForm.value = { to: '', subject: '', content: '' };
         };
 
         // ===================================
@@ -1210,6 +1278,9 @@ const app = createApp({
                 await refreshDashboard();
                 await loadManagementData();
                 await loadStudents();
+                // 初始化邮件模块
+                await fetchEmailProviders();
+                await fetchEmailConfig();
             }
             window.addEventListener('resize', handleResize);
             handleResize();
@@ -1243,7 +1314,10 @@ const app = createApp({
             generateImage, resetImageForm, handleImageError, previewImage, downloadImage,
 
             // 邮件
-            emailForm, emailSending, sendEmail, resetEmailForm,
+            emailForm, emailSending, emailConfig, emailProviders,
+            emailConfigDialogVisible, emailConfigForm, emailConfigSaving,
+            sendEmail, resetEmailForm,
+            fetchEmailProviders, fetchEmailConfig, showEmailConfigDialog, saveEmailConfig,
 
             // 数据管理
             students, classes, teachers, mgmtLoading, studentSearch, loadStudents,

@@ -33,14 +33,5 @@
     "debug": false,
     "title": "沃林学生管理系统",
     "version": "1.0.0"
-  },
-  "email": {
-    "enabled": true,
-    "default_smtp_host": "smtp.163.com",
-    "default_smtp_port": 465,
-    "default_use_tls": false,
-    "default_username": "reefield@163.com",
-    "default_password": "YCiqaC2p6EscVmiV",
-    "default_from_name": "学生管理系统"
   }
 }
