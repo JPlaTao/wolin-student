@@ -32,6 +32,7 @@ router = APIRouter(prefix="/query", tags=["自然语言查询"])
 
 settings = get_settings()
 
+
 # ---------- LLM 客户端初始化 ----------
 def _get_llm_api_key() -> str:
     """根据配置的 provider 获取对应的 API key"""
@@ -46,13 +47,15 @@ def _get_llm_api_key() -> str:
         logger.warning(f"未知的 LLM provider: {provider}，尝试使用 kimi key")
         return settings.api_keys.kimi
 
+
 llm_config = settings.llm
 _temperature = llm_config.effective_temperature  # 自动适配模型限制
 client = AsyncOpenAI(
     api_key=_get_llm_api_key(),
     base_url=llm_config.base_url
 )
-logger.info(f"LLM 客户端初始化完成: provider={llm_config.provider}, model={llm_config.model}, base_url={llm_config.base_url}")
+logger.info(
+    f"LLM 客户端初始化完成: provider={llm_config.provider}, model={llm_config.model}, base_url={llm_config.base_url}")
 
 # ---------- 向量知识库 ----------
 vectordb = None
@@ -61,7 +64,7 @@ try:
     if not api_key:
         logger.warning("未配置 DASHSCOPE_API_KEY，知识库功能不可用")
     else:
-        embeddings = DashScopeEmbeddings(model="text-embedding-v3", dashscope_api_key=api_key)
+        embeddings = DashScopeEmbeddings(model="text-embedding-v4", dashscope_api_key=api_key)
         if os.path.exists("./chroma_db") and os.path.isdir("./chroma_db"):
             vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
             logger.info("向量知识库加载成功")
@@ -95,6 +98,59 @@ FALLBACK_SCHEMA = """
 
 
 # ---------- 辅助函数 ----------
+def _sanitize_prompt_input(text: str) -> str:
+    """
+    清洗用户输入，防止 prompt 注入攻击。
+    
+    攻击者可能通过在用户输入中注入指令（如"忽略上面的指令"）
+    来操纵 LLM 的行为。此函数通过过滤常见的注入模式来防御此类攻击。
+    
+    参数:
+        text: 原始用户输入
+        
+    返回:
+        清洗后的安全文本
+    """
+    if not text:
+        return ""
+    
+    # 移除常见的 prompt 注入指令模式
+    injection_patterns = [
+        # 指令类注入：忽略、disregard、forget 等
+        r'(?i)(ignore\s+(all\s+)?(previous|above|instruct))',
+        r'(?i)(disregard\s+(all\s+)?(previous|above|instruct))',
+        r'(?i)(forget\s+(all\s+)?(previous|above|instruct))',
+        r'(?i)(you\s+are\s+no\s+longer)',
+        r'(?i)(you\s+are\s+now\s+a)',
+        r'(?i)(pretend\s+you\s+are)',
+        r'(?i)(act\s+as\s+if\s+you\s+are)',
+        # 角色扮演/越狱类注入
+        r'(?i)(new\s+system\s+prompt)',
+        r'(?i)(override\s+(your\s+)?system)',
+        r'(?i)(enable\s+(developer|admin|superuser)\s+mode)',
+        r'(?i)(DAN\s+mode)',
+        r'(?i)(jailbreak)',
+        # XML 标签类注入
+        r'<system>',
+        r'</system>',
+        r'<system_prompt>',
+        r'</system_prompt>',
+        r'<instruction>',
+        r'</instruction>',
+        r'<\|.*?\|>',  # 通用 XML 标签
+        # Markdown 代码块注入（在 user input 中可疑）
+        r'```\s*(system|instruction|prompt)',
+        r'```\s*ignore',
+        r'```\s*disregard',
+    ]
+    
+    result = text
+    for pattern in injection_patterns:
+        result = re.sub(pattern, '[filtered]', result, flags=re.IGNORECASE)
+    
+    return result
+
+
 def fix_table_names(sql: str) -> str:
     """修正 SQL 中的表名"""
     sql = re.sub(r'\bteachers\b', 'teacher', sql, flags=re.IGNORECASE)
@@ -181,6 +237,7 @@ def validate_sql(sql: str) -> tuple[bool, Optional[str]]:
 
 async def similarity_search_async(vectordb, query: str, k: int = 3):
     """异步执行向量相似度搜索"""
+
     def _sync():
         return vectordb.similarity_search(query, k=k)
 
@@ -250,10 +307,14 @@ INTENT_CLASSIFICATION_PROMPT = """
 
 async def classify_intent_llm(question: str, history_text: str = "") -> str:
     """使用 LLM 进行意图分类"""
-    if history_text:
-        prompt = INTENT_CLASSIFICATION_PROMPT.format(history=history_text, question=question)
+    # 清洗用户输入，防止 prompt 注入
+    question_safe = _sanitize_prompt_input(question)
+    history_safe = _sanitize_prompt_input(history_text)
+    
+    if history_safe:
+        prompt = INTENT_CLASSIFICATION_PROMPT.format(history=history_safe, question=question_safe)
     else:
-        prompt = f"意图选项：sql / analysis / chat\n用户问题：{question}\n意图："
+        prompt = f"意图选项：sql / analysis / chat\n用户问题：{question_safe}\n意图："
     try:
         resp = await client.chat.completions.create(
             model=llm_config.model,
@@ -297,7 +358,10 @@ SQL_REFERENCE_CHECK_PROMPT = """
 
 async def check_sql_reference(question: str, history_text: str) -> str:
     """检测用户是否需要引用上一轮的 SQL 查询"""
-    prompt = SQL_REFERENCE_CHECK_PROMPT.format(history=history_text, question=question)
+    # 清洗用户输入，防止 prompt 注入
+    question_safe = _sanitize_prompt_input(question)
+    history_safe = _sanitize_prompt_input(history_text)
+    prompt = SQL_REFERENCE_CHECK_PROMPT.format(history=history_safe, question=question_safe)
     try:
         resp = await client.chat.completions.create(
             model=llm_config.model,
@@ -320,13 +384,17 @@ async def check_sql_reference(question: str, history_text: str) -> str:
 # ---------- SQL 生成 ----------
 async def generate_sql(question: str, vectordb, retry: bool = False, previous_sql: Optional[str] = None) -> str:
     """使用 LLM 生成 SQL 查询语句"""
+    # 清洗用户输入，防止 prompt 注入
+    question_safe = _sanitize_prompt_input(question)
+    previous_sql_safe = _sanitize_prompt_input(previous_sql) if previous_sql else None
+    
     system = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。表名都是单数。"
     if retry:
         system += " 上一次生成的SQL执行失败，请修正。只输出修正后的SQL语句。"
     schema = await retrieve_schema_context(vectordb)
-    user = f"数据库结构：\n{schema}\n\n用户问题：{question}\n输出SQL："
-    if previous_sql:
-        user = f"上一轮用户执行的SQL是：\n{previous_sql}\n\n用户现在的问题可能希望复用其中的过滤条件。\n\n数据库结构：\n{schema}\n\n用户问题：{question}\n输出SQL："
+    user = f"数据库结构：\n{schema}\n\n用户问题：{question_safe}\n输出SQL："
+    if previous_sql_safe:
+        user = f"上一轮用户执行的SQL是：\n{previous_sql_safe}\n\n用户现在的问题可能希望复用其中的过滤条件。\n\n数据库结构：\n{schema}\n\n用户问题：{question_safe}\n输出SQL："
     resp = await client.chat.completions.create(
         model=llm_config.model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -350,6 +418,7 @@ class SafeJSONEncoder(JSONEncoder):
     安全的 JSON 编码器，自动处理所有不可序列化的类型。
     使用方式: json.dumps(data, cls=SafeJSONEncoder)
     """
+
     def default(self, obj):
         # datetime 类型
         if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
@@ -435,8 +504,12 @@ AGGREGATE_SQL_PROMPT = """
 
 async def generate_aggregate_sql(question: str, original_desc: str, vectordb) -> Optional[str]:
     """为数据分析需求生成聚合查询 SQL"""
+    # 清洗用户输入，防止 prompt 注入
+    question_safe = _sanitize_prompt_input(question)
+    original_desc_safe = _sanitize_prompt_input(original_desc)
+    
     schema = await retrieve_schema_context(vectordb)
-    prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question, original_desc=original_desc)
+    prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question_safe, original_desc=original_desc_safe)
     try:
         resp = await client.chat.completions.create(
             model=llm_config.model,
@@ -612,7 +685,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 else:
                     result_summary2 = summarize_result(data2, full_save=False)
                     answer_text2 = f"数据量较大（共{row_count2}行），已为您存储分析标记。"
-                save_turn(db, user_id, session_id, turn_index, question, sql_query=sql_corrected, result_summary=result_summary2,
+                save_turn(db, user_id, session_id, turn_index, question, sql_query=sql_corrected,
+                          result_summary=result_summary2,
                           answer_text=answer_text2, full_data_saved=full_save2)
                 if full_save2:
                     return {
@@ -688,21 +762,27 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
         for turn in analysis_history:
             hist_text += f"用户: {turn.question}\n系统: {turn.answer_text[:200] if turn.answer_text else ''}\n"
 
+        # 清洗用户输入，防止 prompt 注入
+        question_safe = _sanitize_prompt_input(question)
+        data_context_safe = _sanitize_prompt_input(data_context)
+        knowledge_context_safe = _sanitize_prompt_input(knowledge_context)
+        hist_text_safe = _sanitize_prompt_input(hist_text)
+
         # 第一轮：粗分析
         analysis_prompt = f"""
 你是一个数据分析专家。请**严格基于以下提供的数据**回答用户的分析问题。不要编造数据。
 
 【提供的数据】
-{data_context}
+{data_context_safe}
 
 【参考分析指南】
-{knowledge_context}
+{knowledge_context_safe}
 
 【历史对话记录（仅供参考）】
-{hist_text}
+{hist_text_safe}
 
 【用户问题】
-{question}
+{question_safe}
 
 请给出清晰的分析结论、可能的原因和建议。如果数据不足，请明确指出缺少哪些数据，而不是给出通用回答。
 """
@@ -717,7 +797,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             refined_answer = await refine_analysis(raw_answer)
             answer = refined_answer
             # 保存记录
-            save_turn(db, user_id, session_id, turn_index, question, answer_text=answer, aggregate_sql=aggregate_sql_used,
+            save_turn(db, user_id, session_id, turn_index, question, answer_text=answer,
+                      aggregate_sql=aggregate_sql_used,
                       full_data_saved=False)
             logger.info(f"会话 {session_id} 数据分析完成")
             return {
@@ -739,10 +820,15 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
         chat_history_text = ""
         for turn in chat_history:
             chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
-        if chat_history_text:
-            chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。如果历史中有相关信息，请引用。\n\n{chat_history_text}\n\n用户最新问题：{question}\n助手："
+        
+        # 清洗用户输入，防止 prompt 注入
+        question_safe = _sanitize_prompt_input(question)
+        chat_history_safe = _sanitize_prompt_input(chat_history_text)
+        
+        if chat_history_safe:
+            chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。如果历史中有相关信息，请引用。\n\n{chat_history_safe}\n\n用户最新问题：{question_safe}\n助手："
         else:
-            chat_prompt = f"用户：{question}\n助手："
+            chat_prompt = f"用户：{question_safe}\n助手："
         try:
             resp = await client.chat.completions.create(
                 model=llm_config.model,
@@ -767,6 +853,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
 class StreamBuffer:
     """流式输出缓冲区管理器"""
+
     def __init__(self, min_chunk_size: int = 5, max_wait_ms: int = 50):
         """
         参数:
@@ -803,8 +890,8 @@ class StreamBuffer:
 
 
 async def stream_llm_response(question: str, history_text: str, intent: str,
-                                 user_id: int, session_id: str, turn_index: int,
-                                 db: Session, vectordb) -> dict:
+                              user_id: int, session_id: str, turn_index: int,
+                              db: Session, vectordb) -> dict:
     """
     流式处理问答，返回生成器
 
@@ -837,7 +924,8 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
                 previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
                 if previous_sql_turn and previous_sql_turn.sql_query:
                     recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
-                    ref_history = "\n".join([f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
+                    ref_history = "\n".join(
+                        [f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
                     reference_check = await check_sql_reference(question, ref_history)
                     need_reference = (reference_check == "YES")
                     previous_sql = previous_sql_turn.sql_query if need_reference else None
@@ -879,8 +967,8 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
 
                 # 保存记录
                 save_turn(db, user_id, session_id, turn_index, question,
-                         sql_query=sql, result_summary=result_summary,
-                         answer_text=answer_text, full_data_saved=full_save)
+                          sql_query=sql, result_summary=result_summary,
+                          answer_text=answer_text, full_data_saved=full_save)
 
                 # 流式返回回答
                 yield {"event": "thinking", "data": "正在生成回答..."}
@@ -911,8 +999,8 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
                     }}
 
                     save_turn(db, user_id, session_id, turn_index, question,
-                             sql_query=sql_corrected, result_summary=result_summary,
-                             answer_text=answer_text, full_data_saved=full_save)
+                              sql_query=sql_corrected, result_summary=result_summary,
+                              answer_text=answer_text, full_data_saved=full_save)
 
                     answer_prompt = f"请基于修正后的SQL查询结果回答用户。\n\nSQL: {sql_corrected}\n结果: {answer_text}\n\n用户问题: {question}"
                     async for chunk in stream_llm_chunk(answer_prompt, buffer, temp):
@@ -958,17 +1046,22 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
                 if docs:
                     knowledge_context = "\n\n".join([doc.page_content for doc in docs])[:3000]
 
+            # 清洗用户输入，防止 prompt 注入
+            question_safe = _sanitize_prompt_input(question)
+            data_context_safe = _sanitize_prompt_input(data_context)
+            knowledge_context_safe = _sanitize_prompt_input(knowledge_context)
+
             # 构建分析提示
             analysis_prompt = f"""你是一个数据分析专家。请严格基于以下提供的数据回答用户的分析问题。不要编造数据。
 
 【提供的数据】
-{data_context}
+{data_context_safe}
 
 【参考分析指南】
-{knowledge_context}
+{knowledge_context_safe}
 
 【用户问题】
-{question}
+{question_safe}
 
 请给出清晰的分析结论、可能的原因和建议。"""
 
@@ -979,8 +1072,8 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
             # 保存记录
             final_answer = buffer.flush()
             save_turn(db, user_id, session_id, turn_index, question,
-                     answer_text=final_answer, aggregate_sql=aggregate_sql_used,
-                     full_data_saved=False)
+                      answer_text=final_answer, aggregate_sql=aggregate_sql_used,
+                      full_data_saved=False)
 
         else:  # chat
             yield {"event": "thinking", "data": "正在思考..."}
@@ -990,10 +1083,14 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
             for turn in chat_history:
                 chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
 
-            if chat_history_text:
-                chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。\n\n{chat_history_text}\n\n用户最新问题：{question}\n助手："
+            # 清洗用户输入，防止 prompt 注入
+            question_safe = _sanitize_prompt_input(question)
+            chat_history_safe = _sanitize_prompt_input(chat_history_text)
+
+            if chat_history_safe:
+                chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。\n\n{chat_history_safe}\n\n用户最新问题：{question_safe}\n助手："
             else:
-                chat_prompt = f"用户：{question}\n助手："
+                chat_prompt = f"用户：{question_safe}\n助手："
 
             # 流式返回闲聊
             async for chunk in stream_llm_chunk(chat_prompt, buffer, temp):
@@ -1045,7 +1142,7 @@ async def stream_llm_chunk(prompt: str, buffer: StreamBuffer, temperature: float
 
 @router.post("/stream")
 async def stream_natural_query(req: QueryRequest, db: Session = Depends(get_db),
-                                current_user: User = Depends(get_current_user)):
+                               current_user: User = Depends(get_current_user)):
     """
     流式自然语言查询接口
 
@@ -1066,7 +1163,8 @@ async def stream_natural_query(req: QueryRequest, db: Session = Depends(get_db),
     history_turns = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
     history_text = ""
     for turn in history_turns:
-        preview = turn.result_summary[:200] if turn.result_summary else (turn.answer_text[:200] if turn.answer_text else "")
+        preview = turn.result_summary[:200] if turn.result_summary else (
+            turn.answer_text[:200] if turn.answer_text else "")
         history_text += f"用户: {turn.question}\n系统: {preview}\n"
 
     # 意图分类

@@ -1,0 +1,7 @@
+refactor: user email configuration
+
+- Add per-user email config (provider, address, auth_code, from_name)
+- Support multiple email providers (QQ, 163, etc.)
+- Remove global email config from settings.json
+- Add email config API endpoints
+- Update frontend with config dialog
