@@ -1,7 +1,9 @@
-refactor: user email configuration
+feat(api): 添加 Prompt 注入防护机制
 
-- Add per-user email config (provider, address, auth_code, from_name)
-- Support multiple email providers (QQ, 163, etc.)
-- Remove global email config from settings.json
-- Add email config API endpoints
-- Update frontend with config dialog
+问题：INTENT_CLASSIFICATION_PROMPT 和 SQL_REFERENCE_CHECK_PROMPT 等 prompt 模板中的 {history} 和 {question} 占位符直接插入用户输入，未做任何清洗。攻击者可通过在用户输入中注入恶意指令（如"忽略上面的指令"）来操纵 LLM 的行为。
+
+解决方案：
+- 新增 _sanitize_prompt_input() 函数，使用正则表达式过滤常见的 prompt 注入模式
+- 涵盖指令类、角色扮演/越狱类、XML 标签类、Markdown 代码块注入等多种攻击向量
+- 在所有构建 LLM prompt 的位置（意图分类、SQL引用检测、SQL生成、聚合SQL生成、数据分析、闲聊）应用清洗函数
+- 兼容流式和非流式两种接口

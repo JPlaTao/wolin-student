@@ -80,13 +80,18 @@ def login(form_data: UserLogin, db: Session = Depends(get_db)):
             message="用户名或密码错误",
             detail="请检查用户名和密码是否正确"
         )
-    access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=30))
+    # 使用配置中的过期时间
+    from core.settings import get_settings
+    settings = get_settings()
+    expires_delta = timedelta(minutes=settings.jwt.access_token_expire_minutes)
+    access_token = create_access_token(data={"sub": user.username}, expires_delta=expires_delta)
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "expires_in": settings.jwt.access_token_expire_minutes * 60,  # 返回秒数
         "username": user.username,
         "role": user.role,
-        "user_id": user.id  # 添加 user_id 用于会话绑定
+        "user_id": user.id
     }
 
 

@@ -81,7 +81,7 @@ def _should_save_full(data: List[dict]) -> bool:
         return True
     row_count = len(data)
     json_size = len(safe_json_dumps(data))
-    return (row_count <= QueryConstants.MAX_FULL_SAVE_ROWS and 
+    return (row_count <= QueryConstants.MAX_FULL_SAVE_ROWS and
             json_size <= QueryConstants.MAX_FULL_SAVE_JSON_SIZE)
 
 
@@ -97,9 +97,10 @@ def _build_ref_history_text(history_turns: List[Any]) -> str:
     """
     recent = history_turns[-2:] if len(history_turns) >= 2 else history_turns
     return "\n".join([
-        f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" 
+        f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}"
         for t in recent
     ])
+
 
 # 获取模块专用 logger
 logger = get_logger("query_agent")
@@ -192,7 +193,7 @@ def _sanitize_prompt_input(text: str) -> str:
     """
     if not text:
         return ""
-    
+
     # 移除常见的 prompt 注入指令模式
     injection_patterns = [
         # 指令类注入：忽略、disregard、forget 等
@@ -222,11 +223,11 @@ def _sanitize_prompt_input(text: str) -> str:
         r'```\s*ignore',
         r'```\s*disregard',
     ]
-    
+
     result = text
     for pattern in injection_patterns:
         result = re.sub(pattern, '[filtered]', result, flags=re.IGNORECASE)
-    
+
     return result
 
 
@@ -389,7 +390,7 @@ async def classify_intent_llm(question: str, history_text: str = "") -> str:
     # 清洗用户输入，防止 prompt 注入
     question_safe = _sanitize_prompt_input(question)
     history_safe = _sanitize_prompt_input(history_text)
-    
+
     if history_safe:
         prompt = INTENT_CLASSIFICATION_PROMPT.format(history=history_safe, question=question_safe)
     else:
@@ -461,12 +462,13 @@ async def check_sql_reference(question: str, history_text: str) -> str:
 
 
 # ---------- SQL 生成 ----------
-async def generate_sql(question: str, vectordb: Optional[Chroma], retry: bool = False, previous_sql: Optional[str] = None) -> str:
+async def generate_sql(question: str, vectordb: Optional[Chroma], retry: bool = False,
+                       previous_sql: Optional[str] = None) -> str:
     """使用 LLM 生成 SQL 查询语句"""
     # 清洗用户输入，防止 prompt 注入
     question_safe = _sanitize_prompt_input(question)
     previous_sql_safe = _sanitize_prompt_input(previous_sql) if previous_sql else None
-    
+
     system = "你是一个MySQL专家，只输出SQL语句，不要有任何额外解释。以分号结尾。表名都是单数。"
     if retry:
         system += " 上一次生成的SQL执行失败，请修正。只输出修正后的SQL语句。"
@@ -579,7 +581,7 @@ async def generate_aggregate_sql(question: str, original_desc: str, vectordb: Op
     # 清洗用户输入，防止 prompt 注入
     question_safe = _sanitize_prompt_input(question)
     original_desc_safe = _sanitize_prompt_input(original_desc)
-    
+
     schema = await retrieve_schema_context(vectordb)
     prompt = AGGREGATE_SQL_PROMPT.format(schema=schema, question=question_safe, original_desc=original_desc_safe)
     try:
@@ -632,6 +634,298 @@ async def refine_analysis(raw_analysis: str) -> str:
         return raw_analysis
 
 
+# ---------- SQL 执行与保存结果 ----------
+def _build_sql_result_response(sql: str, data: List[dict], session_id: str, turn_index: int,
+                               row_count: int, full_save: bool) -> dict:
+    """
+    构建 SQL 查询结果的响应字典
+
+    Args:
+        sql: 执行的 SQL 语句
+        data: 查询结果数据
+        session_id: 会话ID
+        turn_index: 轮次索引
+        row_count: 结果行数
+        full_save: 是否全量保存
+
+    Returns:
+        响应字典
+    """
+    if full_save:
+        return {
+            "type": "sql",
+            "session_id": session_id,
+            "turn_index": turn_index,
+            "sql": sql,
+            "data": data,
+            "count": row_count,
+            "full_data_saved": True
+        }
+    else:
+        sample_data = data[:QueryConstants.MAX_SAMPLE_ROWS]
+        message = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问'分析这些数据'。"
+        return {
+            "type": "sql",
+            "session_id": session_id,
+            "turn_index": turn_index,
+            "sql": sql,
+            "data_truncated": True,
+            "sample_data": sample_data,
+            "message": message,
+            "full_data_saved": False
+        }
+
+
+def _build_sql_result_summary(data: List[dict], row_count: int, full_save: bool) -> tuple[str, str]:
+    """
+    构建 SQL 结果摘要和回答文本
+
+    Args:
+        data: 查询结果数据
+        row_count: 结果行数
+        full_save: 是否全量保存
+
+    Returns:
+        (result_summary, answer_text)
+    """
+    result_summary = summarize_result(data, full_save=full_save)
+    if full_save:
+        answer_text = f"查询成功，共{row_count}条记录。"
+    else:
+        answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问'分析这些数据'。"
+    return result_summary, answer_text
+
+
+async def _execute_and_save_sql(db: Session, sql: str, user_id: int, session_id: str,
+                                turn_index: int, question: str,
+                                is_retry: bool = False) -> tuple[List[dict], str, bool]:
+    """
+    执行 SQL 并保存结果，返回 (data, answer_text, full_save)
+
+    Args:
+        db: 数据库会话
+        sql: SQL 语句
+        user_id: 用户ID
+        session_id: 会话ID
+        turn_index: 轮次索引
+        question: 用户问题
+        is_retry: 是否为重试执行
+
+    Returns:
+        (查询数据, 回答文本, 是否全量保存)
+    """
+    data = await execute_sql_to_dict(db, sql)
+    row_count = len(data)
+    full_save = _should_save_full(data)
+    result_summary, answer_text = _build_sql_result_summary(data, row_count, full_save)
+
+    sql_label = "（已修正）" if is_retry else ""
+    answer_text = f"查询成功，共{row_count}条记录{sql_label}。"
+
+    save_turn(db, user_id, session_id, turn_index, question,
+              sql_query=sql, result_summary=result_summary,
+              answer_text=answer_text, full_data_saved=full_save)
+
+    logger.info(f"会话 {session_id} SQL执行{'成功' if not is_retry else '重试成功'}，返回 {row_count} 条记录")
+    return data, answer_text, full_save
+
+
+# ---------- 历史 SQL 引用检测 ----------
+async def _get_previous_sql_reference(db: Session, user_id: int, session_id: str,
+                                      history_turns: List[Any], question: str) -> tuple[bool, Optional[str]]:
+    """
+    检查是否需要引用上一轮的 SQL 查询
+
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        history_turns: 历史记录列表
+        question: 当前问题
+
+    Returns:
+        (是否需要引用, 上一轮SQL语句)
+    """
+    if not history_turns:
+        return False, None
+
+    previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
+    if not previous_sql_turn or not previous_sql_turn.sql_query:
+        return False, None
+
+    ref_history = _build_ref_history_text(history_turns)
+    reference_check = await check_sql_reference(question, ref_history)
+    need_reference = (reference_check == "YES")
+
+    logger.info(f"会话 {session_id} SQL引用检测结果: {reference_check}")
+    return need_reference, previous_sql_turn.sql_query if need_reference else None
+
+
+# ---------- 数据分析处理 ----------
+async def _build_analysis_context(db: Session, user_id: int, session_id: str, question: str,
+                                  include_history: bool, vectordb: Optional[Chroma],
+                                  limit: int = 5) -> tuple[str, str, Optional[str]]:
+    """
+    构建数据分析所需的上下文信息
+
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        question: 当前问题
+        include_history: 是否包含历史
+        vectordb: 向量知识库
+        limit: 历史记录限制
+
+    Returns:
+        (data_context, knowledge_context, aggregate_sql_used)
+    """
+    data_context = ""
+    knowledge_context = ""
+    aggregate_sql_used = None
+
+    latest_turn = get_latest_turn(db, user_id, session_id)
+    if latest_turn and latest_turn.result_summary:
+        try:
+            if latest_turn.full_data_saved:
+                full_data = json.loads(latest_turn.result_summary)
+                data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{safe_json_dumps(full_data, indent=2)[:QueryConstants.MAX_CONTEXT_CHARS]}\n"
+            else:
+                original_desc = latest_turn.question
+                aggregate_sql = await generate_aggregate_sql(question, original_desc, vectordb)
+                if aggregate_sql:
+                    agg_data = await execute_sql_to_dict(db, aggregate_sql)
+                    agg_summary = summarize_result(agg_data, full_save=False)
+                    data_context = f"根据您的分析需求，自动生成的聚合数据：\n{agg_summary}\n"
+                    aggregate_sql_used = aggregate_sql
+                else:
+                    data_context = "上一轮查询数据量较大，无法直接分析，且自动生成聚合SQL失败。请提出更具体的统计需求（例如：按分数段统计人数）。\n"
+        except Exception as e:
+            data_context = f"读取上一轮数据失败：{str(e)}\n"
+    else:
+        data_context = "未找到上一轮的数据。请先执行一次SQL查询，再进行分析。\n"
+
+    if vectordb:
+        docs = await similarity_search_async(vectordb, question, k=3)
+        if docs:
+            knowledge_context = "\n\n".join([doc.page_content for doc in docs])[:QueryConstants.MAX_KNOWLEDGE_CHARS]
+
+    return data_context, knowledge_context, aggregate_sql_used
+
+
+async def _process_analysis_branch(db: Session, user_id: int, session_id: str,
+                                   turn_index: int, question: str,
+                                   include_history: bool, vectordb: Optional[Chroma]) -> tuple[str, Optional[str], str]:
+    """
+    处理数据分析意图
+
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        turn_index: 轮次索引
+        question: 用户问题
+        include_history: 是否包含历史
+        vectordb: 向量知识库
+
+    Returns:
+        (answer, aggregate_sql_used, raw_answer)
+    """
+    analysis_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
+    data_context, knowledge_context, aggregate_sql_used = await _build_analysis_context(
+        db, user_id, session_id, question, include_history, vectordb)
+
+    hist_text = "\n".join([
+        f"用户: {turn.question}\n系统: {turn.answer_text[:200] if turn.answer_text else ''}"
+        for turn in analysis_history
+    ])
+
+    question_safe = _sanitize_prompt_input(question)
+    data_context_safe = _sanitize_prompt_input(data_context)
+    knowledge_context_safe = _sanitize_prompt_input(knowledge_context)
+    hist_text_safe = _sanitize_prompt_input(hist_text)
+
+    analysis_prompt = f"""你是一个数据分析专家。请**严格基于以下提供的数据**回答用户的分析问题。不要编造数据。
+
+【提供的数据】
+{data_context_safe}
+
+【参考分析指南】
+{knowledge_context_safe}
+
+【历史对话记录（仅供参考）】
+{hist_text_safe}
+
+【用户问题】
+{question_safe}
+
+请给出清晰的分析结论、可能的原因和建议。如果数据不足，请明确指出缺少哪些数据，而不是给出通用回答。"""
+
+    try:
+        resp_raw = await client.chat.completions.create(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": analysis_prompt}],
+            temperature=_temperature,
+        )
+        raw_answer = resp_raw.choices[0].message.content
+        refined_answer = await refine_analysis(raw_answer)
+        answer = refined_answer
+
+        save_turn(db, user_id, session_id, turn_index, question, answer_text=answer,
+                  aggregate_sql=aggregate_sql_used, full_data_saved=False)
+        logger.info(f"会话 {session_id} 数据分析完成")
+        return answer, aggregate_sql_used, raw_answer
+    except Exception as e:
+        logger.error(f"会话 {session_id} 分析失败: {e}")
+        raise HTTPException(500, f"分析失败: {str(e)}")
+
+
+# ---------- 闲聊处理 ----------
+async def _process_chat_branch(db: Session, user_id: int, session_id: str,
+                               turn_index: int, question: str, include_history: bool) -> str:
+    """
+    处理闲聊意图
+
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        turn_index: 轮次索引
+        question: 用户问题
+        include_history: 是否包含历史
+
+    Returns:
+        回答文本
+    """
+    chat_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
+    chat_history_text = "\n".join([
+        f"用户: {turn.question}\n助手: {turn.answer_text}"
+        for turn in chat_history
+    ])
+
+    question_safe = _sanitize_prompt_input(question)
+    chat_history_safe = _sanitize_prompt_input(chat_history_text)
+
+    if chat_history_safe:
+        chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。如果历史中有相关信息，请引用。\n\n{chat_history_safe}\n\n用户最新问题：{question_safe}\n助手："
+    else:
+        chat_prompt = f"用户：{question_safe}\n助手："
+
+    try:
+        resp = await client.chat.completions.create(
+            model=llm_config.model,
+            messages=[{"role": "user", "content": chat_prompt}],
+            temperature=_temperature,
+        )
+        answer = resp.choices[0].message.content
+        save_turn(db, user_id, session_id, turn_index, question, answer_text=answer)
+        logger.info(f"会话 {session_id} 闲聊回复完成")
+        return answer
+    except Exception as e:
+        logger.error(f"会话 {session_id} 闲聊失败: {e}")
+        raise HTTPException(500, f"闲聊失败: {str(e)}")
+
+
 # ---------- 主接口 ----------
 @router.post("/natural")
 async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
@@ -657,7 +951,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     include_history = req.include_history
 
     # 获取历史记忆（用于意图分类和闲聊/分析）
-    history_turns = get_recent_turns(db, user_id, session_id, limit=QueryConstants.MAX_HISTORY_TURNS) if include_history else []
+    history_turns = get_recent_turns(db, user_id, session_id,
+                                     limit=QueryConstants.MAX_HISTORY_TURNS) if include_history else []
     logger.info(f"会话 {session_id} (user_id={user_id}) 历史记录数: {len(history_turns)}")
 
     history_text = _build_history_text(history_turns)
@@ -670,23 +965,11 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
     # ---------- SQL 分支 ----------
     if intent == "sql":
-        # 检查是否需要引用上一轮SQL
-        need_reference = False
-        previous_sql_turn = None
-        if history_turns:
-            # 获取上一轮有SQL的记录（可能不是最新一轮，但通常是）
-            previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
-            if previous_sql_turn and previous_sql_turn.sql_query:
-                ref_history = _build_ref_history_text(history_turns)
-                reference_check = await check_sql_reference(question, ref_history)
-                need_reference = (reference_check == "YES")
-                logger.info(f"会话 {session_id} SQL引用检测结果: {reference_check}")
+        need_reference, previous_sql = await _get_previous_sql_reference(
+            db, user_id, session_id, history_turns, question)
 
         try:
-            if need_reference and previous_sql_turn and previous_sql_turn.sql_query:
-                sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql_turn.sql_query)
-            else:
-                sql = await generate_sql(question, vectordb, retry=False)
+            sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql)
             logger.debug(f"会话 {session_id} 生成的SQL: {sql}")
         except Exception as e:
             logger.error(f"会话 {session_id} 生成SQL失败: {e}")
@@ -697,80 +980,18 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             raise HTTPException(400, "只能生成SELECT语句")
 
         try:
-            data = await execute_sql_to_dict(db, sql)
+            data, answer_text, full_save = await _execute_and_save_sql(
+                db, sql, user_id, session_id, turn_index, question)
             row_count = len(data)
-            logger.info(f"会话 {session_id} SQL执行成功，返回 {row_count} 条记录")
-            full_save = _should_save_full(data)
-            if full_save:
-                result_summary = summarize_result(data, full_save=True)
-                answer_text = f"查询成功，共{row_count}条记录。"
-            else:
-                result_summary = summarize_result(data, full_save=False)  # 摘要
-                answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问'分析这些数据'。"
-            save_turn(db, user_id, session_id, turn_index, question, sql_query=sql, result_summary=result_summary,
-                      answer_text=answer_text, full_data_saved=full_save)
-            if full_save:
-                return {
-                    "type": "sql",
-                    "session_id": session_id,
-                    "turn_index": turn_index,
-                    "sql": sql,
-                    "data": data,
-                    "count": row_count,
-                    "full_data_saved": True
-                }
-            else:
-                # 返回样本数据
-                sample_data = data[:QueryConstants.MAX_SAMPLE_ROWS]
-                return {
-                    "type": "sql",
-                    "session_id": session_id,
-                    "turn_index": turn_index,
-                    "sql": sql,
-                    "data_truncated": True,
-                    "sample_data": sample_data,
-                    "message": answer_text,
-                    "full_data_saved": False
-                }
+            return _build_sql_result_response(sql, data, session_id, turn_index, row_count, full_save)
         except Exception as e:
-            # 重试一次
             logger.warning(f"会话 {session_id} SQL执行失败，准备重试: {e}")
             try:
-                sql_corrected = await generate_sql(question, vectordb, retry=True)
-                data2 = await execute_sql_to_dict(db, sql_corrected)
+                sql_corrected = await generate_sql(question, vectordb, retry=True, previous_sql=previous_sql)
+                data2, answer_text2, full_save2 = await _execute_and_save_sql(
+                    db, sql_corrected, user_id, session_id, turn_index, question, is_retry=True)
                 row_count2 = len(data2)
-                logger.info(f"会话 {session_id} 重试SQL执行成功，返回 {row_count2} 条记录")
-                full_save2 = _should_save_full(data2)
-                if full_save2:
-                    result_summary2 = summarize_result(data2, full_save=True)
-                    answer_text2 = f"查询成功，共{row_count2}条记录。"
-                else:
-                    result_summary2 = summarize_result(data2, full_save=False)
-                    answer_text2 = f"数据量较大（共{row_count2}行），已为您存储分析标记。"
-                save_turn(db, user_id, session_id, turn_index, question, sql_query=sql_corrected,
-                          result_summary=result_summary2,
-                          answer_text=answer_text2, full_data_saved=full_save2)
-                if full_save2:
-                    return {
-                        "type": "sql",
-                        "session_id": session_id,
-                        "turn_index": turn_index,
-                        "sql": sql_corrected,
-                        "data": data2,
-                        "count": row_count2,
-                        "full_data_saved": True
-                    }
-                else:
-                    return {
-                        "type": "sql",
-                        "session_id": session_id,
-                        "turn_index": turn_index,
-                        "sql": sql_corrected,
-                        "data_truncated": True,
-                        "sample_data": data2[:10],
-                        "message": answer_text2,
-                        "full_data_saved": False
-                    }
+                return _build_sql_result_response(sql_corrected, data2, session_id, turn_index, row_count2, full_save2)
             except Exception as e2:
                 logger.error(f"会话 {session_id} SQL重试失败: 原始错误={e}, 修正错误={e2}")
                 raise HTTPException(500, f"SQL执行失败: {str(e)}\n原始SQL: {sql}\n修正SQL: {sql_corrected}")
@@ -778,137 +999,27 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     # ---------- 数据分析分支 ----------
     elif intent == "analysis":
         logger.info(f"会话 {session_id} 进入数据分析分支")
-        # 读取最近5轮历史（用于上下文）
-        analysis_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
-        # 获取上一轮（最新一轮）数据
-        latest_turn = get_latest_turn(db, user_id, session_id)
-        data_context = ""
-        aggregate_sql_used = None
-        need_aggregate = False
-
-        # 判断是否需要上一轮数据：如果用户问题包含"这些数据"、"刚才的结果"等，则默认需要；否则也可以不需要
-        # 简化：如果上一轮存在且有 result_summary，则尝试使用
-        if latest_turn and latest_turn.result_summary:
-            try:
-                if latest_turn.full_data_saved:
-                    # 全量保存，直接读取完整数据
-                    full_data = json.loads(latest_turn.result_summary)
-                    data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{safe_json_dumps(full_data, indent=2)[:5000]}\n"
-                else:
-                    # 非全量，尝试生成聚合SQL
-                    need_aggregate = True
-                    # 从摘要中获取原始问题描述
-                    original_desc = latest_turn.question
-                    aggregate_sql = await generate_aggregate_sql(question, original_desc, vectordb)
-                    if aggregate_sql:
-                        agg_data = await execute_sql_to_dict(db, aggregate_sql)
-                        agg_summary = summarize_result(agg_data, full_save=False)
-                        data_context = f"根据您的分析需求，自动生成的聚合数据：\n{agg_summary}\n"
-                        aggregate_sql_used = aggregate_sql
-                    else:
-                        data_context = "上一轮查询数据量较大，无法直接分析，且自动生成聚合SQL失败。请提出更具体的统计需求（例如：按分数段统计人数）。\n"
-            except Exception as e:
-                data_context = f"读取上一轮数据失败：{str(e)}\n"
-        else:
-            data_context = "未找到上一轮的数据。请先执行一次SQL查询，再进行分析。\n"
-
-        # 知识库检索
-        knowledge_context = ""
-        if vectordb:
-            docs = await similarity_search_async(vectordb, question, k=3)
-            if docs:
-                knowledge_context = "\n\n".join([doc.page_content for doc in docs])[:3000]
-
-        # 构建历史文本（最近5轮）
-        hist_text = ""
-        for turn in analysis_history:
-            hist_text += f"用户: {turn.question}\n系统: {turn.answer_text[:200] if turn.answer_text else ''}\n"
-
-        # 清洗用户输入，防止 prompt 注入
-        question_safe = _sanitize_prompt_input(question)
-        data_context_safe = _sanitize_prompt_input(data_context)
-        knowledge_context_safe = _sanitize_prompt_input(knowledge_context)
-        hist_text_safe = _sanitize_prompt_input(hist_text)
-
-        # 第一轮：粗分析
-        analysis_prompt = f"""
-你是一个数据分析专家。请**严格基于以下提供的数据**回答用户的分析问题。不要编造数据。
-
-【提供的数据】
-{data_context_safe}
-
-【参考分析指南】
-{knowledge_context_safe}
-
-【历史对话记录（仅供参考）】
-{hist_text_safe}
-
-【用户问题】
-{question_safe}
-
-请给出清晰的分析结论、可能的原因和建议。如果数据不足，请明确指出缺少哪些数据，而不是给出通用回答。
-"""
-        try:
-            resp_raw = await client.chat.completions.create(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": analysis_prompt}],
-                temperature=_temperature,
-            )
-            raw_answer = resp_raw.choices[0].message.content
-            # 第二轮：精炼
-            refined_answer = await refine_analysis(raw_answer)
-            answer = refined_answer
-            # 保存记录
-            save_turn(db, user_id, session_id, turn_index, question, answer_text=answer,
-                      aggregate_sql=aggregate_sql_used,
-                      full_data_saved=False)
-            logger.info(f"会话 {session_id} 数据分析完成")
-            return {
-                "type": "answer",
-                "session_id": session_id,
-                "turn_index": turn_index,
-                "answer": answer,
-                "raw_analysis": raw_answer  # 可选，调试用
-            }
-        except Exception as e:
-            logger.error(f"会话 {session_id} 分析失败: {e}")
-            raise HTTPException(500, f"分析失败: {str(e)}")
+        answer, aggregate_sql_used, raw_answer = await _process_analysis_branch(
+            db, user_id, session_id, turn_index, question, include_history, vectordb)
+        return {
+            "type": "answer",
+            "session_id": session_id,
+            "turn_index": turn_index,
+            "answer": answer,
+            "raw_analysis": raw_answer
+        }
 
     # ---------- 闲聊分支 ----------
     else:
         logger.info(f"会话 {session_id} 进入闲聊分支")
-        # 读取最近5轮历史
-        chat_history = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
-        chat_history_text = ""
-        for turn in chat_history:
-            chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
-        
-        # 清洗用户输入，防止 prompt 注入
-        question_safe = _sanitize_prompt_input(question)
-        chat_history_safe = _sanitize_prompt_input(chat_history_text)
-        
-        if chat_history_safe:
-            chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。如果历史中有相关信息，请引用。\n\n{chat_history_safe}\n\n用户最新问题：{question_safe}\n助手："
-        else:
-            chat_prompt = f"用户：{question_safe}\n助手："
-        try:
-            resp = await client.chat.completions.create(
-                model=llm_config.model,
-                messages=[{"role": "user", "content": chat_prompt}],
-                temperature=_temperature,
-            )
-            answer = resp.choices[0].message.content
-            save_turn(db, user_id, session_id, turn_index, question, answer_text=answer)
-            logger.info(f"会话 {session_id} 闲聊回复完成")
-            return {
-                "type": "answer",
-                "session_id": session_id,
-                "turn_index": turn_index,
-                "answer": answer
-            }
-        except Exception as e:
-            logger.error(f"会话 {session_id} 闲聊失败: {e}")
-            raise HTTPException(500, f"闲聊失败: {str(e)}")
+        answer = await _process_chat_branch(
+            db, user_id, session_id, turn_index, question, include_history)
+        return {
+            "type": "answer",
+            "session_id": session_id,
+            "turn_index": turn_index,
+            "answer": answer
+        }
 
 
 # ========== 流式输出支持 ==========
@@ -925,13 +1036,13 @@ class StreamBuffer:
         self.min_chunk_size = min_chunk_size
         self.max_wait_ms = max_wait_ms
         self.buffer = ""
-        self.last_send_time = datetime.datetime.now()
+        self.last_send_time = dt_module.datetime.now()
 
     def add(self, text: str) -> list[str]:
         """添加文本，返回可发送的 chunks"""
         self.buffer += text
         chunks = []
-        now = datetime.datetime.now()
+        now = dt_module.datetime.now()
         elapsed = (now - self.last_send_time).total_seconds() * 1000
 
         # 如果缓冲区超过最小大小或等待时间超时
@@ -947,10 +1058,191 @@ class StreamBuffer:
         """强制刷新缓冲区，返回剩余内容"""
         result = self.buffer
         self.buffer = ""
-        self.last_send_time = datetime.datetime.now()
+        self.last_send_time = dt_module.datetime.now()
         return result
 
 
+# ---------- 流式 SQL 处理 ----------
+async def _stream_sql_processing(question: str, db: Session, user_id: int, session_id: str,
+                                 turn_index: int, vectordb: Optional[Chroma],
+                                 buffer: StreamBuffer, temperature: float):
+    """
+    流式处理 SQL 查询意图
+
+    Args:
+        question: 用户问题
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        turn_index: 轮次索引
+        vectordb: 向量知识库
+        buffer: 流式缓冲区
+        temperature: LLM 温度参数
+    """
+    yield {"event": "thinking", "data": "正在生成SQL查询..."}
+
+    need_reference, previous_sql = False, None
+    try:
+        need_reference, previous_sql = await _get_previous_sql_reference(
+            db, user_id, session_id, [], question)
+    except Exception:
+        pass
+
+    sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql)
+    sql = sql.strip()
+
+    is_valid, error_msg = validate_sql(sql)
+    if not is_valid:
+        yield {"event": "error", "data": f"SQL验证失败: {error_msg}"}
+        yield {"event": "done", "data": ""}
+        return
+
+    yield {"event": "sql", "data": sql}
+    yield {"event": "thinking", "data": "正在执行查询..."}
+
+    try:
+        data = await execute_sql_to_dict(db, sql)
+        row_count = len(data)
+        full_save = _should_save_full(data)
+        result_summary, answer_text = _build_sql_result_summary(data, row_count, full_save)
+
+        yield {"event": "data", "data": {
+            "row_count": row_count,
+            "full_save": full_save,
+            "data": data if full_save else data[:QueryConstants.MAX_SAMPLE_ROWS],
+            "message": answer_text
+        }}
+
+        save_turn(db, user_id, session_id, turn_index, question,
+                  sql_query=sql, result_summary=result_summary,
+                  answer_text=answer_text, full_data_saved=full_save)
+
+        yield {"event": "thinking", "data": "正在生成回答..."}
+        answer_prompt = f"请基于以下SQL查询结果，用自然语言回答用户问题。\n\nSQL: {sql}\n结果: {answer_text}\n\n用户问题: {question}\n\n回答:"
+        async for chunk in stream_llm_chunk(answer_prompt, buffer, temperature):
+            yield chunk
+
+    except Exception as e:
+        logger.warning(f"会话 {session_id} SQL执行失败，尝试重试: {e}")
+        yield {"event": "thinking", "data": "SQL执行失败，正在修正..."}
+
+        try:
+            sql_corrected = await generate_sql(question, vectordb, retry=True, previous_sql=previous_sql)
+            yield {"event": "sql", "data": sql_corrected}
+
+            data = await execute_sql_to_dict(db, sql_corrected)
+            row_count = len(data)
+            full_save = _should_save_full(data)
+            result_summary, answer_text = _build_sql_result_summary(data, row_count, full_save)
+            answer_text = f"查询成功，共{row_count}条记录（已修正）。"
+
+            yield {"event": "data", "data": {
+                "row_count": row_count,
+                "full_save": full_save,
+                "data": data if full_save else data[:QueryConstants.MAX_SAMPLE_ROWS],
+                "message": answer_text
+            }}
+
+            save_turn(db, user_id, session_id, turn_index, question,
+                      sql_query=sql_corrected, result_summary=result_summary,
+                      answer_text=answer_text, full_data_saved=full_save)
+
+            answer_prompt = f"请基于修正后的SQL查询结果回答用户。\n\nSQL: {sql_corrected}\n结果: {answer_text}\n\n用户问题: {question}"
+            async for chunk in stream_llm_chunk(answer_prompt, buffer, temperature):
+                yield chunk
+
+        except Exception as e2:
+            yield {"event": "error", "data": f"SQL执行失败: {str(e2)}"}
+            yield {"event": "done", "data": ""}
+
+
+# ---------- 流式分析处理 ----------
+async def _stream_analysis_processing(question: str, db: Session, user_id: int, session_id: str,
+                                      turn_index: int, vectordb: Optional[Chroma],
+                                      buffer: StreamBuffer, temperature: float):
+    """
+    流式处理数据分析意图
+
+    Args:
+        question: 用户问题
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        turn_index: 轮次索引
+        vectordb: 向量知识库
+        buffer: 流式缓冲区
+        temperature: LLM 温度参数
+    """
+    yield {"event": "thinking", "data": "正在分析数据..."}
+
+    data_context, knowledge_context, aggregate_sql_used = await _build_analysis_context(
+        db, user_id, session_id, question, True, vectordb)
+
+    question_safe = _sanitize_prompt_input(question)
+    data_context_safe = _sanitize_prompt_input(data_context)
+    knowledge_context_safe = _sanitize_prompt_input(knowledge_context)
+
+    analysis_prompt = f"""你是一个数据分析专家。请严格基于以下提供的数据回答用户的分析问题。不要编造数据。
+
+【提供的数据】
+{data_context_safe}
+
+【参考分析指南】
+{knowledge_context_safe}
+
+【用户问题】
+{question_safe}
+
+请给出清晰的分析结论、可能的原因和建议。"""
+
+    async for chunk in stream_llm_chunk(analysis_prompt, buffer, temperature):
+        yield chunk
+
+    final_answer = buffer.flush()
+    save_turn(db, user_id, session_id, turn_index, question,
+              answer_text=final_answer, aggregate_sql=aggregate_sql_used,
+              full_data_saved=False)
+
+
+# ---------- 流式闲聊处理 ----------
+async def _stream_chat_processing(question: str, db: Session, user_id: int, session_id: str,
+                                  turn_index: int, buffer: StreamBuffer, temperature: float):
+    """
+    流式处理闲聊意图
+
+    Args:
+        question: 用户问题
+        db: 数据库会话
+        user_id: 用户ID
+        session_id: 会话ID
+        turn_index: 轮次索引
+        buffer: 流式缓冲区
+        temperature: LLM 温度参数
+    """
+    yield {"event": "thinking", "data": "正在思考..."}
+
+    chat_history = get_recent_turns(db, user_id, session_id, limit=5)
+    chat_history_text = "\n".join([
+        f"用户: {turn.question}\n助手: {turn.answer_text}"
+        for turn in chat_history
+    ])
+
+    question_safe = _sanitize_prompt_input(question)
+    chat_history_safe = _sanitize_prompt_input(chat_history_text)
+
+    if chat_history_safe:
+        chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。\n\n{chat_history_safe}\n\n用户最新问题：{question_safe}\n助手："
+    else:
+        chat_prompt = f"用户：{question_safe}\n助手："
+
+    async for chunk in stream_llm_chunk(chat_prompt, buffer, temperature):
+        yield chunk
+
+    final_answer = buffer.flush()
+    save_turn(db, user_id, session_id, turn_index, question, answer_text=final_answer)
+
+
+# ---------- 流式主函数 ----------
 async def stream_llm_response(question: str, history_text: str, intent: str,
                               user_id: int, session_id: str, turn_index: int,
                               db: Session, vectordb: Optional[Chroma]) -> dict:
@@ -976,191 +1268,17 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
 
         # 2. 根据意图分支处理
         if intent == "sql":
-            yield {"event": "thinking", "data": "正在生成SQL查询..."}
-
-            # 检查历史引用
-            history_turns = get_recent_turns(db, user_id, session_id, limit=5)
-            need_reference = False
-            previous_sql = None
-            if history_turns:
-                previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
-                if previous_sql_turn and previous_sql_turn.sql_query:
-                    recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
-                    ref_history = "\n".join(
-                        [f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
-                    reference_check = await check_sql_reference(question, ref_history)
-                    need_reference = (reference_check == "YES")
-                    previous_sql = previous_sql_turn.sql_query if need_reference else None
-
-            # 生成 SQL
-            sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql)
-            sql = sql.strip()
-
-            # 验证 SQL
-            is_valid, error_msg = validate_sql(sql)
-            if not is_valid:
-                yield {"event": "error", "data": f"SQL验证失败: {error_msg}"}
-                yield {"event": "done", "data": ""}
-                return
-
-            yield {"event": "sql", "data": sql}
-            yield {"event": "thinking", "data": "正在执行查询..."}
-
-            # 执行 SQL
-            try:
-                data = await execute_sql_to_dict(db, sql)
-                row_count = len(data)
-
-                # 判断是否全量保存
-                full_save = (row_count <= 100) and (len(safe_json_dumps(data)) <= 2000)
-                if full_save:
-                    result_summary = summarize_result(data, full_save=True)
-                    answer_text = f"查询成功，共{row_count}条记录。"
-                else:
-                    result_summary = summarize_result(data, full_save=False)
-                    answer_text = f"数据量较大（共{row_count}行），已为您存储分析标记。您可以继续提问'分析这些数据'。"
-
-                yield {"event": "data", "data": {
-                    "row_count": row_count,
-                    "full_save": full_save,
-                        "data": data if full_save else data[:QueryConstants.MAX_SAMPLE_ROWS],
-                        "message": answer_text
-                }}
-
-                # 保存记录
-                save_turn(db, user_id, session_id, turn_index, question,
-                          sql_query=sql, result_summary=result_summary,
-                          answer_text=answer_text, full_data_saved=full_save)
-
-                # 流式返回回答
-                yield {"event": "thinking", "data": "正在生成回答..."}
-                answer_prompt = f"请基于以下SQL查询结果，用自然语言回答用户问题。\n\nSQL: {sql}\n结果: {answer_text}\n\n用户问题: {question}\n\n回答:"
-                async for chunk in stream_llm_chunk(answer_prompt, buffer, temp):
-                    yield chunk
-
-            except Exception as e:
-                # SQL 执行失败，尝试修正重试
-                logger.warning(f"会话 {session_id} SQL执行失败，尝试重试: {e}")
-                yield {"event": "thinking", "data": "SQL执行失败，正在修正..."}
-
-                try:
-                    sql_corrected = await generate_sql(question, vectordb, retry=True, previous_sql=previous_sql)
-                    yield {"event": "sql", "data": sql_corrected}
-
-                    data = await execute_sql_to_dict(db, sql_corrected)
-                    row_count = len(data)
-                    full_save = _should_save_full(data)
-                    result_summary = summarize_result(data, full_save=full_save)
-                    answer_text = f"查询成功，共{row_count}条记录（已修正）。"
-
-                    yield {"event": "data", "data": {
-                        "row_count": row_count,
-                        "full_save": full_save,
-                        "data": data if full_save else data[:QueryConstants.MAX_SAMPLE_ROWS],
-                        "message": answer_text
-                    }}
-
-                    save_turn(db, user_id, session_id, turn_index, question,
-                              sql_query=sql_corrected, result_summary=result_summary,
-                              answer_text=answer_text, full_data_saved=full_save)
-
-                    answer_prompt = f"请基于修正后的SQL查询结果回答用户。\n\nSQL: {sql_corrected}\n结果: {answer_text}\n\n用户问题: {question}"
-                    async for chunk in stream_llm_chunk(answer_prompt, buffer, temp):
-                        yield chunk
-
-                except Exception as e2:
-                    yield {"event": "error", "data": f"SQL执行失败: {str(e2)}"}
-                    yield {"event": "done", "data": ""}
-                    return
-
+            async for event in _stream_sql_processing(
+                    question, db, user_id, session_id, turn_index, vectordb, buffer, temp):
+                yield event
         elif intent == "analysis":
-            yield {"event": "thinking", "data": "正在分析数据..."}
-
-            # 获取上下文
-            latest_turn = get_latest_turn(db, user_id, session_id)
-            data_context = ""
-            aggregate_sql_used = None
-
-            if latest_turn and latest_turn.result_summary:
-                try:
-                    if latest_turn.full_data_saved:
-                        full_data = json.loads(latest_turn.result_summary)
-                        data_context = f"上一轮查询得到的完整数据（共{len(full_data)}条）：\n{safe_json_dumps(full_data, indent=2)[:5000]}\n"
-                    else:
-                        original_desc = latest_turn.question
-                        aggregate_sql = await generate_aggregate_sql(question, original_desc, vectordb)
-                        if aggregate_sql:
-                            agg_data = await execute_sql_to_dict(db, aggregate_sql)
-                            agg_summary = summarize_result(agg_data, full_save=False)
-                            data_context = f"根据您的分析需求，自动生成的聚合数据：\n{agg_summary}\n"
-                            aggregate_sql_used = aggregate_sql
-                        else:
-                            data_context = "上一轮查询数据量较大，无法直接分析。"
-                except Exception as e:
-                    data_context = f"读取上一轮数据失败：{str(e)}\n"
-            else:
-                data_context = "未找到上一轮的数据。请先执行一次SQL查询。\n"
-
-            # 知识库检索
-            knowledge_context = ""
-            if vectordb:
-                docs = await similarity_search_async(vectordb, question, k=3)
-                if docs:
-                    knowledge_context = "\n\n".join([doc.page_content for doc in docs])[:3000]
-
-            # 清洗用户输入，防止 prompt 注入
-            question_safe = _sanitize_prompt_input(question)
-            data_context_safe = _sanitize_prompt_input(data_context)
-            knowledge_context_safe = _sanitize_prompt_input(knowledge_context)
-
-            # 构建分析提示
-            analysis_prompt = f"""你是一个数据分析专家。请严格基于以下提供的数据回答用户的分析问题。不要编造数据。
-
-【提供的数据】
-{data_context_safe}
-
-【参考分析指南】
-{knowledge_context_safe}
-
-【用户问题】
-{question_safe}
-
-请给出清晰的分析结论、可能的原因和建议。"""
-
-            # 流式返回分析结果
-            async for chunk in stream_llm_chunk(analysis_prompt, buffer, temp):
-                yield chunk
-
-            # 保存记录
-            final_answer = buffer.flush()
-            save_turn(db, user_id, session_id, turn_index, question,
-                      answer_text=final_answer, aggregate_sql=aggregate_sql_used,
-                      full_data_saved=False)
-
+            async for event in _stream_analysis_processing(
+                    question, db, user_id, session_id, turn_index, vectordb, buffer, temp):
+                yield event
         else:  # chat
-            yield {"event": "thinking", "data": "正在思考..."}
-
-            chat_history = get_recent_turns(db, user_id, session_id, limit=5)
-            chat_history_text = ""
-            for turn in chat_history:
-                chat_history_text += f"用户: {turn.question}\n助手: {turn.answer_text}\n"
-
-            # 清洗用户输入，防止 prompt 注入
-            question_safe = _sanitize_prompt_input(question)
-            chat_history_safe = _sanitize_prompt_input(chat_history_text)
-
-            if chat_history_safe:
-                chat_prompt = f"以下是用户与助手的对话历史。请根据历史回答用户的问题。\n\n{chat_history_safe}\n\n用户最新问题：{question_safe}\n助手："
-            else:
-                chat_prompt = f"用户：{question_safe}\n助手："
-
-            # 流式返回闲聊
-            async for chunk in stream_llm_chunk(chat_prompt, buffer, temp):
-                yield chunk
-
-            # 保存记录
-            final_answer = buffer.flush()
-            save_turn(db, user_id, session_id, turn_index, question, answer_text=final_answer)
+            async for event in _stream_chat_processing(
+                    question, db, user_id, session_id, turn_index, buffer, temp):
+                yield event
 
         yield {"event": "done", "data": ""}
 

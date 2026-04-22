@@ -12,7 +12,7 @@
   "jwt": {
     "secret_key": "wolin-student-secret-key-change-in-production-2024",
     "algorithm": "HS256",
-    "access_token_expire_minutes": 1440
+    "access_token_expire_minutes": 10080
   },
   "api_keys": {
     "dashscope": "sk-ae72435926e24db19b62e25842e1c144",
