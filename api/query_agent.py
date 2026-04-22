@@ -16,6 +16,8 @@ import sqlparse
 from sqlparse import tokens
 
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from typing import Any
 from langchain_community.embeddings import DashScopeEmbeddings
 
 from core.database import get_db
@@ -235,7 +237,7 @@ def validate_sql(sql: str) -> tuple[bool, Optional[str]]:
     return True, None
 
 
-async def similarity_search_async(vectordb, query: str, k: int = 3):
+async def similarity_search_async(vectordb: Optional[Chroma], query: str, k: int = 3) -> List[Document]:
     """异步执行向量相似度搜索"""
 
     def _sync():
@@ -244,7 +246,7 @@ async def similarity_search_async(vectordb, query: str, k: int = 3):
     return await asyncio.to_thread(_sync)
 
 
-async def retrieve_schema_context(vectordb) -> str:
+async def retrieve_schema_context(vectordb: Optional[Chroma]) -> str:
     """从向量知识库检索数据库表结构上下文"""
     if vectordb is None:
         return FALLBACK_SCHEMA
@@ -382,7 +384,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
 
 
 # ---------- SQL 生成 ----------
-async def generate_sql(question: str, vectordb, retry: bool = False, previous_sql: Optional[str] = None) -> str:
+async def generate_sql(question: str, vectordb: Optional[Chroma], retry: bool = False, previous_sql: Optional[str] = None) -> str:
     """使用 LLM 生成 SQL 查询语句"""
     # 清洗用户输入，防止 prompt 注入
     question_safe = _sanitize_prompt_input(question)
@@ -451,7 +453,7 @@ class SafeJSONEncoder(JSONEncoder):
             return f"<unserializable: {type(obj).__name__}>"
 
 
-def safe_json_dumps(obj, **kwargs) -> str:
+def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
     """
     安全的 JSON 序列化函数，自动处理不可序列化类型。
     用法与 json.dumps 完全相同，只需替换函数名即可。
@@ -459,7 +461,7 @@ def safe_json_dumps(obj, **kwargs) -> str:
     return json.dumps(obj, cls=SafeJSONEncoder, **kwargs)
 
 
-async def execute_sql_to_dict(db: Session, sql: str):
+async def execute_sql_to_dict(db: Session, sql: str) -> List[dict]:
     """
     执行 SQL 查询并返回字典列表
 
@@ -502,7 +504,7 @@ AGGREGATE_SQL_PROMPT = """
 """
 
 
-async def generate_aggregate_sql(question: str, original_desc: str, vectordb) -> Optional[str]:
+async def generate_aggregate_sql(question: str, original_desc: str, vectordb: Optional[Chroma]) -> Optional[str]:
     """为数据分析需求生成聚合查询 SQL"""
     # 清洗用户输入，防止 prompt 注入
     question_safe = _sanitize_prompt_input(question)
@@ -891,7 +893,7 @@ class StreamBuffer:
 
 async def stream_llm_response(question: str, history_text: str, intent: str,
                               user_id: int, session_id: str, turn_index: int,
-                              db: Session, vectordb) -> dict:
+                              db: Session, vectordb: Optional[Chroma]) -> dict:
     """
     流式处理问答，返回生成器
 
