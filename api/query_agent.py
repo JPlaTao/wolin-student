@@ -576,11 +576,11 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     user_id = current_user.id  # 从认证用户获取 user_id
     session_id = req.session_id
 
-    logger.debug(f"收到请求 - question: {question[:50]}..., session_id: {session_id}, user_id: {user_id}")
+    logger.info(f"收到请求 - question: {question[:50]}..., session_id: {session_id}, user_id: {user_id}")
 
     if not session_id:
         session_id = str(uuid.uuid4())
-        logger.warning(f"未提供 session_id，已生成新会话: {session_id}，user_id: {user_id}")
+        logger.info(f"未提供 session_id，已生成新会话: {session_id}，user_id: {user_id}")
 
     include_history = req.include_history
 
@@ -1155,7 +1155,7 @@ async def stream_natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
     if not session_id:
         session_id = str(uuid.uuid4())
-        logger.warning(f"未提供 session_id，已生成新会话: {session_id}")
+        logger.info(f"未提供 session_id，已生成新会话: {session_id}")
 
     logger.info(f"流式请求 - 会话 {session_id}, 问题: {question[:50]}...")
 
