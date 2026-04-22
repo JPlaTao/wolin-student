@@ -3,10 +3,12 @@ import re
 import asyncio
 import uuid
 import json
-from typing import Optional, List
+import datetime as dt_module
+import decimal
+from enum import Enum
+from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -16,7 +18,6 @@ from sqlparse import tokens
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from typing import Any
 from langchain_community.embeddings import DashScopeEmbeddings
 
 from core.database import get_db
@@ -25,6 +26,80 @@ from core.settings import get_settings
 from model.user import User
 from dao.conversation_dao import save_turn, get_recent_turns, get_turn_count, get_latest_turn, get_previous_sql_turn
 from utils.logger import get_logger
+
+
+# ==================== 常量定义 ====================
+class QueryConstants:
+    """查询相关常量"""
+    MAX_HISTORY_TURNS = 5  # 历史记录轮数
+    MAX_FULL_SAVE_ROWS = 100  # 全量保存的最大行数
+    MAX_FULL_SAVE_JSON_SIZE = 2000  # 全量保存的最大JSON长度
+    MAX_CONTEXT_CHARS = 5000  # 上下文最大字符数
+    MAX_KNOWLEDGE_CHARS = 3000  # 知识库上下文最大字符数
+    MAX_SAMPLE_ROWS = 10  # 样本数据行数
+    LLM_MAX_TOKENS = 10  # LLM输出最大token数
+    REFINE_MAX_TOKENS = 2000  # 精炼分析最大token数
+    CHUNK_MIN_SIZE = 8  # 流式输出最小块大小
+    CHUNK_MAX_WAIT_MS = 80  # 流式输出最大等待毫秒
+
+
+# ==================== 公共函数 ====================
+def _build_history_text(history_turns: List[Any], max_len: int = 200) -> str:
+    """
+    构建历史对话文本
+    
+    Args:
+        history_turns: 历史记录列表
+        max_len: 每个回复的最大截取长度
+        
+    Returns:
+        格式化后的历史文本
+    """
+    if not history_turns:
+        return ""
+    history_text = ""
+    for turn in history_turns:
+        if turn.result_summary:
+            preview = turn.result_summary[:max_len]
+        else:
+            preview = turn.answer_text[:max_len] if turn.answer_text else ""
+        history_text += f"用户: {turn.question}\n系统: {preview}\n"
+    return history_text
+
+
+def _should_save_full(data: List[dict]) -> bool:
+    """
+    判断是否应该完整保存数据
+    
+    Args:
+        data: 查询结果列表
+        
+    Returns:
+        True 如果应该完整保存
+    """
+    if not data:
+        return True
+    row_count = len(data)
+    json_size = len(safe_json_dumps(data))
+    return (row_count <= QueryConstants.MAX_FULL_SAVE_ROWS and 
+            json_size <= QueryConstants.MAX_FULL_SAVE_JSON_SIZE)
+
+
+def _build_ref_history_text(history_turns: List[Any]) -> str:
+    """
+    构建用于SQL引用检测的历史文本（最近2轮）
+    
+    Args:
+        history_turns: 历史记录列表
+        
+    Returns:
+        格式化后的历史文本
+    """
+    recent = history_turns[-2:] if len(history_turns) >= 2 else history_turns
+    return "\n".join([
+        f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" 
+        for t in recent
+    ])
 
 # 获取模块专用 logger
 logger = get_logger("query_agent")
@@ -410,14 +485,7 @@ async def generate_sql(question: str, vectordb: Optional[Chroma], retry: bool = 
     return fix_table_names(sql)
 
 
-import datetime
-import decimal
-import uuid
-from enum import Enum
-from json import JSONEncoder
-
-
-class SafeJSONEncoder(JSONEncoder):
+class SafeJSONEncoder(json.JSONEncoder):
     """
     安全的 JSON 编码器，自动处理所有不可序列化的类型。
     使用方式: json.dumps(data, cls=SafeJSONEncoder)
@@ -425,7 +493,7 @@ class SafeJSONEncoder(JSONEncoder):
 
     def default(self, obj):
         # datetime 类型
-        if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        if isinstance(obj, (dt_module.datetime, dt_module.date, dt_module.time)):
             return obj.isoformat()
         # Decimal 类型
         if isinstance(obj, decimal.Decimal):
@@ -589,16 +657,10 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     include_history = req.include_history
 
     # 获取历史记忆（用于意图分类和闲聊/分析）
-    history_turns = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
+    history_turns = get_recent_turns(db, user_id, session_id, limit=QueryConstants.MAX_HISTORY_TURNS) if include_history else []
     logger.info(f"会话 {session_id} (user_id={user_id}) 历史记录数: {len(history_turns)}")
 
-    history_text = ""
-    for turn in history_turns:
-        if turn.result_summary:
-            summary_preview = turn.result_summary[:200]
-        else:
-            summary_preview = turn.answer_text[:200] if turn.answer_text else ""
-        history_text += f"用户: {turn.question}\n系统: {summary_preview}\n"
+    history_text = _build_history_text(history_turns)
 
     # 意图分类
     intent = await classify_intent_llm(question, history_text)
@@ -615,10 +677,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             # 获取上一轮有SQL的记录（可能不是最新一轮，但通常是）
             previous_sql_turn = get_previous_sql_turn(db, user_id, session_id)
             if previous_sql_turn and previous_sql_turn.sql_query:
-                # 只取最近2轮历史用于判断
-                recent_2 = history_turns[-2:] if len(history_turns) >= 2 else history_turns
-                ref_history = "\n".join(
-                    [f"用户: {t.question}\n系统: {t.answer_text[:100] if t.answer_text else ''}" for t in recent_2])
+                ref_history = _build_ref_history_text(history_turns)
                 reference_check = await check_sql_reference(question, ref_history)
                 need_reference = (reference_check == "YES")
                 logger.info(f"会话 {session_id} SQL引用检测结果: {reference_check}")
@@ -641,8 +700,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             data = await execute_sql_to_dict(db, sql)
             row_count = len(data)
             logger.info(f"会话 {session_id} SQL执行成功，返回 {row_count} 条记录")
-            # 判断是否全量保存：行数<=100 且 JSON序列化后长度<=2000
-            full_save = (row_count <= 100) and (len(safe_json_dumps(data)) <= 2000)
+            full_save = _should_save_full(data)
             if full_save:
                 result_summary = summarize_result(data, full_save=True)
                 answer_text = f"查询成功，共{row_count}条记录。"
@@ -662,8 +720,8 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                     "full_data_saved": True
                 }
             else:
-                # 返回前10行样本
-                sample_data = data[:10]
+                # 返回样本数据
+                sample_data = data[:QueryConstants.MAX_SAMPLE_ROWS]
                 return {
                     "type": "sql",
                     "session_id": session_id,
@@ -682,7 +740,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 data2 = await execute_sql_to_dict(db, sql_corrected)
                 row_count2 = len(data2)
                 logger.info(f"会话 {session_id} 重试SQL执行成功，返回 {row_count2} 条记录")
-                full_save2 = (row_count2 <= 100) and (len(safe_json_dumps(data2)) <= 2000)
+                full_save2 = _should_save_full(data2)
                 if full_save2:
                     result_summary2 = summarize_result(data2, full_save=True)
                     answer_text2 = f"查询成功，共{row_count2}条记录。"
@@ -965,8 +1023,8 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
                 yield {"event": "data", "data": {
                     "row_count": row_count,
                     "full_save": full_save,
-                    "data": data if full_save else data[:10],
-                    "message": answer_text
+                        "data": data if full_save else data[:QueryConstants.MAX_SAMPLE_ROWS],
+                        "message": answer_text
                 }}
 
                 # 保存记录
@@ -991,14 +1049,14 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
 
                     data = await execute_sql_to_dict(db, sql_corrected)
                     row_count = len(data)
-                    full_save = (row_count <= 100) and (len(safe_json_dumps(data)) <= 2000)
+                    full_save = _should_save_full(data)
                     result_summary = summarize_result(data, full_save=full_save)
                     answer_text = f"查询成功，共{row_count}条记录（已修正）。"
 
                     yield {"event": "data", "data": {
                         "row_count": row_count,
                         "full_save": full_save,
-                        "data": data if full_save else data[:10],
+                        "data": data if full_save else data[:QueryConstants.MAX_SAMPLE_ROWS],
                         "message": answer_text
                     }}
 
