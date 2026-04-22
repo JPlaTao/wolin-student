@@ -83,10 +83,12 @@ class QueryRequest(BaseModel):
 
 
 # ---------- 备用表结构 ----------
+# 版本: v1.1 | 最后同步: 2026-04-22 | 源: database_init_test.sql
 FALLBACK_SCHEMA = """
 数据库表结构（简化版）：
 - teacher: teacher_id, teacher_name, gender, phone, role, is_deleted (BOOLEAN)
 - class: class_id, class_name, start_time, head_teacher_id, is_deleted (BOOLEAN)
+- class_teacher: class_id, teacher_id (多对多关联表，关联班级和授课教师)
 - stu_basic_info: stu_id, stu_name, native_place, graduated_school, major, admission_date, graduation_date, education, age, gender, advisor_id, class_id, is_deleted (BOOLEAN)
 - stu_exam_record: stu_id, seq_no, grade, exam_date, is_deleted (INT, 0=未删除)
 - employment: emp_id, stu_id, stu_name, class_id, open_time, offer_time, company, salary, is_deleted (BOOLEAN)
@@ -95,6 +97,7 @@ FALLBACK_SCHEMA = """
 - 所有查询必须过滤 is_deleted = 0 或 False（成绩表用 is_deleted = 0）
 - 表名均为单数形式，不要使用复数
 - 只生成 SELECT 语句
+- 查询班级对应的教师时，需要通过 class_teacher 关联表
 """
 
 
