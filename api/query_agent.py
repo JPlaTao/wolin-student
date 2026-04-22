@@ -6,7 +6,6 @@ import json
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-import asyncio
 from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
