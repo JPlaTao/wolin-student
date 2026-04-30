@@ -180,13 +180,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     # 记录日志
     ExceptionHandler.log_exception(request, exc, is_expected=True)
     
+    # 将errors转换为可JSON序列化的格式（处理bytes等不可序列化类型）
+    serializable_errors = []
+    for error in errors:
+        serializable_error = {}
+        for key, value in error.items():
+            if isinstance(value, bytes):
+                serializable_error[key] = value.decode('utf-8', errors='replace')
+            elif isinstance(value, (list, tuple)):
+                serializable_error[key] = [v.decode('utf-8', errors='replace') if isinstance(v, bytes) else v for v in value]
+            else:
+                serializable_error[key] = value
+        serializable_errors.append(serializable_error)
+    
     return ExceptionHandler.create_error_response(
         request_id=request_id,
         code="2001",
         message="参数验证失败",
         detail=error_message,
         status_code=422,
-        extra={"errors": errors}
+        extra={"errors": serializable_errors}
     )
 
 
