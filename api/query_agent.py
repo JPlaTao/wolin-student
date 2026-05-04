@@ -26,6 +26,7 @@ from core.settings import get_settings
 from model.user import User
 from dao.conversation_dao import save_turn, get_recent_turns, get_turn_count, get_latest_turn, get_previous_sql_turn
 from utils.logger import get_logger
+from services.query_agent_service import agent_sql_query
 
 
 # ==================== 常量定义 ====================
@@ -156,6 +157,7 @@ class QueryRequest(BaseModel):
     question: str
     session_id: Optional[str] = None
     include_history: bool = True
+    use_agent: Optional[bool] = None  # None=使用 config 默认, true/false=强制切换
 
 
 # ---------- 备用表结构 ----------
@@ -965,6 +967,28 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
     # ---------- SQL 分支 ----------
     if intent == "sql":
+        # ---- LangChain Agent 路径（通过 config.json 或请求参数切换）----
+        use_agent = req.use_agent if req.use_agent is not None else getattr(settings.llm, 'use_agent', False)
+
+        if use_agent:
+            logger.info(f"会话 {session_id} 使用 LangChain Agent 路径")
+            result = await agent_sql_query(question, session_id, db)
+            sql = result["sql"]
+            data = result["data"]
+            count = result["count"]
+
+            if not sql:
+                logger.error(f"会话 {session_id} Agent 未能生成 SQL 查询")
+                raise HTTPException(500, "Agent 未能生成有效的 SQL 查询")
+
+            full_save = _should_save_full(data)
+            result_summary, answer_text = _build_sql_result_summary(data, count, full_save)
+            save_turn(db, user_id, session_id, turn_index, question,
+                      sql_query=sql, result_summary=result_summary,
+                      answer_text=answer_text, full_data_saved=full_save)
+            return _build_sql_result_response(sql, data, session_id, turn_index, count, full_save)
+
+        # ---- 原有手写路径（兜底）----
         need_reference, previous_sql = await _get_previous_sql_reference(
             db, user_id, session_id, history_turns, question)
 

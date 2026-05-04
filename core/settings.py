@@ -52,6 +52,7 @@ class LLMConfig(BaseModel):
     base_url: str = Field(default="https://api.moonshot.cn/v1", description="API 基础URL")
     temperature: float = Field(default=0.7, ge=0, le=2, description="默认温度参数")
     max_tokens: int = Field(default=4096, ge=100, description="最大生成token数")
+    use_agent: bool = Field(default=False, description="是否使用 LangChain Agent 路径执行 SQL 查询")
 
     # 仅支持 temperature=1 的模型列表（通常是 Reasoner/Actor 分离的 Agent 模型）
     _TEMPERATURE_ONE_MODELS = frozenset([
