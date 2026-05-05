@@ -13,7 +13,7 @@ export function createAuthModule() {
     const authMode = ref('login');
     const authUsername = ref('');
     const authPassword = ref('');
-    const authRole = ref('user');
+    const authRole = ref('student');
     const currentUser = ref(null);
     const isLoggedIn = ref(false);
     const isAdmin = ref(false);
@@ -114,9 +114,17 @@ export function createAuthModule() {
         return false;
     };
 
+    const getUserRole = () => currentUser.value?.role || null;
+
+    const hasRole = (...roles) => {
+        const role = getUserRole();
+        return role !== null && roles.includes(role);
+    };
+
     return {
         authMode, authUsername, authPassword, authRole,
         currentUser, isLoggedIn, isAdmin,
-        submitAuth, logout, checkLogin
+        submitAuth, logout, checkLogin,
+        getUserRole, hasRole
     };
 }

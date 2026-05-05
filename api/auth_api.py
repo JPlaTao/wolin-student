@@ -11,6 +11,7 @@ from core.exceptions import (
     ValidationException, ConflictException, NotFoundException,
     UnauthorizedException, BusinessException
 )
+from core.permissions import require_role
 from datetime import timedelta
 from typing import Optional
 from utils.logger import get_logger
@@ -50,12 +51,18 @@ class UserResponse(BaseModel):
 @log_api_call("用户注册")
 def register(user: UserCreate, db: Session = Depends(get_db)):
     # 验证角色是否合法
-    valid_roles = ["user", "student", "teacher", "admin"]
-    if user.role not in valid_roles:
+    from core.permissions import VALID_ROLES, REGISTRABLE_ROLES
+    if user.role not in VALID_ROLES:
         raise ValidationException(
-            message=f"角色必须是以下之一: {', '.join(valid_roles)}",
+            message=f"角色必须是以下之一: {', '.join(VALID_ROLES)}",
             field="role",
             detail=f"提供的角色 '{user.role}' 不在允许的角色列表中"
+        )
+    if user.role not in REGISTRABLE_ROLES:
+        raise ValidationException(
+            message="该角色不允许自行注册",
+            field="role",
+            detail=f"'{user.role}' 角色只能由管理员在后台创建"
         )
 
     existing = db.query(User).filter(User.username == user.username).first()
@@ -84,7 +91,10 @@ def login(form_data: UserLogin, db: Session = Depends(get_db)):
     from core.settings import get_settings
     settings = get_settings()
     expires_delta = timedelta(minutes=settings.jwt.access_token_expire_minutes)
-    access_token = create_access_token(data={"sub": user.username}, expires_delta=expires_delta)
+    access_token = create_access_token(
+        data={"sub": user.username, "role": user.role},
+        expires_delta=expires_delta
+    )
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -111,29 +121,29 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 def get_users(
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """获取用户列表（需要登录）"""
+    """获取用户列表（仅管理员）"""
     users = db.query(User).offset(skip).limit(limit).all()
-    return {"data": users}
+    return {"data": [UserResponse.model_validate(u) for u in users]}
 
 
 @router.get("/users/{user_id}")
 @log_api_call("获取用户详情")
 def get_user(
     user_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """获取单个用户信息（需要登录）"""
+    """获取单个用户信息（仅管理员）"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise NotFoundException(
             resource="用户",
             detail=f"ID为 {user_id} 的用户不存在"
         )
-    return user
+    return UserResponse.model_validate(user)
 
 
 @router.put("/users/{user_id}")

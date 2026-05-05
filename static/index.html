@@ -66,13 +66,11 @@
                     v-model="authRole"
                     class="w-full px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
                 >
-                    <option value="user">普通用户</option>
                     <option value="student">学生</option>
                     <option value="teacher">教师</option>
-                    <option value="admin">管理员</option>
                 </select>
                 <p class="text-slate-500 text-xs mt-1">
-                    <i class="fas fa-info-circle"></i> 管理员拥有最高权限，可管理所有用户
+                    <i class="fas fa-info-circle"></i> 管理员账号由后台创建
                 </p>
             </div>
             <button
@@ -180,6 +178,7 @@
                 </a>
                 <a
                     href="#"
+                    v-if="hasRole('admin', 'teacher')"
                     @click.prevent="activeTab = 'email'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'email' ? 'app-nav-item-active' : '']"
                     :title="sidebarCollapsed ? '发送邮件' : ''"
@@ -189,6 +188,7 @@
                 </a>
                 <a
                     href="#"
+                    v-if="hasRole('admin', 'teacher')"
                     @click.prevent="activeTab = 'management'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'management' ? 'app-nav-item-active' : '']"
                     :title="sidebarCollapsed ? '数据管理' : ''"
@@ -197,7 +197,7 @@
                     <span v-show="!sidebarCollapsed">数据管理</span>
                 </a>
                 <a
-                    v-if="isAdmin"
+                    v-if="hasRole('admin')"
                     href="#"
                     @click.prevent="activeTab = 'userManagement'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'userManagement' ? 'app-nav-item-active' : '']"
@@ -450,7 +450,7 @@
 </div>
 
             <!-- 发送邮件 -->
-            <div v-if="activeTab === 'email'" class="space-y-4 md:space-y-6">
+            <div v-if="activeTab === 'email' && hasRole('admin', 'teacher')" class="space-y-4 md:space-y-6">
                 <div class="card-hover rounded-2xl p-6">
                     <h2 class="text-xl font-semibold mb-2 app-text-primary">
                         <i class="fas fa-envelope text-blue-400"></i> 发送邮件
@@ -566,7 +566,7 @@
             </el-dialog>
 
             <!-- 数据管理 -->
-            <div v-if="activeTab === 'management'" class="space-y-4 md:space-y-6">
+            <div v-if="activeTab === 'management' && hasRole('admin', 'teacher')" class="space-y-4 md:space-y-6">
                 <el-tabs v-model="mgmtTab" class="custom-tabs">
                     <!-- 学生管理 -->
                     <el-tab-pane label="学生管理" name="student">
@@ -1165,7 +1165,7 @@
             </div>
 
             <!-- 用户管理（独立页面，仅管理员可见） -->
-            <div v-if="activeTab === 'userManagement'" class="space-y-4 md:space-y-6">
+            <div v-if="activeTab === 'userManagement' && hasRole('admin')" class="space-y-4 md:space-y-6">
                 <div class="card-hover rounded-2xl p-4 md:p-5">
                     <div class="mb-3 md:mb-4 flex justify-between items-center flex-wrap gap-2">
                         <h3 class="font-semibold text-base md:text-lg app-text-primary">

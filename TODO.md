@@ -40,19 +40,53 @@ _清除了临时文件、旧文档、缓存、chroma_db。_
 - [x] 删除: 根目录 `__init__.py`
 - [x] 清空: `logs/`, `chroma_db/`
 
-## P2 — 日志系统重构
+## P2 — 日志系统重构 ✅
 
-_评估并重构项目日志，使其更可读、统一、实用。_
+_评估并重构项目日志，使其更可读、统一、实用。已完成。_
 
-- [ ] 评估现有日志的问题:
+- [x] 评估现有日志的问题:
   - 终端输出无颜色，难以区分等级（INFO/WARN/ERROR）
   - 多模块日志格式不一致（`query_agent`、`middleware`、`api_logger` 等各有各的格式）
   - 敏感信息审计日志混杂在普通日志中
-- [ ] 设计新的日志格式规范（建议: 时间 | 级别 | 模块 | 消息）
-- [ ] 引入 `rich` 或 `colorlog` 做彩色终端输出
-- [ ] 统一所有 logger 初始化方式，消除重复配置
-- [ ] 必要时分离审计日志文件
+- [x] 设计新的日志格式规范（建议: 时间 | 级别 | 模块 | 消息）
+- [x] 引入 `colorlog` 做彩色终端输出（自定义 `ConsoleFormatter`，逐字段 ANSI 染色）
+- [x] 统一所有 logger 初始化方式，消除重复配置
+- [x] 分离审计日志文件 — 新增独立 `audit.log` + `SensitiveOperationFilter`
 
 ## 后续
 
 - [ ] 前端模型切换功能：如何在前端/后端层面支持用户切换 LLM 模型（Kimi ↔ DeepSeek ↔ OpenAI），不依赖改配置文件
+
+## P2 - 更新README
+README.md文档有点老了, 需要更新一下
+
+## 待定任务（讨论/规划中）
+
+### 用户权限系统（P1）
+_需求从 `docs/specs/user-permission-plan.md`_
+
+- [ ] Step 1: 权限核心 — JWT 加 role + `require_role()` + `core/permissions.py`
+- [ ] Step 2: 注册管控 — 限制注册角色 + 用户列表加权限
+- [ ] Step 3: 业务 API 逐个加固 — student/class/teacher/exam/employment/email API
+- [ ] Step 4: 数据隔离 — DAO 层按角色过滤查询
+- [ ] Step 5: 前端权限适配 — Tab 级 + 按钮级角色控制
+
+### 四大名著 RAG（P2）
+_将 Chroma 替换为 Milvus，搭建四大名著知识检索 RAG_
+
+- [ ] Milvus 环境搭建（容器部署）
+- [ ] 数据准备：四大名著文本向量化
+- [ ] 替换现有 chroma_db 逻辑，集成 Milvus
+- [ ] RAG 查询 API + 前端展示
+
+### 二阶段可选功能（P3）
+_待权限系统就绪后依次实现_
+
+- [ ] 期末评语生成器
+- [ ] 违纪话术教练
+- [ ] 公告润色助手
+- [ ] 成绩诊断书
+- [ ] 班会活动策划师
+- [ ] 模拟面试官
+- [ ] 智能分班/分组助手
+- [ ] 校规 RAG

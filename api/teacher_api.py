@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.auth import get_current_user
+from core.permissions import require_role
 from model.user import User
 from dao import teacher_dao as dao
 # 导入设置好的模型
@@ -18,7 +19,7 @@ router = APIRouter(
 
 # 新增老师
 @router.post("/", response_model=ResponseBase, summary="新增老师")
-def create_teacher(teacher: TeacheresUpdata, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_teacher(teacher: TeacheresUpdata, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin"]))):
     # 接收前端传的老师数据（自动校验格式） 自动获取数据库连接（Session）
     allowed_roles = ["counselor", "headteacher", "lecturer"]
 
@@ -40,7 +41,7 @@ def create_teacher(teacher: TeacheresUpdata, db: Session = Depends(get_db), curr
 @router.get("/single", response_model=ResponseBase, summary="查询老师")
 def get_teacher(
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_role(["admin", "teacher"])),
         teacher_id: int = Query(None, description="按老师编号查询"),
         teacher_name: str = Query(None, description="按老师姓名查询"),
 ):
@@ -61,7 +62,7 @@ def get_teacher(
 @router.get("/all", response_model=ListResponse, summary="查询所有老师")
 def get_all_teachers(
         db: Session = Depends(get_db), 
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_role(["admin", "teacher"])),
         page: int = Query(None, description="页码（从1开始）"),
         page_size: int = Query(None, description="每页条数")
 ):
@@ -84,7 +85,7 @@ def get_all_teachers(
 
 # 修改老师
 @router.put("/{teacher_id}", response_model=ResponseBase, summary="修改老师信息")
-def update_teacher(teacher_id: int, teacher: TeacheresUpdata, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_teacher(teacher_id: int, teacher: TeacheresUpdata, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin"]))):
     # 调用 dao修改老师数据
     data = dao.update_teacher(db, teacher_id, teacher)
     # 没查到
@@ -99,7 +100,7 @@ def update_teacher(teacher_id: int, teacher: TeacheresUpdata, db: Session = Depe
 # 删除老师（逻辑删除）
 @router.delete("/{teacher_id}", response_model=ResponseBase, summary="删除老师")
 @log_sensitive_operation("删除老师", level="WARNING")
-def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_teacher(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin"]))):
     # 调用 dao 删除（标记 is_deleted=True）
     success = dao.delete_teacher(db, teacher_id)
     # 如果老师不存在
@@ -118,7 +119,7 @@ def bind_teacher_class(
         teacher_id: int = Query(..., description="讲师ID（必须传）"),
         class_ids: str = Query(..., description="班级ID列表，多个用英文逗号分隔，比如1,2,3"),
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(require_role(["admin"]))
 ):
     # 把前端传的字符串转成整数列表（比如 "1,2,3" → [1,2,3]）
     try:
@@ -145,7 +146,7 @@ def unbind_teacher_class(
         teacher_id: int,
         class_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(require_role(["admin"]))
 ):
     success = dao.unbind_teacher_from_class(db, teacher_id, class_id)
     # 返回是False
@@ -157,7 +158,7 @@ def unbind_teacher_class(
 
 # ========================================================
 @router.get("/{teacher_id}/head_classes", response_model=ResponseBase, summary="查班主任所带的班级")
-def get_head_classes(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_head_classes(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "teacher"]))):
     # 调用 dao. 查询班主任所带的班
     data = dao.get_head_classes(db, teacher_id)
     if isinstance(data, str):
@@ -170,7 +171,7 @@ def get_head_classes(teacher_id: int, db: Session = Depends(get_db), current_use
 
 
 @router.get("/{teacher_id}/teach_classes", response_model=ResponseBase, summary="查讲师所教的班级")
-def get_teach_classes(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_teach_classes(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "teacher"]))):
     # 调用dao.查询讲师所教的班
     data = dao.get_teach_classes(db, teacher_id)
     # 判断
@@ -184,7 +185,7 @@ def get_teach_classes(teacher_id: int, db: Session = Depends(get_db), current_us
 
 
 @router.get("/{teacher_id}/my_students", response_model=ResponseBase, summary="查顾问带的学生")
-def get_my_students(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_my_students(teacher_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "teacher"]))):
     # 调用dao.查询顾问所带的学生
     data = dao.get_my_students(db, teacher_id)
     # 判断
@@ -201,7 +202,7 @@ def get_my_students(teacher_id: int, db: Session = Depends(get_db), current_user
 @router.get("/counselors", response_model=ListResponse, summary="获取所有顾问教师")
 def get_counselors(
         db: Session = Depends(get_db), 
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_role(["admin", "teacher"])),
         page: int = Query(None, description="页码（从1开始）"),
         page_size: int = Query(None, description="每页条数")
 ):

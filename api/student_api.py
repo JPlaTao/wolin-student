@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.auth import get_current_user
+from core.permissions import require_role
 from model.user import User
 from services import student_service
 from dao import student_dao
@@ -24,7 +25,7 @@ def create_student(
         request: Request,
         new_student_data: StudentCreate,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(require_role(["admin", "teacher"]))
 ):
     try:
         # 1. 业务校验（Service 层）
@@ -50,7 +51,7 @@ def create_student(
 def get_students(
         request: Request,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(require_role(["admin", "teacher"])),
         stu_id: Optional[int] = Query(None, description="按学生编号查询"),
         stu_name: Optional[str] = Query(None, description="按学生姓名查询"),
         class_id: Optional[int] = Query(None, description="按班级编号查询"),
@@ -92,7 +93,7 @@ def update_student(
         stu_id: int,
         update_data: StudentUpdate,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(require_role(["admin", "teacher"]))
 ):
     try:
         # 业务校验：如果要更新班级或顾问，需要校验
@@ -125,7 +126,7 @@ def delete_student(
         request: Request,
         stu_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(require_role(["admin", "teacher"]))
 ):
     try:
         is_delete_student = student_dao.delete_student(db, stu_id)

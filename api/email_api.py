@@ -13,6 +13,7 @@ from services.email_service import get_email_service
 from core.email_providers import get_all_providers, get_provider_config
 from core.database import get_db
 from core.auth import get_current_user
+from core.permissions import require_role
 from utils.logger import get_logger
 
 router = APIRouter(prefix="/api/email", tags=["邮件"])
@@ -27,7 +28,7 @@ async def get_providers():
 
 
 @router.get("/config", response_model=EmailConfigResponse)
-async def get_email_config(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_email_config(current_user = Depends(require_role(["admin", "teacher"])), db: Session = Depends(get_db)):
     """获取当前用户的邮箱配置"""
     if not current_user.email_provider or not current_user.email_address:
         raise HTTPException(status_code=404, detail="未配置邮箱，请先配置")
@@ -43,7 +44,7 @@ async def get_email_config(current_user = Depends(get_current_user), db: Session
 @router.post("/config", response_model=EmailConfigResponse)
 async def configure_email(
     request: EmailConfigRequest,
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_role(["admin", "teacher"])),
     db: Session = Depends(get_db)
 ):
     """配置/更新用户邮箱"""
@@ -84,7 +85,7 @@ async def configure_email(
 @router.post("/send", response_model=EmailSendResponse)
 async def send_email(
     request: EmailSendRequest,
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_role(["admin", "teacher"])),
     db: Session = Depends(get_db)
 ):
     """发送邮件（使用用户已配置的邮箱）"""
