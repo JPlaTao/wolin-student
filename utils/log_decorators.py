@@ -15,128 +15,48 @@ logger = get_logger("api_logger")
 def log_api_call(operation_name: str = None):
     """
     API调用日志装饰器
-    
-    自动记录API调用的开始、成功、失败日志，并自动处理request_id
-    
+
+    仅在 API 调用失败时记录 ERROR 日志。
+    请求生命周期由 middleware 记录，不再重复记录开始/成功。
+
     Args:
         operation_name: 操作名称，如果为None则使用函数名
-    
+
     Usage:
         @log_api_call("创建学生")
         def create_student(...):
             ...
     """
     def decorator(func: Callable) -> Callable:
-        # 获取函数名作为默认操作名称
         op_name = operation_name or func.__name__
-        
+
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
-            # 从kwargs中提取Request对象
             request = kwargs.get('request') or next(
                 (arg for arg in args if isinstance(arg, Request)), None
             )
-            
-            # 获取request_id
             request_id = getattr(request.state, 'request_id', 'unknown') if request else 'unknown'
-            
-            # 提取关键参数信息
-            params_info = _extract_params_info(func, args, kwargs)
-            
-            # 记录开始日志
-            logger.info(f"[{request_id}] {op_name}开始: {params_info}")
-            
             try:
-                # 执行原函数
-                result = await func(*args, **kwargs)
-                
-                # 记录成功日志
-                logger.info(f"[{request_id}] {op_name}成功")
-                return result
-                
+                return await func(*args, **kwargs)
             except Exception as e:
-                # 记录失败日志
-                logger.error(f"[{request_id}] {op_name}失败: {str(e)}")
+                logger.error(f"[{request_id}] [API] {op_name}失败: {str(e)}")
                 raise
-        
+
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
-            # 从kwargs中提取Request对象
             request = kwargs.get('request') or next(
                 (arg for arg in args if isinstance(arg, Request)), None
             )
-            
-            # 获取request_id
             request_id = getattr(request.state, 'request_id', 'unknown') if request else 'unknown'
-            
-            # 提取关键参数信息
-            params_info = _extract_params_info(func, args, kwargs)
-            
-            # 记录开始日志
-            logger.info(f"[{request_id}] {op_name}开始: {params_info}")
-            
             try:
-                # 执行原函数
-                result = func(*args, **kwargs)
-                
-                # 记录成功日志
-                logger.info(f"[{request_id}] {op_name}成功")
-                return result
-                
+                return func(*args, **kwargs)
             except Exception as e:
-                # 记录失败日志
-                logger.error(f"[{request_id}] {op_name}失败: {str(e)}")
+                logger.error(f"[{request_id}] [API] {op_name}失败: {str(e)}")
                 raise
-        
-        # 根据函数是否为协程函数选择对应的包装器
+
         return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
-    
+
     return decorator
-
-
-def _extract_params_info(func: Callable, args: tuple, kwargs: dict) -> str:
-    """
-    提取函数参数信息用于日志记录
-    
-    Args:
-        func: 函数对象
-        args: 位置参数
-        kwargs: 关键字参数
-    
-    Returns:
-        参数信息字符串
-    """
-    try:
-        # 获取函数签名
-        sig = inspect.signature(func)
-        bound_args = sig.bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        
-        # 过滤掉不需要记录的参数
-        filtered_params = {}
-        for key, value in bound_args.arguments.items():
-            # 跳过以下参数
-            if key in ['request', 'db', 'current_user', 'self', 'cls']:
-                continue
-            
-            # 尝试转换为可读的字符串
-            try:
-                if hasattr(value, 'model_dump'):  # Pydantic模型
-                    filtered_params[key] = value.model_dump(exclude_unset=True)
-                elif hasattr(value, 'dict'):  # 旧版Pydantic
-                    filtered_params[key] = value.dict(exclude_unset=True)
-                elif isinstance(value, (str, int, float, bool)) or value is None:
-                    filtered_params[key] = value
-                else:
-                    # 复杂对象只显示类型
-                    filtered_params[key] = f"<{type(value).__name__}>"
-            except Exception:
-                filtered_params[key] = f"<无法序列化>"
-        
-        return str(filtered_params) if filtered_params else "无参数"
-    
-    except Exception as e:
-        return f"<参数提取失败: {str(e)}>"
 
 
 def log_service_call(service_name: str = None):
@@ -255,7 +175,7 @@ def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
             # 记录开始日志
             logger.log(
                 log_level,
-                f"[{request_id}] [敏感操作] {op_name}开始",
+                f"[{request_id}] [SensitiveOp] {op_name}开始",
                 extra={"operation_type": "sensitive", "level": level}
             )
 
@@ -266,7 +186,7 @@ def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
                 # 记录成功日志
                 logger.log(
                     log_level,
-                    f"[{request_id}] [敏感操作] {op_name}成功",
+                    f"[{request_id}] [SensitiveOp] {op_name}成功",
                     extra={"operation_type": "sensitive", "level": level, "status": "success"}
                 )
                 return result
@@ -274,7 +194,7 @@ def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
             except Exception as e:
                 # 记录失败日志（总是用ERROR级别）
                 logger.error(
-                    f"[{request_id}] [敏感操作] {op_name}失败: {str(e)}",
+                    f"[{request_id}] [SensitiveOp] {op_name}失败: {str(e)}",
                     extra={"operation_type": "sensitive", "level": level, "status": "failed"}
                 )
                 raise
@@ -292,7 +212,7 @@ def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
             # 记录开始日志
             logger.log(
                 log_level,
-                f"[{request_id}] [敏感操作] {op_name}开始",
+                f"[{request_id}] [SensitiveOp] {op_name}开始",
                 extra={"operation_type": "sensitive", "level": level}
             )
 
@@ -303,7 +223,7 @@ def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
                 # 记录成功日志
                 logger.log(
                     log_level,
-                    f"[{request_id}] [敏感操作] {op_name}成功",
+                    f"[{request_id}] [SensitiveOp] {op_name}成功",
                     extra={"operation_type": "sensitive", "level": level, "status": "success"}
                 )
                 return result
@@ -311,7 +231,7 @@ def log_sensitive_operation(operation_name: str = None, level: str = "WARNING"):
             except Exception as e:
                 # 记录失败日志（总是用ERROR级别）
                 logger.error(
-                    f"[{request_id}] [敏感操作] {op_name}失败: {str(e)}",
+                    f"[{request_id}] [SensitiveOp] {op_name}失败: {str(e)}",
                     extra={"operation_type": "sensitive", "level": level, "status": "failed"}
                 )
                 raise

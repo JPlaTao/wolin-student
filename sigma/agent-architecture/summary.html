@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>学习总结 — Agent 架构</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+  .container { max-width: 800px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 28px; color: #fff; margin-bottom: 8px; }
+  .date { color: #666; font-size: 14px; margin-bottom: 40px; }
+  .section { margin-bottom: 32px; }
+  .section h2 { font-size: 18px; color: #6366f1; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #1e1e24; }
+  .concept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .concept-card { background: #1a1a20; padding: 16px; border-radius: 8px; }
+  .concept-card .name { color: #fff; font-weight: 600; font-size: 14px; }
+  .concept-card .score { color: #22c55e; font-size: 13px; margin-top: 4px; }
+  .concept-card .desc { color: #888; font-size: 13px; margin-top: 6px; }
+  .insight { background: #1a1a20; padding: 16px; border-radius: 8px; margin-bottom: 12px; }
+  .insight .title { color: #fff; font-weight: 500; font-size: 14px; }
+  .insight .text { color: #aaa; font-size: 13px; margin-top: 4px; }
+  .stats { display: flex; gap: 24px; margin-bottom: 32px; }
+  .stat-item { background: #1a1a20; padding: 16px 24px; border-radius: 8px; text-align: center; flex: 1; }
+  .stat-item .num { font-size: 28px; font-weight: 700; color: #6366f1; }
+  .stat-item .label { font-size: 12px; color: #666; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AI Agent Architecture</h1>
+  <p class="date">2026-05-04 · 学习总结</p>
+
+  <div class="stats">
+    <div class="stat-item"><div class="num">6</div><div class="label">概念掌握</div></div>
+    <div class="stat-item"><div class="num">87%</div><div class="label">平均掌握度</div></div>
+    <div class="stat-item"><div class="num">2h+</div><div class="label">学习时长</div></div>
+  </div>
+
+  <div class="section">
+    <h2>已掌握概念</h2>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="name">① 纵深防御</div>
+        <div class="score">90%</div>
+        <div class="desc">5层防御：安全（Prompt约束、输入清洗、SQL验证）vs 鲁棒（表名修正、异常隔离）。Agent模式下安全与鲁棒的边界是动态的。</div>
+      </div>
+      <div class="concept-card">
+        <div class="name">② result_store 模式</div>
+        <div class="score">85%</div>
+        <div class="desc">闭包注入字典作为侧通道，解决Agent黑盒中捞取中间产物的问题。LLM是过度配合的执行者。</div>
+      </div>
+      <div class="concept-card">
+        <div class="name">③ ReAct 循环</div>
+        <div class="score">85%</div>
+        <div class="desc">Thought→Action→Observation自主循环，无tool_calls时自然终止。调用者视角看不见LLM内部推理。</div>
+      </div>
+      <div class="concept-card">
+        <div class="name">④ Tool Schema 设计</div>
+        <div class="score">90%</div>
+        <div class="desc">@tool把Python签名翻译为JSON Schema。参数名/类型/docstring三层沟通渠道。trade-off：少参数vs多参数。</div>
+      </div>
+      <div class="concept-card">
+        <div class="name">⑤ Agent 终止条件</div>
+        <div class="score">85%</div>
+        <div class="desc">自然终止、max_iterations、max_execution_time三层兜底。终止后应返回自然语言，错误留日志。</div>
+      </div>
+      <div class="concept-card">
+        <div class="name">⑥ Chain vs Agent 决策</div>
+        <div class="score">85%</div>
+        <div class="desc">固定路径用Chain（便宜、可预测），不确定路径用Agent（鲁棒、灵活）。工具粗粒度减少LLM调用。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>学员关键洞察</h2>
+    <div class="insight">
+      <div class="title">Agent 本质 = 面向对象</div>
+      <div class="text">"手写路径是线性的⋯ AI Agent 就是面向对象的"——Agent 给 LLM 一组方法（Tool），让它在 ReAct 循环里自主编排调用路径。</div>
+    </div>
+    <div class="insight">
+      <div class="title">安全 vs 鲁棒的重分类</div>
+      <div class="text">把纵深防护五层重新分为"防攻击"（安全）和"防幻觉"（鲁棒），指出 Agent 模式下二者边界是动态的。</div>
+    </div>
+    <div class="insight">
+      <div class="title">Tool 设计的黄金法则</div>
+      <div class="text">没有合理默认值的参数必须 required；参数名是沟通渠道；能不出现在 Schema 里的复杂性就不暴露给 LLM。</div>
+    </div>
+    <div class="insight">
+      <div class="title">代码即证据</div>
+      <div class="text">能在项目代码中定位每个机制对应的文件/行号，指出当前实现缺少 max_iterations 是设计缺陷。</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,3 +1,5 @@
+import logging
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,26 +25,37 @@ from utils.logger import get_logger
 from middleware.logging_middleware import LoggingMiddleware, ErrorLoggingMiddleware
 from core.exception_handlers import register_exception_handlers
 
+# 关闭 uvicorn 自带 access log（使用自定义 middleware 代替）
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
 # 获取日志记录器和配置
 logger = get_logger("main")
 settings = get_settings()
 
 # 创建所有表（包括 users）
 Base.metadata.create_all(bind=engine)
-logger.info("数据库表创建完成")
+logger.info("[Main] 数据库表创建完成")
 
 # 构建知识库（如果模型存在则构建，否则跳过，不影响其他功能）
 try:
     build_knowledge_base()
-    logger.info("知识库构建完成")
+    logger.info("[Main] 知识库构建完成")
 except Exception as e:
-    logger.warning(f"知识库构建失败（不影响其他功能）: {e}")
+    logger.warning(f"[Main] 知识库构建失败（不影响其他功能）: {e}")
 
 app = FastAPI(
     title=settings.app.title,
     description="FastAPI + MySQL 学生信息/成绩/就业/统计管理",
     version=settings.app.version
 )
+
+
+# 关闭 uvicorn 自带 access log —— 挂在 startup 事件上，
+# 确保在 uvicorn configure_logging() 之后执行（reload 子进程也会重新触发）。
+@app.on_event("startup")
+async def _suppress_uvicorn_access_log():
+    import logging as _logging
+    _logging.getLogger("uvicorn.access").setLevel(_logging.WARNING)
 
 # 注册全局异常处理器（必须在中间件之前注册）
 register_exception_handlers(app)

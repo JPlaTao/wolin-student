@@ -1,28 +1,44 @@
 # TODO
 
-## P1 — 开发环境整理
+## P1 — 开发环境整理 ✅
 
-_梳理这台机器的 Python 依赖环境，搞清楚哪些东西装在哪里、怎么管理的。_
+_结论：项目用 `.venv`（Python 3.12.10），Anaconda 全局（Python 3.13.5）不要动。_
 
-- [ ] 搞清楚 `.venv` vs Anaconda 全局环境的关系
-  - 项目用的是 `.venv` 还是 Anaconda？
-  - 之前的依赖安装是否分散在两个环境中？
-  - 有没有重复/冲突的包？
-- [ ] 检查 pip 和 `python -m pip` 的行为差异（`.venv/Scripts/pip` 有 shebang 问题）
-- [ ] 明确后续开发的标准操作流程: 用 `.venv/Scripts/python -m pip` 还是 `pip`？
-- [ ] 清理不必要的全局包，避免污染
+- [x] 搞清楚 `.venv` vs Anaconda 全局环境的关系
+  - 项目用 `.venv`，143 个包，全部依赖正确版本
+  - Anaconda 全局 473 个包（含旧版 fastapi/SQLAlchemy 等），不要用
+  - **140+ 个包重叠**，激活失败会静默回退到 Anaconda，是隐患
+- [x] 修复 `activate` 脚本的硬编码旧路径
+  - 原来指向 `D:\4.WorkSpace\wolin-student\.venv` → 当前是 `E:\01-Projects\wolin-student\.venv`
+  - 已修复 4 个文件: `activate` / `activate.bat` / `activate.fish` / `activate.nu`
+- [x] 明确后续开发的标准操作流程
+  - `source .venv/Scripts/activate` 激活后用 `python -m pip`
+  - 或直接 `.venv/Scripts/python -m pip`
+  - ❌ 不要用 `pip install`（指向 Anaconda 全局）
+  - ❌ 不要用 `source .venv/Scripts/activate` 之后再单独用 `pip`（Windows .exe 在 Git Bash 有问题）
 
-## P1 — docs/ 目录整理
+## P1 — docs/ 目录整理 ✅
 
-_docs/ 下文件越来越多，spec、handoff、技术文档混在一起。_
+_已建立子目录结构并将现有文件归类。_
 
-- [ ] 建立子目录结构（建议）:
-  - `docs/specs/` — 方向 A/B 等开发规格文档
-  - `docs/handoffs/` — 项目交接文档
+- [x] 建立子目录结构:
+  - `docs/specs/` — 开发规格文档
   - `docs/arch/` — 架构/设计文档
-- [ ] 将现有文件归类移入对应子目录
-- [ ] 更新 CLAUDE.md 中涉及 docs/ 路径的引用（如果有）
-- [ ] 保留 `docs/README.md` 简要说明各子目录用途
+  - `docs/handoffs/` — 项目交接文档
+- [x] 将现有文件归类移入对应子目录
+- [x] 创建 `docs/README.md` 说明各子目录用途
+- [ ] CLAUDE.md 中无需要更新的 docs/ 路径引用（`knowledge_base.py` 中的 `docs/` 是代码路径，保持不变）
+
+## 根目录清理 ✅
+
+_清除了临时文件、旧文档、缓存、chroma_db。_
+
+- [x] 删除: `commit_msg.txt`, `test.py`, `test_email.py`, `test_report.json`
+- [x] 删除: `add_*_column.sql`, `database_init_test.sql`
+- [x] 删除: `__pycache__/`, `.pytest_cache/`
+- [x] 删除: `QUICKSTART.md`, `SETUP.md`, `README.en.md`
+- [x] 删除: 根目录 `__init__.py`
+- [x] 清空: `logs/`, `chroma_db/`
 
 ## P2 — 日志系统重构
 

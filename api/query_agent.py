@@ -122,7 +122,7 @@ def _get_llm_api_key() -> str:
     elif provider == "openai":
         return settings.api_keys.openai
     else:
-        logger.warning(f"未知的 LLM provider: {provider}，尝试使用 kimi key")
+        logger.warning(f"[QueryAgent] 未知 LLM provider: {provider}，尝试使用 kimi key")
         return settings.api_keys.kimi
 
 
@@ -133,23 +133,23 @@ client = AsyncOpenAI(
     base_url=llm_config.base_url
 )
 logger.info(
-    f"LLM 客户端初始化完成: provider={llm_config.provider}, model={llm_config.model}, base_url={llm_config.base_url}")
+    f"[QueryAgent] LLM 客户端初始化完成: provider={llm_config.provider}, model={llm_config.model}")
 
 # ---------- 向量知识库 ----------
 vectordb = None
 try:
     api_key = settings.api_keys.dashscope
     if not api_key:
-        logger.warning("未配置 DASHSCOPE_API_KEY，知识库功能不可用")
+        logger.warning("[QueryAgent] 未配置 DASHSCOPE_API_KEY，知识库功能不可用")
     else:
         embeddings = DashScopeEmbeddings(model="text-embedding-v4", dashscope_api_key=api_key)
         if os.path.exists("./chroma_db") and os.path.isdir("./chroma_db"):
             vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
-            logger.info("向量知识库加载成功")
+            logger.info("[QueryAgent] 向量知识库加载成功")
         else:
-            logger.warning("知识库目录不存在，请先运行 build_knowledge_base() 构建")
+            logger.warning("[QueryAgent] 知识库目录不存在，请先运行 build_knowledge_base() 构建")
 except Exception as e:
-    logger.error(f"向量知识库加载失败: {e}")
+    logger.error(f"[QueryAgent] 向量知识库加载失败: {e}")
 
 
 # ---------- 请求模型 ----------
@@ -336,7 +336,7 @@ async def retrieve_schema_context(vectordb: Optional[Chroma]) -> str:
             context = "\n\n".join([doc.page_content for doc in docs])
             return context[:4000]
     except Exception as e:
-        logger.error(f"检索表结构失败: {e}")
+        logger.error(f"[QueryAgent] 检索表结构失败: {e}")
     return FALLBACK_SCHEMA
 
 
@@ -408,7 +408,7 @@ async def classify_intent_llm(question: str, history_text: str = "") -> str:
         if intent in ["sql", "analysis", "chat"]:
             return intent
     except Exception as e:
-        logger.warning(f"LLM意图分类失败: {e}，降级到关键词匹配")
+        logger.warning(f"[QueryAgent] LLM意图分类失败: {e}，降级到关键词匹配")
     # 降级关键词
     knowledge_keywords = ["为什么", "什么原因", "解释", "说明", "含义", "规则", "定义", "分析", "分布", "趋势", "对比"]
     if any(kw in question for kw in knowledge_keywords):
@@ -455,7 +455,7 @@ async def check_sql_reference(question: str, history_text: str) -> str:
         if result in ["YES", "NO"]:
             return result
     except Exception as e:
-        logger.error(f"SQL引用检测失败: {e}")
+        logger.error(f"[QueryAgent] SQL引用检测失败: {e}")
     # 降级关键词
     reference_keywords = ["刚才", "上一轮", "再查", "同样的", "也", "那个", "再次", "同样", "这个班", "那个班"]
     if any(kw in question for kw in reference_keywords):
@@ -598,7 +598,7 @@ async def generate_aggregate_sql(question: str, original_desc: str, vectordb: Op
         if sql.lower().startswith("select"):
             return fix_table_names(sql)
     except Exception as e:
-        logger.error(f"生成聚合SQL失败: {e}")
+        logger.error(f"[QueryAgent] 生成聚合SQL失败: {e}")
     return None
 
 
@@ -632,7 +632,7 @@ async def refine_analysis(raw_analysis: str) -> str:
         refined = resp.choices[0].message.content.strip()
         return refined
     except Exception as e:
-        logger.warning(f"精炼分析失败: {e}，返回原始结果")
+        logger.warning(f"[QueryAgent] 精炼分析失败: {e}，返回原始结果")
         return raw_analysis
 
 
@@ -728,7 +728,7 @@ async def _execute_and_save_sql(db: Session, sql: str, user_id: int, session_id:
               sql_query=sql, result_summary=result_summary,
               answer_text=answer_text, full_data_saved=full_save)
 
-    logger.info(f"会话 {session_id} SQL执行{'成功' if not is_retry else '重试成功'}，返回 {row_count} 条记录")
+    logger.info(f"[{session_id[:8]}] [QueryAgent] SQL执行{'成功' if not is_retry else '重试成功'}，返回 {row_count} 条记录")
     return data, answer_text, full_save
 
 
@@ -759,7 +759,7 @@ async def _get_previous_sql_reference(db: Session, user_id: int, session_id: str
     reference_check = await check_sql_reference(question, ref_history)
     need_reference = (reference_check == "YES")
 
-    logger.info(f"会话 {session_id} SQL引用检测结果: {reference_check}")
+    logger.info(f"[{session_id[:8]}] [QueryAgent] SQL引用检测结果: {reference_check}")
     return need_reference, previous_sql_turn.sql_query if need_reference else None
 
 
@@ -875,10 +875,10 @@ async def _process_analysis_branch(db: Session, user_id: int, session_id: str,
 
         save_turn(db, user_id, session_id, turn_index, question, answer_text=answer,
                   aggregate_sql=aggregate_sql_used, full_data_saved=False)
-        logger.info(f"会话 {session_id} 数据分析完成")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 数据分析完成")
         return answer, aggregate_sql_used, raw_answer
     except Exception as e:
-        logger.error(f"会话 {session_id} 分析失败: {e}")
+        logger.error(f"[{session_id[:8]}] [QueryAgent] 分析失败: {e}")
         raise HTTPException(500, f"分析失败: {str(e)}")
 
 
@@ -921,10 +921,10 @@ async def _process_chat_branch(db: Session, user_id: int, session_id: str,
         )
         answer = resp.choices[0].message.content
         save_turn(db, user_id, session_id, turn_index, question, answer_text=answer)
-        logger.info(f"会话 {session_id} 闲聊回复完成")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 闲聊回复完成")
         return answer
     except Exception as e:
-        logger.error(f"会话 {session_id} 闲聊失败: {e}")
+        logger.error(f"[{session_id[:8]}] [QueryAgent] 闲聊失败: {e}")
         raise HTTPException(500, f"闲聊失败: {str(e)}")
 
 
@@ -944,24 +944,24 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
     user_id = current_user.id  # 从认证用户获取 user_id
     session_id = req.session_id
 
-    logger.info(f"收到请求 - question: {question[:50]}..., session_id: {session_id}, user_id: {user_id}")
+    logger.info(f"[{session_id[:8]}] [QueryAgent] 请求: question={question[:50]}..., user_id={user_id}")
 
     if not session_id:
         session_id = str(uuid.uuid4())
-        logger.info(f"未提供 session_id，已生成新会话: {session_id}，user_id: {user_id}")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 新会话, user_id={user_id}")
 
     include_history = req.include_history
 
     # 获取历史记忆（用于意图分类和闲聊/分析）
     history_turns = get_recent_turns(db, user_id, session_id,
                                      limit=QueryConstants.MAX_HISTORY_TURNS) if include_history else []
-    logger.info(f"会话 {session_id} (user_id={user_id}) 历史记录数: {len(history_turns)}")
+    logger.info(f"[{session_id[:8]}] [QueryAgent] (user_id={user_id}) 历史记录数: {len(history_turns)}")
 
     history_text = _build_history_text(history_turns)
 
     # 意图分类
     intent = await classify_intent_llm(question, history_text)
-    logger.info(f"会话 {session_id} 意图分类结果: {intent}")
+    logger.info(f"[{session_id[:8]}] [QueryAgent] 意图分类结果: {intent}")
 
     turn_index = get_turn_count(db, user_id, session_id) + 1
 
@@ -971,14 +971,14 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
         use_agent = req.use_agent if req.use_agent is not None else getattr(settings.llm, 'use_agent', False)
 
         if use_agent:
-            logger.info(f"会话 {session_id} 使用 LangChain Agent 路径")
+            logger.info(f"[{session_id[:8]}] [QueryAgent] 使用 LangChain Agent 路径")
             result = await agent_sql_query(question, session_id, db)
             sql = result["sql"]
             data = result["data"]
             count = result["count"]
 
             if not sql:
-                logger.error(f"会话 {session_id} Agent 未能生成 SQL 查询")
+                logger.error(f"[{session_id[:8]}] [QueryAgent] Agent 未能生成 SQL 查询")
                 raise HTTPException(500, "Agent 未能生成有效的 SQL 查询")
 
             full_save = _should_save_full(data)
@@ -994,13 +994,13 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
         try:
             sql = await generate_sql(question, vectordb, retry=False, previous_sql=previous_sql)
-            logger.debug(f"会话 {session_id} 生成的SQL: {sql}")
+            logger.debug(f"[{session_id[:8]}] [QueryAgent] 生成的SQL: {sql}")
         except Exception as e:
-            logger.error(f"会话 {session_id} 生成SQL失败: {e}")
+            logger.error(f"[{session_id[:8]}] [QueryAgent] 生成SQL失败: {e}")
             raise HTTPException(500, f"生成SQL失败: {e}")
 
         if not sql.strip().lower().startswith("select"):
-            logger.warning(f"会话 {session_id} 生成的非SELECT语句: {sql}")
+            logger.warning(f"[{session_id[:8]}] [QueryAgent] 生成的非SELECT语句: {sql}")
             raise HTTPException(400, "只能生成SELECT语句")
 
         try:
@@ -1009,7 +1009,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
             row_count = len(data)
             return _build_sql_result_response(sql, data, session_id, turn_index, row_count, full_save)
         except Exception as e:
-            logger.warning(f"会话 {session_id} SQL执行失败，准备重试: {e}")
+            logger.warning(f"[{session_id[:8]}] [QueryAgent] SQL执行失败，准备重试: {e}")
             try:
                 sql_corrected = await generate_sql(question, vectordb, retry=True, previous_sql=previous_sql)
                 data2, answer_text2, full_save2 = await _execute_and_save_sql(
@@ -1017,12 +1017,12 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 row_count2 = len(data2)
                 return _build_sql_result_response(sql_corrected, data2, session_id, turn_index, row_count2, full_save2)
             except Exception as e2:
-                logger.error(f"会话 {session_id} SQL重试失败: 原始错误={e}, 修正错误={e2}")
+                logger.error(f"[{session_id[:8]}] [QueryAgent] SQL重试失败: 原始错误={e}, 修正错误={e2}")
                 raise HTTPException(500, f"SQL执行失败: {str(e)}\n原始SQL: {sql}\n修正SQL: {sql_corrected}")
 
     # ---------- 数据分析分支 ----------
     elif intent == "analysis":
-        logger.info(f"会话 {session_id} 进入数据分析分支")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 进入数据分析分支")
         answer, aggregate_sql_used, raw_answer = await _process_analysis_branch(
             db, user_id, session_id, turn_index, question, include_history, vectordb)
         return {
@@ -1035,7 +1035,7 @@ async def natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
     # ---------- 闲聊分支 ----------
     else:
-        logger.info(f"会话 {session_id} 进入闲聊分支")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 进入闲聊分支")
         answer = await _process_chat_branch(
             db, user_id, session_id, turn_index, question, include_history)
         return {
@@ -1147,7 +1147,7 @@ async def _stream_sql_processing(question: str, db: Session, user_id: int, sessi
             yield chunk
 
     except Exception as e:
-        logger.warning(f"会话 {session_id} SQL执行失败，尝试重试: {e}")
+        logger.warning(f"[{session_id[:8]}] [QueryAgent] SQL执行失败，尝试重试: {e}")
         yield {"event": "thinking", "data": "SQL执行失败，正在修正..."}
 
         try:
@@ -1287,7 +1287,7 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
 
     try:
         # 1. 发送意图分类
-        logger.info(f"会话 {session_id} 流式处理 - 意图: {intent}")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 流式处理 - 意图: {intent}")
         yield {"event": "intent", "data": intent}
 
         # 2. 根据意图分支处理
@@ -1307,7 +1307,7 @@ async def stream_llm_response(question: str, history_text: str, intent: str,
         yield {"event": "done", "data": ""}
 
     except Exception as e:
-        logger.error(f"会话 {session_id} 流式处理异常: {e}")
+        logger.error(f"[{session_id[:8]}] [QueryAgent] 流式处理异常: {e}")
         yield {"event": "error", "data": f"处理异常: {str(e)}"}
         yield {"event": "done", "data": ""}
 
@@ -1338,7 +1338,7 @@ async def stream_llm_chunk(prompt: str, buffer: StreamBuffer, temperature: float
             yield {"event": "chunk", "data": remaining}
 
     except Exception as e:
-        logger.error(f"LLM流式调用失败: {e}")
+        logger.error(f"[QueryAgent] LLM流式调用失败: {e}")
         raise
 
 
@@ -1359,9 +1359,9 @@ async def stream_natural_query(req: QueryRequest, db: Session = Depends(get_db),
 
     if not session_id:
         session_id = str(uuid.uuid4())
-        logger.info(f"未提供 session_id，已生成新会话: {session_id}")
+        logger.info(f"[{session_id[:8]}] [QueryAgent] 新会话")
 
-    logger.info(f"流式请求 - 会话 {session_id}, 问题: {question[:50]}...")
+    logger.info(f"[{session_id[:8]}] [QueryAgent] 流式请求: {question[:50]}...")
 
     # 获取历史
     history_turns = get_recent_turns(db, user_id, session_id, limit=5) if include_history else []
@@ -1393,7 +1393,7 @@ async def stream_natural_query(req: QueryRequest, db: Session = Depends(get_db),
                 yield f"event: {event_type}\ndata: {event_data}\n\n"
 
         except Exception as e:
-            logger.error(f"SSE生成器异常: {e}")
+            logger.error(f"[QueryAgent] SSE生成器异常: {e}")
             yield f"event: error\ndata: {str(e)}\n\n"
 
     return StreamingResponse(

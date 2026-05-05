@@ -8,25 +8,30 @@
 
 ## 常用命令
 
+> ⚠️ **Python 环境**: 项目使用 `.venv`（Python 3.12.10）。不要依赖系统全局的 Anaconda Python（3.13.5）。
+> 所有命令都要通过 `.venv/Scripts/` 或 `source .venv/Scripts/activate` 激活后执行。
+
 ```bash
-# 启动服务
+# 启动服务（推荐 — 直接指定路径，不依赖激活）
+.venv/Scripts/python main.py
+.venv/Scripts/uvicorn main:app --reload --host 0.0.0.0 --port 8080
+
+# 或者先激活再运行（activate 脚本已修复路径）
+source .venv/Scripts/activate
 python main.py
 uvicorn main:app --reload --host 0.0.0.0 --port 8080
+deactivate   # 退出虚拟环境
+
+# 安装/管理依赖（二选一）
+.venv/Scripts/python -m pip install -r requirements.txt   # 直接指定（推荐）
+source .venv/Scripts/activate && python -m pip install <包> && deactivate  # 激活后
+# ❌ 不要用 pip install 或 pip3 — 它们指向 Anaconda 全局环境
 
 # 运行测试
-pytest tests/test_api.py -v
+.venv/Scripts/python -m pytest tests/test_api.py -v
 
 # 快速冒烟测试
-python tests/quick_test.py
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 激活虚拟环境 (Windows)
-source .venv/Scripts/activate
-
-# 激活虚拟环境 (Unix/Mac)
-source .venv/bin/activate
+.venv/Scripts/python tests/quick_test.py
 ```
 
 ## 架构

@@ -71,7 +71,7 @@ async def configure_email(
     current_user.email_from_name = request.from_name if request.from_name else provider_config["name"]
     db.commit()
 
-    logger.info(f"[邮箱配置] 用户 {current_user.username} 配置了邮箱: {request.email_address}")
+    logger.info(f"[EmailAPI] 用户 {current_user.username} 配置邮箱: {request.email_address}")
 
     return EmailConfigResponse(
         provider=current_user.email_provider,

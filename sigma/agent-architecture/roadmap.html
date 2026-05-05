@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 架构学习路线图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f13; color: #e0e0e0; min-height: 100vh; }
+  .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #888; font-size: 14px; margin-bottom: 32px; }
+  .progress-bar { height: 6px; background: #1e1e24; border-radius: 3px; margin-bottom: 32px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 25%; background: linear-gradient(90deg, #6366f1, #8b5cf6); border-radius: 3px; transition: width 0.5s ease; }
+  .concept { display: flex; align-items: center; padding: 16px; margin-bottom: 12px; border-radius: 8px; background: #1a1a20; border: 1px solid transparent; transition: all 0.2s; }
+  .concept.current { border-color: #6366f1; background: linear-gradient(135deg, #1a1a20 0%, #1e1e30 100%); }
+  .concept.mastered { opacity: 0.9; border-color: #22c55e40; }
+  .badge { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; margin-right: 16px; flex-shrink: 0; }
+  .badge.mastered { background: #22c55e20; color: #22c55e; border: 2px solid #22c55e; }
+  .badge.in-progress { background: #6366f120; color: #6366f1; border: 2px solid #6366f1; animation: pulse 2s infinite; }
+  .badge.not-started { background: #1e1e24; color: #555; border: 2px solid #2a2a30; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 #6366f140; } 50% { box-shadow: 0 0 0 8px #6366f100; } }
+  .info { flex: 1; }
+  .info .name { font-size: 15px; font-weight: 500; color: #fff; }
+  .info .prereqs { font-size: 12px; color: #666; margin-top: 2px; }
+  .score { font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 12px; }
+  .score.mastered { background: #22c55e20; color: #22c55e; }
+  .score.in-progress { background: #6366f120; color: #6366f1; }
+  .connector { display: none; }
+  .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #1e1e24; font-size: 12px; color: #555; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AI Agent Architecture</h1>
+  <p class="subtitle">全部掌握 6/6 概念 🎯</p>
+  <div class="progress-bar"><div class="progress-fill" style="width: 100%;"></div></div>
+
+  <div class="concept mastered">
+    <div class="badge mastered">✓</div>
+    <div class="info"><div class="name">纵深防御 (Defense in Depth)</div><div class="prereqs">—</div></div>
+    <div class="score mastered">90%</div>
+  </div>
+  <div class="concept mastered">
+    <div class="badge mastered">✓</div>
+    <div class="info"><div class="name">result_store 模式</div><div class="prereqs">—</div></div>
+    <div class="score mastered">85%</div>
+  </div>
+  <div class="concept mastered">
+    <div class="badge mastered">✓</div>
+    <div class="info"><div class="name">ReAct 循环</div><div class="prereqs">—</div></div>
+    <div class="score mastered">85%</div>
+  </div>
+  <div class="concept mastered">
+    <div class="badge mastered">✓</div>
+    <div class="info"><div class="name">Tool Schema 设计</div><div class="prereqs">依赖: ReAct 循环</div></div>
+    <div class="score mastered">90%</div>
+  </div>
+  <div class="concept mastered">
+    <div class="badge mastered">✓</div>
+    <div class="info"><div class="name">Agent 终止条件</div><div class="prereqs">依赖: ReAct 循环</div></div>
+    <div class="score mastered">85%</div>
+  </div>
+  <div class="concept mastered">
+    <div class="badge mastered">✓</div>
+    <div class="info"><div class="name">Agent vs 单次 LLM 调用决策</div><div class="prereqs">依赖: ReAct 循环, Tool Schema, 终止条件</div></div>
+    <div class="score mastered">85%</div>
+  </div>
+  <div class="footer">Sigma · Bloom's 2-Sigma Mastery Learning</div>
+</div>
+</body>
+</html>

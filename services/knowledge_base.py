@@ -34,14 +34,14 @@ def build_knowledge_base(docs_dir: str = "docs", persist_dir: str = "./chroma_db
     """
     # 检查知识库是否已存在
     if os.path.exists(persist_dir) and os.path.isdir(persist_dir) and os.listdir(persist_dir):
-        logger.info(f"知识库已存在: {persist_dir}，跳过构建")
+        logger.info(f"[KnowledgeBase] 知识库已存在: {persist_dir}，跳过构建")
         return True
 
-    logger.info("开始构建知识库...")
+    logger.info("[KnowledgeBase] 开始构建知识库...")
 
     # 检查文档目录
     if not os.path.isdir(docs_dir):
-        logger.error(f"目录不存在，无法构建知识库: {docs_dir}")
+        logger.error(f"[KnowledgeBase] 目录不存在: {docs_dir}")
         return False
 
     # 加载文档
@@ -53,26 +53,26 @@ def build_knowledge_base(docs_dir: str = "docs", persist_dir: str = "./chroma_db
                 loader = TextLoader(filepath, encoding="utf-8")
                 docs = loader.load()
                 documents.extend(docs)
-                logger.debug(f"已加载文档: {filename}")
+                logger.debug(f"[KnowledgeBase] 已加载文档: {filename}")
             except Exception as e:
-                logger.error(f"加载文档失败 [{filename}]: {e}")
+                logger.error(f"[KnowledgeBase] 加载文档失败 [{filename}]: {e}")
 
     # 检查是否加载到文档
     if not documents:
-        logger.warning("没有找到任何可加载的文档，请检查 docs/ 目录")
+        logger.warning("[KnowledgeBase] 没有找到可加载的文档，请检查 docs/ 目录")
         return False
 
-    logger.info(f"成功加载 {len(documents)} 个文档")
+    logger.info(f"[KnowledgeBase] 成功加载 {len(documents)} 个文档")
 
     # 分割文档为文本块
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     chunks = text_splitter.split_documents(documents)
-    logger.info(f"文档已分割为 {len(chunks)} 个文本块")
+    logger.info(f"[KnowledgeBase] 文档已分割为 {len(chunks)} 个文本块")
 
     # 检查 API Key
     api_key = get_settings().api_keys.dashscope
     if not api_key:
-        logger.error("未配置 DASHSCOPE_API_KEY，请在 config.json 中设置 api_keys.dashscope")
+        logger.error("[KnowledgeBase] 未配置 DASHSCOPE_API_KEY，请在 config.json 中设置 api_keys.dashscope")
         return False
 
     # 生成嵌入并构建知识库
@@ -83,8 +83,8 @@ def build_knowledge_base(docs_dir: str = "docs", persist_dir: str = "./chroma_db
         )
         # 新版 langchain-chroma 会自动持久化，无需调用 .persist()
         Chroma.from_documents(chunks, embeddings, persist_directory=persist_dir)
-        logger.info(f"知识库构建完成，保存在: {persist_dir}")
+        logger.info(f"[KnowledgeBase] 知识库构建完成，保存在: {persist_dir}")
         return True
     except Exception as e:
-        logger.error(f"构建知识库失败: {e}")
+        logger.error(f"[KnowledgeBase] 构建知识库失败: {e}")
         return False

@@ -30,11 +30,11 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         # 获取请求信息
         method = request.method
-        url = str(request.url)
+        url = f"{request.url.path}?{request.url.query}" if request.url.query else request.url.path
         client_host = request.client.host if request.client else "unknown"
 
         # 记录请求信息
-        logger.info(f"[{request_id}] Request started: {method} {url} from {client_host}")
+        logger.info(f"[{request_id}] [Middleware] {method} {url} from {client_host}")
 
         try:
             # 处理请求
@@ -46,8 +46,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # 记录响应信息
             status_code = response.status_code
             logger.info(
-                f"[{request_id}] Request completed: {method} {url} "
-                f"- Status: {status_code} - Time: {process_time:.3f}s"
+                f"[{request_id}] [Middleware] {method} {url} "
+                f"→ {status_code} ({process_time:.3f}s)"
             )
 
             # 添加请求 ID 到响应头
@@ -61,8 +61,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             # 记录异常信息
             logger.error(
-                f"[{request_id}] Request failed: {method} {url} "
-                f"- Error: {str(e)} - Time: {process_time:.3f}s",
+                f"[{request_id}] [Middleware] {method} {url} "
+                f"failed: {str(e)} ({process_time:.3f}s)",
                 exc_info=True
             )
             raise
@@ -83,7 +83,7 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             request_id = getattr(request.state, 'request_id', 'unknown')
             logger.error(
-                f"[{request_id}] Unhandled exception in {request.method} {request.url}: {str(e)}",
+                f"[{request_id}] [Middleware] Unhandled exception: {request.method} {request.url}: {str(e)}",
                 exc_info=True
             )
             raise

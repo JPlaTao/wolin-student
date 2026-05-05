@@ -42,7 +42,7 @@ class EmailService:
         Returns:
             dict: 发送结果
         """
-        logger.info(f"[邮件发送] 收件人={to}, 主题={subject}, 服务商={provider}")
+        logger.info(f"[Email] 收件人={to}, 主题={subject}, 服务商={provider}")
 
         if not to:
             raise ValueError("收件人不能为空")
@@ -86,7 +86,7 @@ class EmailService:
             msg.attach(html_part)
 
             # 连接SMTP服务器并发送
-            logger.info(f"[邮件发送] 连接 {smtp_host}:{smtp_port} (SSL={use_ssl})")
+            logger.info(f"[Email] 连接 {smtp_host}:{smtp_port} (SSL={use_ssl})")
 
             if use_ssl:
                 server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
@@ -96,15 +96,15 @@ class EmailService:
                 server.starttls()
                 server.ehlo()
 
-            logger.info(f"[邮件发送] 登录邮箱 {email_address}...")
+            logger.info(f"[Email] 登录邮箱 {email_address}...")
             server.login(email_address, auth_code)
-            logger.info("[邮件发送] 发送邮件...")
+            logger.info("[Email] 发送邮件...")
 
             server.sendmail(email_address, to, msg.as_string())
             server.quit()
 
             sent_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            logger.info(f"[邮件发送] 成功: {to}, {subject}")
+            logger.info(f"[Email] 成功: {to}, {subject}")
 
             return {
                 "success": True,
@@ -114,19 +114,19 @@ class EmailService:
             }
 
         except smtplib.SMTPAuthenticationError:
-            logger.error("[邮件发送] 认证失败")
+            logger.error("[Email] 认证失败")
             raise ValueError("邮箱认证失败，请检查邮箱地址和授权码是否正确")
 
         except smtplib.SMTPRecipientsRefused:
-            logger.error(f"[邮件发送] 收件人被拒绝: {to}")
+            logger.error(f"[Email] 收件人被拒绝: {to}")
             raise ValueError(f"收件人邮箱地址无效: {to}")
 
         except smtplib.SMTPException as e:
-            logger.error(f"[邮件发送] SMTP错误: {e}")
+            logger.error(f"[Email] SMTP错误: {e}")
             raise ValueError(f"邮件发送失败: {str(e)}")
 
         except Exception as e:
-            logger.error(f"[邮件发送] 失败: {e}")
+            logger.error(f"[Email] 失败: {e}")
             raise ValueError(f"邮件发送失败: {str(e)}")
 
 

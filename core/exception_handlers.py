@@ -131,13 +131,13 @@ class ExceptionHandler:
         if is_expected:
             # 预期内的异常，记录为warning
             logger.warning(
-                f"[{request_id}] Expected exception in {method} {url}: "
+                f"[{request_id}] [ExceptionHandler] {method} {url}: "
                 f"{type(exception).__name__}: {str(exception)}"
             )
         else:
             # 未预期的异常，记录为error，包含堆栈信息
             logger.error(
-                f"[{request_id}] Unexpected exception in {method} {url}: "
+                f"[{request_id}] [ExceptionHandler] {method} {url}: "
                 f"{type(exception).__name__}: {str(exception)}",
                 exc_info=True
             )
