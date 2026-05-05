@@ -28,3 +28,33 @@
 ### 远端配置
 
 - 支持双推：`git push` 同时推送 Gitee (HTTPS) + GitHub (SSH)
+
+### 林黛玉 Agent
+
+- 新增人设聊天 Agent（Lin Daiyu Persona Chat），独立的 LLM 人设提示词 + API 端点
+- SSE 流式对话，独立会话隔离（`ldy_` 前缀），复用 ConversationMemory 表
+- 前端新增"黛玉智能"Tab（紫粉古风主题 UI）
+
+### 前端 ES Module 重构
+
+对前端代码进行了模块化重构，将单一 1455 行的 app.js 拆分到 8 个功能模块中。
+
+**改动文件：**
+
+- `static/index.html` — 改用 `<script type="module">` 加载，内联主题脚本移入独立 theme.js
+- `static/js/app.js` — 从 1,455 行精简至 163 行，转型为纯编排层
+- `static/js/modules/auth.js` — 认证模块（登录/注册/登出）
+- `static/js/modules/daiyu.js` — 黛玉智能模块（从 app.js 提取）
+- `static/js/modules/email.js` — 邮件模块（从 app.js 提取）
+- `static/js/modules/management.js` — 数据管理模块（从 app.js 提取）
+- `static/js/modules/dashboard.js` — 仪表板模块（已有，修复 vue import）
+- `static/js/modules/chat.js` — 智能问答模块（已有，添加 Vue 引用）
+- `static/js/modules/statistics.js` — 高级统计模块（已有，修复 vue import）
+- `static/js/modules/imageGen.js` — 文生图模块（已有，添加 Vue 引用）
+- `static/js/theme.js` — 主题切换脚本（从内联提取为独立文件）
+
+**技术要点：**
+
+- 零构建：纯浏览器原生 ES Modules，不引入 Vite/Webpack
+- 每个模块输出 `createXxxModule()` 工厂函数，app.js 只做装配编排
+- 已有 modules/ 和 utils/ 下的死代码文件被真正激活使用
