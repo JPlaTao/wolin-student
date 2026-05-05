@@ -45,6 +45,7 @@ logs/
 
 # Other
 .codebuddy/
+.claude/
 
 # Dependencies
 node_modules/
