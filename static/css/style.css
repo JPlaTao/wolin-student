@@ -205,3 +205,9 @@ body {
 .loading-pulse {
     animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* 黛玉智能 气泡样式 */
+.daiyu-bubble {
+    background: linear-gradient(135deg, rgba(232, 160, 191, 0.12), rgba(192, 132, 252, 0.12));
+    border: 1px solid rgba(192, 132, 252, 0.3);
+}

@@ -153,6 +153,15 @@
                 </a>
                 <a
                     href="#"
+                    @click.prevent="activeTab = 'daiyu'"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'daiyu' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '黛玉智能' : ''"
+                >
+                    <i class="fas fa-feather-alt w-5"></i>
+                    <span v-show="!sidebarCollapsed">黛玉智能</span>
+                </a>
+                <a
+                    href="#"
                     @click.prevent="activeTab = 'statistics'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'statistics' ? 'app-nav-item-active' : '']"
                     :title="sidebarCollapsed ? '高级统计' : ''"
@@ -373,6 +382,49 @@
                                 class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition px-3 md:px-5 py-2 rounded-xl text-white font-medium text-sm md:text-base"
                             >
                                 <i class="fas fa-paper-plane"></i> <span class="hidden md:inline">发送</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 黛玉智能 -->
+            <div v-if="activeTab === 'daiyu'" class="h-full flex flex-col">
+                <div class="backdrop-blur-xl rounded-2xl border overflow-hidden flex flex-col flex-1 shadow-2xl app-panel">
+                    <div class="p-4 border-b app-border app-panel-header" style="background: linear-gradient(135deg, #667eea22, #764ba222);">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #e8a0bf, #c084fc);">
+                                <i class="fas fa-feather-alt text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-semibold app-text-primary">林黛玉</h2>
+                                <p class="text-sm app-text-muted">"这位小友好。我是颦儿，偶然间来到这方天地。"</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="daiyuChatContainer">
+                        <div v-for="msg in daiyuMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'daiyu-bubble app-text-secondary'" class="max-w-[80%] px-4 py-2 shadow-md rounded-2xl">
+                                <div v-if="msg.role === 'ai'" v-html="renderMarkdown(msg.content)"></div>
+                                <div v-else>{{ msg.content }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-3 md:p-4 border-t app-border app-panel-footer">
+                        <div class="flex gap-2 md:gap-3">
+                            <input
+                                type="text"
+                                v-model="daiyuQuestion"
+                                @keyup.enter="sendDaiyuQuestion"
+                                class="flex-1 border border-purple-400 rounded-xl px-3 md:px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base app-input"
+                                placeholder="与黛玉交谈诗词、心事..."
+                            >
+                            <button
+                                @click="sendDaiyuQuestion"
+                                :disabled="daiyuStreaming"
+                                class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition px-3 md:px-5 py-2 rounded-xl text-white font-medium text-sm md:text-base disabled:opacity-50"
+                            >
+                                <i :class="daiyuStreaming ? 'fas fa-spinner fa-pulse' : 'fas fa-paper-plane'"></i>
                             </button>
                         </div>
                     </div>

@@ -18,7 +18,8 @@ from api import (
     query_agent,
     auth_api,
     image_gen,
-    email_api
+    email_api,
+    lin_daiyu_agent,
 )
 from services.knowledge_base import build_knowledge_base
 from utils.logger import get_logger
@@ -87,6 +88,7 @@ app.include_router(query_agent.router)
 app.include_router(auth_api.router)  # 认证路由
 app.include_router(image_gen.router)  # 文生图路由
 app.include_router(email_api.router)  # 邮件路由
+app.include_router(lin_daiyu_agent.router)  # 林黛玉 Agent
 
 
 @app.get("/", response_class=HTMLResponse)
