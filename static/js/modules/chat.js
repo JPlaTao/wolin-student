@@ -3,6 +3,8 @@
  * 负责流式问答、聊天消息管理
  */
 
+const { ref } = Vue;
+
 /**
  * 创建智能问答模块
  * @param {Object} options - 配置项

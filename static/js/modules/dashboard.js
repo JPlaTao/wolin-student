@@ -3,7 +3,7 @@
  * 负责数据看板的加载和图表渲染
  */
 
-import { nextTick } from 'vue';
+const { ref, nextTick } = Vue;
 
 /**
  * 创建仪表板模块

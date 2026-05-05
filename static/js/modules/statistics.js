@@ -3,6 +3,8 @@
  * 负责高级图表的渲染
  */
 
+const { nextTick } = Vue;
+
 /**
  * 创建高级统计模块
  * @returns {Object} - 高级统计模块的响应式状态和方法
@@ -26,8 +28,6 @@ export function createStatisticsModule() {
      */
     const renderAdvancedCharts = async () => {
         try {
-            const { nextTick } = await import('vue');
-
             const [salaryRes, durationRes, examSeqRes] = await Promise.all([
                 axios.get('/statistics/advanced/salary-distribution'),
                 axios.get('/statistics/employment/avg-duration-per-class'),
