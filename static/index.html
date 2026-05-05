@@ -132,7 +132,7 @@
             </div>
 
             <!-- 导航菜单 -->
-            <nav class="flex-1 p-4 space-y-2">
+            <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
                 <a
                     href="#"
                     @click.prevent="activeTab = 'dashboard'"
@@ -239,7 +239,7 @@
                     </div>
                 </div>
                 <button @click="logout" class="w-full mt-3 text-red-400 hover:text-red-300 transition text-center text-sm">
-                    <i class="fas fa-sign-out-alt"></i><span v-show="!sidebarCollapsed"> 退出登录</span>
+                    <i class="fas fa-sign-out-alt"></i><span v-if="!sidebarCollapsed" class="ml-1">退出登录</span>
                 </button>
             </div>
         </aside>
