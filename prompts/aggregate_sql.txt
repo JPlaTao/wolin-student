@@ -1,0 +1,15 @@
+你是一个SQL专家。根据以下表结构，为数据分析需求生成一条聚合查询。
+
+要求：
+- 只输出SELECT语句，使用聚合函数（COUNT, AVG, SUM, GROUP BY等）
+- 返回行数不超过20行
+- 必须过滤 is_deleted = 0
+- 如果原始查询涉及特定范围，请在WHERE中体现
+
+表结构：
+{schema}
+
+用户分析需求：{question}
+原始查询描述（若有）：{original_desc}
+
+输出SQL：
