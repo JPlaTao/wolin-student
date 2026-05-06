@@ -227,6 +227,8 @@ export function createManagementModule() {
     // ===================================
     const examRecords = ref([]);
     const examLoading = ref(false);
+    const myExamRecords = ref([]);
+    const myExamLoading = ref(false);
     const examDialogVisible = ref(false);
     const examForm = ref({ stu_id: '', seq_no: '', grade: '', exam_date: '' });
     let editingExamKey = null;
@@ -342,6 +344,19 @@ export function createManagementModule() {
         currentQueryKey = null;
     };
 
+    const loadMyExamScores = async () => {
+        myExamLoading.value = true;
+        try {
+            const res = await axios.get('/exam/my-scores');
+            myExamRecords.value = res.data.data || [];
+        } catch (err) {
+            myExamRecords.value = [];
+            ElMessage.error('加载成绩失败');
+        } finally {
+            myExamLoading.value = false;
+        }
+    };
+
     // ===================================
     // 就业管理
     // ===================================
@@ -412,7 +427,7 @@ export function createManagementModule() {
     const users = ref([]);
     const userLoading = ref(false);
     const userDialogVisible = ref(false);
-    const userForm = ref({ id: null, username: '', role: 'user', is_active: true });
+    const userForm = ref({ id: null, username: '', role: 'user', is_active: true, stu_id: null });
     let editingUserId = null;
 
     const loadUsers = async () => {
@@ -426,10 +441,10 @@ export function createManagementModule() {
     const openUserDialog = (row) => {
         if (row) {
             editingUserId = row.id;
-            userForm.value = { id: row.id, username: row.username, role: row.role, is_active: row.is_active };
+            userForm.value = { id: row.id, username: row.username, role: row.role, is_active: row.is_active, stu_id: row.stu_id || null };
         } else {
             editingUserId = null;
-            userForm.value = { id: null, username: '', role: 'user', is_active: true };
+            userForm.value = { id: null, username: '', role: 'user', is_active: true, stu_id: null };
         }
         userDialogVisible.value = true;
     };
@@ -438,10 +453,16 @@ export function createManagementModule() {
         if (!userForm.value.username || !userForm.value.role) { ElMessage.warning('请填写完整信息'); return; }
         try {
             if (editingUserId) {
-                await axios.put(`/auth/users/${editingUserId}`, { role: userForm.value.role, is_active: userForm.value.is_active });
+                const payload = { role: userForm.value.role, is_active: userForm.value.is_active };
+                if (userForm.value.stu_id !== undefined) {
+                    payload.stu_id = userForm.value.stu_id || null;
+                }
+                await axios.put(`/auth/users/${editingUserId}`, payload);
                 ElMessage.success('用户更新成功');
             } else {
-                await axios.post('/auth/register', { username: userForm.value.username, password: userForm.value.password || '123456', role: userForm.value.role });
+                const regPayload = { username: userForm.value.username, password: userForm.value.password || '123456', role: userForm.value.role };
+                if (userForm.value.stu_id) regPayload.stu_id = userForm.value.stu_id;
+                await axios.post('/auth/register', regPayload);
                 ElMessage.success('用户创建成功');
             }
             userDialogVisible.value = false;
@@ -493,12 +514,14 @@ export function createManagementModule() {
         queryExamRecord, openExamMaintenanceDialog, maintenanceEditDialogVisible,
         maintenanceEditForm, openMaintenanceEditForm, submitMaintenanceUpdate,
         deleteQueriedExam, resetExamMaintenance,
+        myExamRecords, myExamLoading, loadMyExamScores,
         // 就业
         empSearch, employmentRecords, empLoading, loadEmploymentData,
         selectedEmployment, handleEmploymentSelection, employmentDialogVisible, employmentForm,
         openEmploymentDialog, saveEmployment, deleteEmployment,
         // 用户管理
         users, userLoading, userDialogVisible, userForm,
-        openUserDialog, saveUser, deleteUser, getRoleText, getRoleClass
+        openUserDialog, saveUser, deleteUser, getRoleText, getRoleClass,
+        loadUsers,
     };
 }

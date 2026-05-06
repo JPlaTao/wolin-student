@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from core.database import get_db
 from model.user import User
+from model.student import StuBasicInfo
 from core.auth import (
     get_password_hash, authenticate_user, create_access_token,
     get_current_user, get_current_admin_user
@@ -25,6 +26,7 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: str = "user"  # 默认角色为普通用户
+    stu_id: Optional[int] = None  # 学生注册时可选绑定学号
 
 
 class UserLogin(BaseModel):
@@ -35,16 +37,16 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
+    stu_id: Optional[int] = None  # 绑定/解绑学生学号
 
 
 class UserResponse(BaseModel):
+    model_config = {"from_attributes": True}
     id: int
     username: str
     role: str
     is_active: bool
-
-    class Config:
-        from_attributes = True
+    stu_id: Optional[int] = None  # 学生学号
 
 
 @router.post("/register")
@@ -73,9 +75,35 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         )
     hashed = get_password_hash(user.password)
     new_user = User(username=user.username, hashed_password=hashed, role=user.role)
+
+    # 注册时可选绑定学生学号
+    if user.stu_id is not None:
+        if user.role != "student":
+            raise ValidationException(
+                message="仅学生角色可绑定学号",
+                field="stu_id"
+            )
+        student = db.query(StuBasicInfo).filter(
+            StuBasicInfo.stu_id == user.stu_id,
+            StuBasicInfo.is_deleted == False
+        ).first()
+        if not student:
+            raise ValidationException(
+                message="学号不存在",
+                field="stu_id",
+                detail=f"学号 {user.stu_id} 在系统中不存在"
+            )
+        existing = db.query(User).filter(User.stu_id == user.stu_id).first()
+        if existing:
+            raise ConflictException(
+                message="该学生已被其他账号绑定",
+                detail=f"学号 {user.stu_id} 已被其他用户绑定"
+            )
+        new_user.stu_id = user.stu_id
+
     db.add(new_user)
     db.commit()
-    return {"msg": "注册成功", "username": user.username, "role": user.role}
+    return {"msg": "注册成功", "username": user.username, "role": user.role, "stu_id": new_user.stu_id}
 
 
 @router.post("/login")
@@ -166,6 +194,23 @@ def update_user(
         user.role = user_update.role
     if user_update.is_active is not None:
         user.is_active = user_update.is_active
+    if user_update.stu_id is not None:
+        target_role = user_update.role if user_update.role is not None else user.role
+        if target_role != "student":
+            raise ValidationException(message="仅学生角色可绑定学号", field="stu_id")
+        student = db.query(StuBasicInfo).filter(
+            StuBasicInfo.stu_id == user_update.stu_id,
+            StuBasicInfo.is_deleted == False
+        ).first()
+        if not student:
+            raise ValidationException(message="学号不存在", field="stu_id")
+        existing = db.query(User).filter(User.stu_id == user_update.stu_id, User.id != user_id).first()
+        if existing:
+            raise ConflictException(message="该学生已被其他账号绑定")
+        user.stu_id = user_update.stu_id
+    # 显式传 null 表示解绑
+    if "stu_id" in user_update.model_dump(exclude_unset=True) and user_update.stu_id is None:
+        user.stu_id = None
 
     db.commit()
     db.refresh(user)

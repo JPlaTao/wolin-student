@@ -14,6 +14,7 @@ export function createAuthModule() {
     const authUsername = ref('');
     const authPassword = ref('');
     const authRole = ref('student');
+    const authStuId = ref(null);
     const currentUser = ref(null);
     const isLoggedIn = ref(false);
     const isAdmin = ref(false);
@@ -63,7 +64,8 @@ export function createAuthModule() {
                 await axios.post('/auth/register', {
                     username: authUsername.value,
                     password: authPassword.value,
-                    role: authRole.value
+                    role: authRole.value,
+                    stu_id: authStuId.value || undefined
                 });
                 ElMessage.success('注册成功，请登录');
                 authMode.value = 'login';
@@ -122,7 +124,7 @@ export function createAuthModule() {
     };
 
     return {
-        authMode, authUsername, authPassword, authRole,
+        authMode, authUsername, authPassword, authRole, authStuId,
         currentUser, isLoggedIn, isAdmin,
         submitAuth, logout, checkLogin,
         getUserRole, hasRole

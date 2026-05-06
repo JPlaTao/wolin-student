@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.auth import get_current_user
 from core.permissions import require_role
+from core.exceptions import BusinessException
 from model.user import User
 from dao import exam_dao
 from schemas import response, exam_request
@@ -78,3 +79,18 @@ async def exam_get_all(
 ):
     records = exam_dao.exam_get_all(db)
     return response.ListResponse(data=records, total=len(records))
+
+
+@router_exam.get("/my-scores", response_model=response.ListResponse, description="学生查看自己的成绩")
+async def exam_get_my_scores(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_role(["student"]))
+):
+    if current_user.stu_id is None:
+        raise BusinessException(
+            message="未绑定学生信息",
+            detail="当前账号未关联学生记录，请联系管理员"
+        )
+    records = exam_dao.exam_get(current_user.stu_id, None, db)
+    data = records.get("data", [])
+    return response.ListResponse(data=data, total=len(data))

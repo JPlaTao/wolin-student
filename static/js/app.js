@@ -79,10 +79,14 @@ const app = createApp({
             if (newVal === 'dashboard') await dashboard.refreshDashboard();
             else if (newVal === 'statistics') await statistics.renderAdvancedCharts();
             else if (newVal === 'management') {
-                await mgmt.loadManagementData();
-                if (mgmtTab.value === 'student') await mgmt.loadStudents();
-                else if (mgmtTab.value === 'exam') await mgmt.loadExamRecords();
-                else if (mgmtTab.value === 'employment') await mgmt.loadEmploymentData();
+                if (auth.hasRole('student')) {
+                    await mgmt.loadMyExamScores();
+                } else {
+                    await mgmt.loadManagementData();
+                    if (mgmtTab.value === 'student') await mgmt.loadStudents();
+                    else if (mgmtTab.value === 'exam') await mgmt.loadExamRecords();
+                    else if (mgmtTab.value === 'employment') await mgmt.loadEmploymentData();
+                }
             } else if (newVal === 'userManagement') await mgmt.loadUsers();
         });
 
@@ -98,10 +102,14 @@ const app = createApp({
             const loggedIn = await auth.checkLogin();
             if (loggedIn) {
                 await dashboard.refreshDashboard();
-                await mgmt.loadManagementData();
-                await mgmt.loadStudents();
-                await email.fetchEmailProviders();
-                await email.fetchEmailConfig();
+                if (auth.hasRole('student')) {
+                    await mgmt.loadMyExamScores();
+                } else {
+                    await mgmt.loadManagementData();
+                    await mgmt.loadStudents();
+                    await email.fetchEmailProviders();
+                    await email.fetchEmailConfig();
+                }
             }
             window.addEventListener('resize', handleResize);
             handleResize();
@@ -115,10 +123,14 @@ const app = createApp({
             const result = await originalSubmitAuth();
             if (result.success && result.action === 'login') {
                 await dashboard.refreshDashboard();
-                await mgmt.loadManagementData();
-                await mgmt.loadStudents();
-                await email.fetchEmailProviders();
-                await email.fetchEmailConfig();
+                if (auth.hasRole('student')) {
+                    await mgmt.loadMyExamScores();
+                } else {
+                    await mgmt.loadManagementData();
+                    await mgmt.loadStudents();
+                    await email.fetchEmailProviders();
+                    await email.fetchEmailConfig();
+                }
             }
             return result;
         };

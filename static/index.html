@@ -74,6 +74,19 @@
                 <p class="text-slate-500 text-xs mt-1">
                     <i class="fas fa-info-circle"></i> 管理员账号由后台创建
                 </p>
+                <!-- 学生注册时可选绑定学号 -->
+                <div v-if="authRole === 'student'" class="mt-3">
+                    <label class="block text-sm mb-1 app-text-muted">绑定学号（可选）</label>
+                    <input
+                        type="number"
+                        v-model.number="authStuId"
+                        placeholder="输入学号以绑定学生身份"
+                        class="w-full px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
+                    >
+                    <p class="text-slate-500 text-xs mt-1">
+                        <i class="fas fa-info-circle"></i> 绑定后可查看自己的成绩
+                    </p>
+                </div>
             </div>
             <button
                 @click="submitAuth"
@@ -190,7 +203,7 @@
                 </a>
                 <a
                     href="#"
-                    v-if="hasRole('admin', 'teacher')"
+                    v-if="hasRole('admin', 'teacher', 'student')"
                     @click.prevent="activeTab = 'management'"
                     :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'management' ? 'app-nav-item-active' : '']"
                     :title="sidebarCollapsed ? '数据管理' : ''"
@@ -570,10 +583,10 @@
             </el-dialog>
 
             <!-- 数据管理 -->
-            <div v-if="activeTab === 'management' && hasRole('admin', 'teacher')" class="space-y-4 md:space-y-6">
+            <div v-if="activeTab === 'management' && hasRole('admin', 'teacher', 'student')" class="space-y-4 md:space-y-6">
                 <el-tabs v-model="mgmtTab" class="custom-tabs">
                     <!-- 学生管理 -->
-                    <el-tab-pane label="学生管理" name="student">
+                    <el-tab-pane label="学生管理" name="student" v-if="hasRole('admin', 'teacher')">
                         <div class="mb-4 flex flex-wrap gap-2 md:gap-4 items-end">
                             <el-input
                                 v-model="studentSearch.name"
@@ -627,7 +640,7 @@
                     </el-tab-pane>
 
                     <!-- 班级管理 -->
-                    <el-tab-pane label="班级管理" name="class">
+                    <el-tab-pane label="班级管理" name="class" v-if="hasRole('admin', 'teacher')">
                         <div class="mb-4 flex justify-end">
                             <el-button type="success" @click="openClassDialog(null)">
                                 <i class="fas fa-plus"></i> 新增班级
@@ -659,7 +672,7 @@
                     </el-tab-pane>
 
                     <!-- 教师管理 -->
-                    <el-tab-pane label="教师管理" name="teacher">
+                    <el-tab-pane label="教师管理" name="teacher" v-if="hasRole('admin', 'teacher')">
                         <div class="mb-4 flex justify-end">
                             <el-button type="success" @click="openTeacherDialog(null)">
                                 <i class="fas fa-plus"></i> 新增教师
@@ -694,40 +707,56 @@
 
                     <!-- 成绩管理 -->
                     <el-tab-pane label="成绩管理" name="exam">
-                        <div class="mb-4 flex flex-wrap gap-4 items-center">
-                            <el-button type="success" @click="openExamDialog(null)">
-                                <i class="fas fa-plus"></i> 新增成绩
-                            </el-button>
-                            <el-button type="primary" @click="openExamMaintenanceDialog">
-                                <i class="fas fa-tools"></i> 成绩维护
-                            </el-button>
-                            <el-button type="default" @click="loadExamRecords">
-                                <i class="fas fa-sync-alt"></i> 刷新
-                            </el-button>
-                            <span class="text-sm ml-2 app-text-muted">
-                                点击表格行可选中，维护弹窗将自动填充学号/序号
-                            </span>
-                        </div>
-                        <el-table
-                            :data="examRecords"
-                            stripe
-                            v-loading="examLoading"
-                            @current-change="handleExamSelection"
-                            highlight-current-row
-                        >
-                            <el-table-column prop="stu_id" label="学号" width="80"></el-table-column>
-                            <el-table-column prop="stu_name" label="姓名"></el-table-column>
-                            <el-table-column prop="class_name" label="班级"></el-table-column>
-                            <el-table-column prop="seq_no" label="考试序号" width="100"></el-table-column>
-                            <el-table-column prop="grade" label="成绩" width="80"></el-table-column>
-                            <el-table-column prop="exam_date" label="考试日期" width="120"></el-table-column>
-                            <el-table-column label="操作" width="150">
-                                <template #default="scope">
-                                    <el-button size="small" @click="openExamDialog(scope.row)">编辑</el-button>
-                                    <el-button size="small" type="danger" @click="deleteExam(scope.row)">删除</el-button>
-                                </template>
-                            </el-table-column>
-                        </el-table>
+                        <!-- 学生只读视图 -->
+                        <template v-if="hasRole('student')">
+                            <div class="mb-4">
+                                <el-button type="default" @click="loadMyExamScores">
+                                    <i class="fas fa-sync-alt"></i> 刷新
+                                </el-button>
+                            </div>
+                            <el-table :data="myExamRecords" stripe v-loading="myExamLoading">
+                                <el-table-column prop="seq_no" label="考试序号" width="100"></el-table-column>
+                                <el-table-column prop="grade" label="成绩" width="80"></el-table-column>
+                                <el-table-column prop="exam_date" label="考试日期" width="120"></el-table-column>
+                            </el-table>
+                        </template>
+                        <!-- 教师/管理员完整视图 -->
+                        <template v-else>
+                            <div class="mb-4 flex flex-wrap gap-4 items-center">
+                                <el-button type="success" @click="openExamDialog(null)">
+                                    <i class="fas fa-plus"></i> 新增成绩
+                                </el-button>
+                                <el-button type="primary" @click="openExamMaintenanceDialog">
+                                    <i class="fas fa-tools"></i> 成绩维护
+                                </el-button>
+                                <el-button type="default" @click="loadExamRecords">
+                                    <i class="fas fa-sync-alt"></i> 刷新
+                                </el-button>
+                                <span class="text-sm ml-2 app-text-muted">
+                                    点击表格行可选中，维护弹窗将自动填充学号/序号
+                                </span>
+                            </div>
+                            <el-table
+                                :data="examRecords"
+                                stripe
+                                v-loading="examLoading"
+                                @current-change="handleExamSelection"
+                                highlight-current-row
+                            >
+                                <el-table-column prop="stu_id" label="学号" width="80"></el-table-column>
+                                <el-table-column prop="stu_name" label="姓名"></el-table-column>
+                                <el-table-column prop="class_name" label="班级"></el-table-column>
+                                <el-table-column prop="seq_no" label="考试序号" width="100"></el-table-column>
+                                <el-table-column prop="grade" label="成绩" width="80"></el-table-column>
+                                <el-table-column prop="exam_date" label="考试日期" width="120"></el-table-column>
+                                <el-table-column label="操作" width="150">
+                                    <template #default="scope">
+                                        <el-button size="small" @click="openExamDialog(scope.row)">编辑</el-button>
+                                        <el-button size="small" type="danger" @click="deleteExam(scope.row)">删除</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </template>
                     </el-tab-pane>
 
                     <!-- 就业管理 -->
@@ -1238,6 +1267,9 @@
                         </el-form-item>
                         <el-form-item label="状态">
                             <el-switch v-model="userForm.is_active" active-text="启用" inactive-text="禁用"></el-switch>
+                        </el-form-item>
+                        <el-form-item label="学号">
+                            <el-input v-model.number="userForm.stu_id" placeholder="绑定学生学号（仅学生角色有效）" :disabled="userForm.role !== 'student'"></el-input>
                         </el-form-item>
                     </el-form>
                     <template #footer>

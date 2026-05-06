@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from core.database import Base
 
 
@@ -9,7 +10,11 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     role = Column(String(20), default="user")  # admin, teacher, student, user
-    
+
+    # 学生关联（学生用户绑定到 stu_basic_info）
+    stu_id = Column(Integer, ForeignKey("stu_basic_info.stu_id"), nullable=True, unique=True)
+    student = relationship("StuBasicInfo", foreign_keys=[stu_id])
+
     # 邮箱绑定（用户级别配置）
     email_provider = Column(String(20), nullable=True)  # 'qq', '163'
     email_address = Column(String(100), nullable=True)   # 用户邮箱地址
