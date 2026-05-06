@@ -53,12 +53,14 @@
                 v-model="authUsername"
                 placeholder="用户名"
                 class="w-full mb-3 px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
+                @keyup.enter="submitAuth"
             >
             <input
                 type="password"
                 v-model="authPassword"
                 placeholder="密码"
                 class="w-full mb-3 px-4 py-2 rounded-xl border border-blue-500 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input"
+                @keyup.enter="submitAuth"
             >
             <div v-if="authMode === 'register'" class="mb-4">
                 <label class="block text-sm mb-2 app-text-muted">选择身份角色</label>
@@ -210,18 +212,23 @@
 
             <!-- 用户信息 -->
             <div class="p-4 border-t app-border">
-                <div v-if="currentUser" :class="['user-info-card', sidebarCollapsed ? 'justify-center' : '']">
-                    <div class="user-avatar" :style="sidebarCollapsed ? 'width:36px;height:36px;font-size:16px;min-width:36px;' : ''">
-                        {{ currentUser.username.charAt(0).toUpperCase() }}
-                    </div>
-                    <div class="user-details" v-show="!sidebarCollapsed">
-                        <div class="user-name">{{ currentUser.username }}</div>
-                        <div class="user-role">
-                            <span :class="['role-tag', getRoleClass(currentUser.role)]">
-                                {{ getRoleText(currentUser.role) }}
-                            </span>
+                <div v-if="currentUser" :class="['user-info-card', sidebarCollapsed ? 'items-center' : '']">
+                    <div class="flex items-center gap-3 w-full">
+                        <div class="user-avatar" :style="sidebarCollapsed ? 'width:36px;height:36px;font-size:16px;min-width:36px;' : ''">
+                            {{ currentUser.username.charAt(0).toUpperCase() }}
+                        </div>
+                        <div class="user-details" v-show="!sidebarCollapsed">
+                            <div class="user-name">{{ currentUser.username }}</div>
+                            <div class="user-role">
+                                <span :class="['role-tag', getRoleClass(currentUser.role)]">
+                                    {{ getRoleText(currentUser.role) }}
+                                </span>
+                            </div>
                         </div>
                     </div>
+                    <button v-show="!sidebarCollapsed" @click="logout" class="self-end text-red-400 hover:text-red-300 transition text-sm mt-1">
+                        <i class="fas fa-sign-out-alt mr-1"></i>退出登录
+                    </button>
                 </div>
                 <!-- 主题切换（集成在侧边栏左下角，低强调） -->
                 <div v-show="!sidebarCollapsed" class="mt-3 flex items-center justify-between theme-switch-container" id="themeSwitcher">
@@ -238,9 +245,6 @@
                         </button>
                     </div>
                 </div>
-                <button @click="logout" class="w-full mt-3 text-red-400 hover:text-red-300 transition text-center text-sm">
-                    <i class="fas fa-sign-out-alt"></i><span v-if="!sidebarCollapsed" class="ml-1">退出登录</span>
-                </button>
             </div>
         </aside>
 
@@ -696,6 +700,9 @@
                             </el-button>
                             <el-button type="primary" @click="openExamMaintenanceDialog">
                                 <i class="fas fa-tools"></i> 成绩维护
+                            </el-button>
+                            <el-button type="default" @click="loadExamRecords">
+                                <i class="fas fa-sync-alt"></i> 刷新
                             </el-button>
                             <span class="text-sm ml-2 app-text-muted">
                                 点击表格行可选中，维护弹窗将自动填充学号/序号

@@ -57,19 +57,17 @@ _评估并重构项目日志，使其更可读、统一、实用。已完成。_
 
 - [ ] 前端模型切换功能：如何在前端/后端层面支持用户切换 LLM 模型（Kimi ↔ DeepSeek ↔ OpenAI），不依赖改配置文件
 
-## P2 - 更新README
-README.md文档有点老了, 需要更新一下
-
 ## 待定任务（讨论/规划中）
 
 ### 用户权限系统（P1）
-_需求从 `docs/specs/user-permission-plan.md`_
+✅ 已完成（commit 8fd877f）
 
-- [ ] Step 1: 权限核心 — JWT 加 role + `require_role()` + `core/permissions.py`
-- [ ] Step 2: 注册管控 — 限制注册角色 + 用户列表加权限
-- [ ] Step 3: 业务 API 逐个加固 — student/class/teacher/exam/employment/email API
-- [ ] Step 4: 数据隔离 — DAO 层按角色过滤查询
-- [ ] Step 5: 前端权限适配 — Tab 级 + 按钮级角色控制
+- [x] Step 1: 权限核心 — JWT 加 role + `require_role()` + `core/permissions.py`
+- [x] Step 2: 注册管控 — 限制注册角色 + 用户列表加权限
+- [x] Step 3: 业务 API 逐个加固 — student/class/teacher/exam/employment/email API
+- [x] Step 4: 数据隔离 — DAO 层按角色过滤查询（依赖 Step 6 外键关联）
+- [x] Step 5: 前端权限适配 — Tab 级 + 注册表单级权限控制
+- [ ] Step 6: 用户-教师关联（为数据隔离铺路）
 
 ### 四大名著 RAG（P2）
 _将 Chroma 替换为 Milvus，搭建四大名著知识检索 RAG_
@@ -90,3 +88,12 @@ _待权限系统就绪后依次实现_
 - [ ] 模拟面试官
 - [ ] 智能分班/分组助手
 - [ ] 校规 RAG
+
+## 待办
+
+- [x] **P0 — 登录回车提交**：登录界面支持回车键确认登录 ✅
+- [ ] **P1 — 数据管理 Bug**：成绩管理 + 用户管理 Tab 获取不到数据，需排查修复
+- [ ] **P1 — 重写 README.md**：项目文档更新
+- [ ] **P2 — 前端设计原则文档**：梳理 UI 风格、交互规范，避免样式过度设计
+- [ ] **P2 — 增强登录注册界面**：UI/UX 改进
+- [ ] **P2 — 点选关键词生成头像**：注册流程中，点选关键词调用文生图 API 生成头像

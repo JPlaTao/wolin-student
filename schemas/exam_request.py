@@ -15,3 +15,13 @@ class NewExamData(BaseModel):
 class UpdateExamData(BaseModel):
     grade: int = Field(default=0, ge=0, le=100, description="考试分数(0~100分)")
     exam_date: Optional[date] = None
+
+
+# 考试记录列表响应体
+class ExamRecordResp(BaseModel):
+    stu_id: int
+    stu_name: str | None = None
+    class_name: str | None = None
+    seq_no: int
+    grade: int
+    exam_date: date | None = None

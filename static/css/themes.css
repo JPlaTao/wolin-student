@@ -272,11 +272,6 @@ body {
     box-shadow: var(--shadow-card);
 }
 
-.card-hover:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-card-hover);
-    border-color: var(--border-primary);
-}
 
 /* 聊天气泡样式 */
 .chat-bubble-user {
@@ -542,15 +537,12 @@ body {
     border-radius: 16px;
     padding: 16px;
     display: flex;
-    align-items: center;
-    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
     transition: all 0.3s;
 }
 
-.user-info-card:hover {
-    border-color: var(--border-primary);
-    transform: translateY(-2px);
-}
 
 .user-avatar {
     width: 60px;

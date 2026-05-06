@@ -69,3 +69,12 @@ async def exam_get(
         return response.ResponseBase(data=_return)
 
     raise HTTPException(status_code=400, detail=_return)
+
+
+@router_exam.get("/records", response_model=response.ListResponse, description="获取所有考试记录（含学生姓名/班级）")
+async def exam_get_all(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_role(["admin", "teacher"]))
+):
+    records = exam_dao.exam_get_all(db)
+    return response.ListResponse(data=records, total=len(records))

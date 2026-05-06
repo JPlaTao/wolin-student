@@ -1,4 +1,4 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from model.exam_model import StuExamRecord
 
@@ -132,3 +132,17 @@ def exam_get(
         return {"msg": "success", "data": data}
     else:
         return {"msg": f"'{stu_id=}' & '{seq_no=}' not found"}
+
+
+def exam_get_all(db: Session):
+    """获取所有考试记录（三表 LEFT JOIN，含学生姓名和班级名称）"""
+    sql = text("""
+        SELECT e.stu_id, s.stu_name, c.class_name, e.seq_no, e.grade, e.exam_date
+        FROM stu_exam_record e
+        LEFT JOIN stu_basic_info s ON e.stu_id = s.stu_id
+        LEFT JOIN class c ON s.class_id = c.class_id
+        WHERE e.is_deleted = 0
+        ORDER BY e.stu_id, e.seq_no
+    """)
+    rows = db.execute(sql).fetchall()
+    return [dict(row._mapping) for row in rows]

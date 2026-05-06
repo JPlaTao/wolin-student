@@ -244,7 +244,10 @@ export function createManagementModule() {
         try {
             const res = await axios.get('/exam/records');
             examRecords.value = res.data.data || [];
-        } catch (err) { examRecords.value = []; } finally { examLoading.value = false; }
+        } catch (err) {
+            examRecords.value = [];
+            ElMessage.error('加载成绩记录失败');
+        } finally { examLoading.value = false; }
     };
 
     const handleExamSelection = (row) => { selectedExam.value = row; };
@@ -484,7 +487,7 @@ export function createManagementModule() {
         teacherDialogVisible, teacherForm,
         openTeacherDialog, saveTeacher, deleteTeacher,
         // 成绩
-        examRecords, examLoading, examDialogVisible, examForm,
+        examRecords, examLoading, examDialogVisible, examForm, loadExamRecords,
         openExamDialog, saveExam, deleteExam, selectedExam, handleExamSelection,
         examMaintenanceDialogVisible, examQueryForm, queriedExamData, examQueryLoading,
         queryExamRecord, openExamMaintenanceDialog, maintenanceEditDialogVisible,
