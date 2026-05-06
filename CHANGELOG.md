@@ -1,60 +1,59 @@
 # 变更日志
 
-## [2026-05-05]
+## 待办
 
-### 日志系统重构
+### P0
+- [ ] 学生成绩表格加班级/学号列
+- [ ] 成绩表加分页
 
-对日志系统进行了全面重构，覆盖 terminal 输出、消息格式、审计日志、日志去重和 uvicorn access log 抑制。
+### P1
+- [ ] 前端 markdown 渲染修复（AI 对话输出格式）
+- [ ] 用户-教师关联（Step 6，为数据隔离铺路）
 
-**改动文件：** `utils/logger.py` `utils/log_decorators.py` `middleware/logging_middleware.py` `main.py` 及 5 个 service/api 模块
+### P2
+- [ ] 前端模型切换功能（Kimi ↔ DeepSeek ↔ OpenAI 不依赖配置文件）
+- [ ] 前端设计原则文档（UI 风格/交互规范）
+- [ ] 增强登录注册界面（UI/UX）
+- [ ] 点选关键词生成头像（注册流程中调文生图 API）
+- [ ] 日志功能扩展：加表，支持日志统计
+
+### P3
+- [ ] 四大名著 RAG（Chroma → Milvus 迁移）
+- [ ] 期末评语生成器 / 违纪话术教练 / 公告润色助手
+- [ ] 成绩诊断书 / 班会活动策划师 / 模拟面试官
+- [ ] 智能分班/分组助手 / 校规 RAG
+
+---
+
+## 历史
+
+### 2026-05-06
+**学生自助查成绩 + 用户-学号绑定**
+
+改动文件：`model/user.py` `api/auth_api.py` `api/exam_api.py` `static/index.html` `static/js/app.js` `static/js/modules/auth.js` `static/js/modules/management.js` `migrations/V002__add_stu_id_to_users.sql`
+
+- **用户-学生映射** — User 模型新增 `stu_id` 字段 (FK → stu_basic_info, unique, nullable)，注册/管理员编辑均可绑定学号，支持解绑
+- **学生查分端点** — `GET /exam/my-scores`（student 角色专用），返回当前学生所有成绩
+- **前端条件渲染** — 数据管理 Tab 对 student 角色开放，仅显示成绩管理子 Tab（只读，无编辑/删除）
+- **用户管理修复** — `loadUsers` 未导出导致页面数据为空，`UserResponse` Pydantic v2 `model_config` 兼容性修复
+
+### 2026-05-05
+**日志系统重构**
+
+改动文件：`utils/logger.py` `utils/log_decorators.py` `middleware/logging_middleware.py` `main.py` 及 5 个 service/api 模块
 
 - **终端彩色化** — 自定义 `ConsoleFormatter`，逐字段 ANSI 染色（级别名按严重程度分色、HTTP 方法按语义分色、状态码按范围分色），文件日志保持纯文本
 - **消息格式标准化** — 全模块统一 `[request_id] [ModuleTag] Message` 格式，覆盖 Middleware、QueryAgent、KnowledgeBase、Email、ExceptionHandler 等 8 个模块
-- **审计日志分流** — 新增独立 `audit.log` + `SensitiveOperationFilter`，敏感操作仅写入 audit.log，排除于 app.log
-- **日志去重** — `@log_api_call` 去掉"开始"/"成功"INFO 行，仅保留 ERROR；每条请求由 4 行降至 2 行 middleware 日志
-- **uvicorn access log 关闭** — 三级抑制（模块级 setLevel → setup_logger handlers.clear → startup 事件），解决 uvicorn 0.43.0 reload 子进程重置日志级别问题
+- **审计日志分流** — 新增独立 `audit.log` + `SensitiveOperationFilter`，敏感操作仅写入 audit.log
+- **日志去重** — `@log_api_call` 每条请求由 4 行降至 2 行 middleware 日志
+- **uvicorn access log 关闭** — 三级抑制，解决 0.43.0 reload 子进程重置日志级别问题
 
-### 文档
+**文档** — `docs/specs/log-refactor-spec.md` `docs/handoffs/log-refactor-handoff.md`
 
-- **`docs/specs/log-refactor-spec.md`** — 日志重构实施规约 + 实做差异记录
-- **`docs/handoffs/log-refactor-handoff.md`** — 轮次交接文档
+**仓库整理** — 根目录清理、docs 按 specs/arch/handoffs 分层、`.gitignore` 添加 `.claude/`
 
-### 仓库整理
+**远端配置** — 双推：Gitee (HTTPS) + GitHub (SSH)
 
-- 根目录清理：删除遗留临时文件（旧文档、SQL 脚本、测试文件）
-- 目录归类：docs 按 specs/arch/handoffs 分层
-- `.gitignore` 添加 `.claude/`
+**林黛玉 Agent** — SSE 流式对话，独立会话隔离，前端"黛玉智能"Tab
 
-### 远端配置
-
-- 支持双推：`git push` 同时推送 Gitee (HTTPS) + GitHub (SSH)
-
-### 林黛玉 Agent
-
-- 新增人设聊天 Agent（Lin Daiyu Persona Chat），独立的 LLM 人设提示词 + API 端点
-- SSE 流式对话，独立会话隔离（`ldy_` 前缀），复用 ConversationMemory 表
-- 前端新增"黛玉智能"Tab（紫粉古风主题 UI）
-
-### 前端 ES Module 重构
-
-对前端代码进行了模块化重构，将单一 1455 行的 app.js 拆分到 8 个功能模块中。
-
-**改动文件：**
-
-- `static/index.html` — 改用 `<script type="module">` 加载，内联主题脚本移入独立 theme.js
-- `static/js/app.js` — 从 1,455 行精简至 163 行，转型为纯编排层
-- `static/js/modules/auth.js` — 认证模块（登录/注册/登出）
-- `static/js/modules/daiyu.js` — 黛玉智能模块（从 app.js 提取）
-- `static/js/modules/email.js` — 邮件模块（从 app.js 提取）
-- `static/js/modules/management.js` — 数据管理模块（从 app.js 提取）
-- `static/js/modules/dashboard.js` — 仪表板模块（已有，修复 vue import）
-- `static/js/modules/chat.js` — 智能问答模块（已有，添加 Vue 引用）
-- `static/js/modules/statistics.js` — 高级统计模块（已有，修复 vue import）
-- `static/js/modules/imageGen.js` — 文生图模块（已有，添加 Vue 引用）
-- `static/js/theme.js` — 主题切换脚本（从内联提取为独立文件）
-
-**技术要点：**
-
-- 零构建：纯浏览器原生 ES Modules，不引入 Vite/Webpack
-- 每个模块输出 `createXxxModule()` 工厂函数，app.js 只做装配编排
-- 已有 modules/ 和 utils/ 下的死代码文件被真正激活使用
+**前端 ES Module 重构** — 1455 行 app.js → 163 行纯编排层 + 8 个功能模块
