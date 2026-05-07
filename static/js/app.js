@@ -6,7 +6,7 @@
  */
 import { createAuthModule } from './modules/auth.js';
 import { createDashboardModule } from './modules/dashboard.js';
-import { createChatModule } from './modules/chat.js';
+import { createBiChatModule } from './modules/biChat.js';
 import { createDaiyuModule } from './modules/daiyu.js';
 import { createStatisticsModule } from './modules/statistics.js';
 import { createImageGenModule } from './modules/imageGen.js';
@@ -54,11 +54,10 @@ const app = createApp({
         // ===================================
         const auth = createAuthModule();
         const dashboard = createDashboardModule();
-        const chat = createChatModule({
-            renderMarkdown,
+        const bi = createBiChatModule({
             scrollToBottom: async () => {
                 await nextTick();
-                chat.chatContainer?.value?.scrollTo?.(0, chat.chatContainer.value.scrollHeight);
+                bi.biChatContainer?.value?.scrollTo?.(0, bi.biChatContainer.value.scrollHeight);
             }
         });
         const daiyu = createDaiyuModule();
@@ -154,8 +153,8 @@ const app = createApp({
             // 仪表板
             ...dashboard,
 
-            // 智能问答
-            ...chat, isLoading,
+            // 数据对话
+            ...bi, isLoading,
 
             // 黛玉智能
             ...daiyu,

@@ -157,12 +157,12 @@
                 </a>
                 <a
                     href="#"
-                    @click.prevent="activeTab = 'query'"
-                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'query' ? 'app-nav-item-active' : '']"
-                    :title="sidebarCollapsed ? '智能问答' : ''"
+                    @click.prevent="activeTab = 'bi'"
+                    :class="['flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 app-nav-item', sidebarCollapsed ? 'justify-center px-3' : '', activeTab === 'bi' ? 'app-nav-item-active' : '']"
+                    :title="sidebarCollapsed ? '数据对话' : ''"
                 >
-                    <i class="fas fa-comment-dots w-5"></i>
-                    <span v-show="!sidebarCollapsed">智能问答</span>
+                    <i class="fas fa-robot w-5"></i>
+                    <span v-show="!sidebarCollapsed">数据对话</span>
                 </a>
                 <a
                     href="#"
@@ -355,33 +355,87 @@
                 </div>
             </div>
 
-            <!-- 智能问答 -->
-            <div v-if="activeTab === 'query'" class="h-full flex flex-col">
+            <!-- 数据对话 (BI) -->
+            <div v-if="activeTab === 'bi'" class="h-full flex flex-col">
                 <div class="backdrop-blur-xl rounded-2xl border overflow-hidden flex flex-col flex-1 shadow-2xl app-panel">
                     <div class="p-4 border-b app-border app-panel-header">
                         <h2 class="text-xl font-semibold app-text-primary">
-                            <i class="fab fa-rocketchat text-blue-400"></i> AI 智能助手
+                            <i class="fas fa-robot text-purple-400"></i> 数据对话
                         </h2>
                         <p class="text-sm mt-1 app-text-muted">
-                            支持自然语言查询数据，也可以问业务问题（支持多轮对话记忆）
+                            AI 自动生成 SQL 并执行，支持数据分析与图表可视化
                         </p>
                     </div>
-                    <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
-                        <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
-                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai app-text-secondary'" class="max-w-[80%] px-4 py-2 shadow-md">
-                                <div v-if="msg.type === 'sql'">
-                                    <div v-if="msg.isSingleValue" class="text-base">{{ msg.content }}</div>
-                                    <div v-else v-html="msg.content"></div>
-                                    <details class="mt-2 text-xs app-text-muted">
-                                        <summary>查看SQL</summary>
-                                        <code class="block bg-black/30 p-2 rounded mt-1">{{ msg.sql }}</code>
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="biChatContainer">
+                        <div v-for="msg in biMessages" :key="msg.id" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                            <div :class="msg.role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai app-text-secondary'" class="max-w-[85%] px-4 py-2 shadow-md">
+                                <!-- 用户消息 -->
+                                <div v-if="msg.role === 'user'">{{ msg.textContent }}</div>
+
+                                <!-- AI 消息：结构化渲染 -->
+                                <div v-else class="space-y-1">
+                                    <!-- 思考中 -->
+                                    <div v-if="msg.thinking" class="text-blue-400 text-sm">
+                                        <i class="fas fa-spinner fa-spin mr-1"></i>{{ msg.thinking }}
+                                    </div>
+
+                                    <!-- 主体文本（Markdown） -->
+                                    <div v-if="msg.textContent" class="answer-text" v-html="renderMarkdown(msg.textContent)"></div>
+
+                                    <!-- 关键发现 -->
+                                    <ul v-if="msg.analysisData?.key_findings?.length" class="ml-4 list-disc text-sm text-slate-300 space-y-0.5">
+                                        <li v-for="f in msg.analysisData.key_findings">{{ f }}</li>
+                                    </ul>
+
+                                    <!-- 查询详情（默认折叠） -->
+                                    <details v-if="msg.sql || msg.tableData" class="mt-3">
+                                        <summary class="cursor-pointer text-slate-500 text-xs hover:text-slate-300 transition">
+                                            <i class="fas fa-database mr-1"></i>查询详情
+                                        </summary>
+
+                                        <!-- SQL -->
+                                        <div v-if="msg.sql" class="mt-2">
+                                            <div class="text-slate-500 text-xs mb-1">SQL 查询</div>
+                                            <code class="block bg-slate-800 px-3 py-2 rounded text-sm text-green-400 overflow-x-auto">{{ msg.sql }}</code>
+                                        </div>
+
+                                        <!-- 数据表格 -->
+                                        <div v-if="msg.tableData && msg.tableData.success !== false" class="mt-3">
+                                            <!-- 单值 -->
+                                            <div v-if="msg.tableData.row_count === 1 && msg.tableData.columns.length === 1"
+                                                class="text-lg font-semibold text-blue-400">
+                                                {{ msg.tableData.columns[0] }}：{{ msg.tableData.rows[0][msg.tableData.columns[0]] }}
+                                            </div>
+                                            <!-- 多行表格 -->
+                                            <div v-else-if="msg.tableData.rows && msg.tableData.rows.length > 0"
+                                                v-html="renderMarkdown(buildMarkdownTable(msg.tableData))">
+                                            </div>
+                                            <div v-else class="text-slate-400 text-sm">未查询到相关数据</div>
+
+                                            <!-- 分页 -->
+                                            <div v-if="msg.tableData.row_count > 0" class="flex items-center gap-2 text-xs text-slate-400 mt-2">
+                                                <span>共 {{ msg.tableData.row_count }} 条，第 {{ msg.tableData.page }}/{{ msg.tableData.total_pages }} 页</span>
+                                                <button v-if="msg.tableData.has_more"
+                                                    @click="goToPage(msg.tableData.sql_hash, msg.tableData.page + 1, msg.id)"
+                                                    class="text-blue-400 hover:text-blue-300 cursor-pointer bg-transparent border-none p-0">
+                                                    下一页 →
+                                                </button>
+                                            </div>
+
+                                            <!-- 统计摘要 -->
+                                            <div v-if="msg.tableData.statistics" class="mt-2 text-xs text-slate-400 flex flex-wrap gap-2">
+                                                <template v-for="(stat, col) in msg.tableData.statistics" :key="col">
+                                                    <span v-if="stat.avg !== undefined" class="bg-slate-800 px-2 py-1 rounded">
+                                                        {{ col }}: 均{{ stat.avg }} / 低{{ stat.min }} / 高{{ stat.max }}
+                                                    </span>
+                                                </template>
+                                            </div>
+                                        </div>
+
+                                        <!-- 图表 -->
+                                        <div v-if="msg.chartId" :id="msg.chartId" class="w-full h-64 mt-3 rounded-lg bg-slate-900/50"></div>
                                     </details>
                                 </div>
-                                <div v-else-if="msg.type === 'html'" v-html="msg.content"></div>
-                                <!-- AI 消息渲染 Markdown -->
-                                <div v-else-if="msg.role === 'ai'" v-html="renderMarkdown(msg.content)"></div>
-                                <!-- 用户消息直接显示 -->
-                                <div v-else>{{ msg.content }}</div>
                             </div>
                         </div>
                     </div>
@@ -389,14 +443,15 @@
                         <div class="flex gap-2 md:gap-3">
                             <input
                                 type="text"
-                                v-model="currentQuestion"
-                                @keyup.enter="sendQuestion"
-                                class="flex-1 border border-blue-500 rounded-xl px-3 md:px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base app-input"
-                                placeholder="例如：学生有多少人？ 李芳老师有多少个学生？ 每个班级的平均分？"
+                                v-model="biQuestion"
+                                @keyup.enter="sendBiQuestion"
+                                class="flex-1 border border-purple-500 rounded-xl px-3 md:px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm md:text-base app-input"
+                                placeholder="例如：学生有多少人？五班最近一次考试成绩怎么样？分析各班级就业率"
                             >
                             <button
-                                @click="sendQuestion"
-                                class="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition px-3 md:px-5 py-2 rounded-xl text-white font-medium text-sm md:text-base"
+                                @click="sendBiQuestion"
+                                :disabled="biStreaming"
+                                class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 transition px-3 md:px-5 py-2 rounded-xl text-white font-medium text-sm md:text-base disabled:opacity-50"
                             >
                                 <i class="fas fa-paper-plane"></i> <span class="hidden md:inline">发送</span>
                             </button>
