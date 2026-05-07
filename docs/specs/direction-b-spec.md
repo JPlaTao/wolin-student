@@ -1,5 +1,7 @@
 # 方向 B 最小 Spec：用 LangChain Agent + Tools 重构 SQL 查询链路
 
+> 状态: 已完成 (2026-05-04) | 优先级: P1 | 预估工时: ~6 h
+
 ## 一、目标
 
 将 `api/query_agent.py` 中**手写的 SQL 生成 + 校验 + 执行 + 重试**循环，替换为 **LangChain AgentExecutor + Tools** 模式。目的是通过最小化改动，掌握 LangChain 最核心的 Agent 和 Tool 抽象。

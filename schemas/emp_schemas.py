@@ -2,6 +2,14 @@ from pydantic import BaseModel,Field
 from datetime import date
 from typing import Optional
 
+# 创建用（前端传参）
+class EmploymentCreate(BaseModel):
+    stu_id: int
+    company: Optional[str] = None
+    salary: Optional[float] = Field(None, gt=0)
+    open_time: Optional[date] = None
+    offer_time: Optional[date] = None
+
 # 更新用（前端传参）
 class EmploymentUpdate(BaseModel):
     stu_name: Optional[str] = None

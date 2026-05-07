@@ -12,6 +12,7 @@ export function createManagementModule() {
     // ===================================
     const mgmtLoading = ref(false);
     const students = ref([]);
+    const allStudents = ref([]);  // 下拉菜单用，不分页
     const classes = ref([]);
     const teachers = ref([]);
 
@@ -27,6 +28,7 @@ export function createManagementModule() {
                 axios.get('/class/', { params: { page: classPagination.value.currentPage, page_size: classPagination.value.pageSize } }),
                 axios.get('/teacher/all', { params: { page: teacherPagination.value.currentPage, page_size: teacherPagination.value.pageSize } })
             ]);
+            loadAllStudents();  // 后台加载下拉菜单用的全量学生
             const rawStudents = studentRes.data.data || [];
             studentPagination.value.total = studentRes.data.total || rawStudents.length;
             const classDict = classRes.data.data || {};
@@ -82,6 +84,15 @@ export function createManagementModule() {
         } finally {
             mgmtLoading.value = false;
         }
+    };
+
+    const loadAllStudents = async () => {
+        try {
+            const res = await axios.get('/students', { params: { page: 1, page_size: 500 } });
+            const rawStudents = res.data.data || [];
+            const classMap = new Map(classes.value.map(c => [c.class_id, c.class_name]));
+            allStudents.value = rawStudents.map(s => ({ ...s, class_name: classMap.get(s.class_id) || `班级${s.class_id}` }));
+        } catch (err) { console.error('加载全量学生列表失败:', err); }
     };
 
     const loadCounselors = async () => {
@@ -496,8 +507,8 @@ export function createManagementModule() {
 
     return {
         // 通用
-        students, classes, teachers, mgmtLoading,
-        loadManagementData, loadStudents,
+        students, allStudents, classes, teachers, mgmtLoading,
+        loadManagementData, loadStudents, loadAllStudents,
         // 搜索
         studentSearch, handleStudentSearch,
         // 分页

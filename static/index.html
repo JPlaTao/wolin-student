@@ -957,7 +957,7 @@
                     <el-form :model="examForm" label-width="100px">
                         <el-form-item label="学生" prop="stu_id" required>
                             <el-select v-model="examForm.stu_id" placeholder="选择学生" filterable>
-                                <el-option v-for="s in students" :key="s.stu_id" :label="`${s.stu_name} (${s.class_name})`" :value="s.stu_id"></el-option>
+                                <el-option v-for="s in allStudents" :key="s.stu_id" :label="`${s.stu_name} (${s.class_name})`" :value="s.stu_id"></el-option>
                             </el-select>
                         </el-form-item>
                         <el-form-item label="考试序号" prop="seq_no" required>
@@ -1022,7 +1022,7 @@
                     <el-form :model="employmentForm" label-width="100px">
                         <el-form-item label="学生" prop="stu_id" required>
                             <el-select v-model="employmentForm.stu_id" placeholder="选择学生" filterable>
-                                <el-option v-for="s in students" :key="s.stu_id" :label="`${s.stu_name} (${s.class_name})`" :value="s.stu_id"></el-option>
+                                <el-option v-for="s in allStudents" :key="s.stu_id" :label="`${s.stu_name} (${s.class_name})`" :value="s.stu_id"></el-option>
                             </el-select>
                         </el-form-item>
                         <el-form-item label="公司" prop="company">

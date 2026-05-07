@@ -4,6 +4,7 @@
  */
 
 const { ref } = Vue;
+import { buildAuthHeaders, forEachSSEEvent } from '../utils/api.js';
 
 /**
  * 创建智能问答模块
@@ -233,10 +234,7 @@ export function createChatModule({ renderMarkdown, scrollToBottom }) {
 
             const response = await fetch('/query/stream', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
+                headers: buildAuthHeaders(),
                 body: JSON.stringify(payload)
             });
 
@@ -256,30 +254,9 @@ export function createChatModule({ renderMarkdown, scrollToBottom }) {
                 if (done) break;
 
                 const text = decoder.decode(value, { stream: true });
-                const lines = text.split('\n');
-                let eventType = null;
-                let eventData = null;
-
-                for (const line of lines) {
-                    if (line.startsWith('event: ')) {
-                        eventType = line.slice(7).trim();
-                    } else if (line.startsWith('data: ')) {
-                        const dataStr = line.slice(6).trim();
-                        if (dataStr) {
-                            try {
-                                eventData = JSON.parse(dataStr);
-                            } catch {
-                                eventData = dataStr;
-                            }
-                        }
-                    } else if (line === '') {
-                        if (eventType && eventData !== null) {
-                            await handleStreamEvent({ type: eventType, data: eventData });
-                        }
-                        eventType = null;
-                        eventData = null;
-                    }
-                }
+                forEachSSEEvent(text, async (event) => {
+                    await handleStreamEvent(event);
+                });
 
                 await scrollToBottom();
             }

@@ -5,8 +5,9 @@ from typing import List
 # 导入响应类
 from schemas.response import ResponseBase, ListResponse
 # 导入就业相关模型
-from schemas.emp_schemas import EmploymentUpdate, EmploymentResp
+from schemas.emp_schemas import EmploymentCreate, EmploymentUpdate, EmploymentResp
 from model.employment import Employment
+from model.student import StuBasicInfo
 # 数据库依赖
 from core.database import get_db
 # 导入认证依赖
@@ -18,6 +19,39 @@ from dao.employment_dao import *
 
 
 router = APIRouter(prefix="/employment", tags=["就业管理模块"])
+
+
+# ------------------------------
+# 0. 新增就业记录
+# ------------------------------
+@router.post("/", response_model=ResponseBase)
+def create_employment(
+    create_data: EmploymentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "teacher"]))
+):
+    student = db.query(StuBasicInfo).filter(
+        StuBasicInfo.stu_id == create_data.stu_id,
+        StuBasicInfo.is_deleted == False
+    ).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="学生不存在")
+
+    emp = create_employment_record(
+        db,
+        stu_id=create_data.stu_id,
+        stu_name=student.stu_name,
+        class_id=student.class_id,
+        open_time=create_data.open_time,
+        offer_time=create_data.offer_time,
+        company=create_data.company,
+        salary=create_data.salary
+    )
+    return ResponseBase(
+        code=200,
+        message="新增成功",
+        data=EmploymentResp.model_validate(emp)
+    )
 
 
 # ------------------------------

@@ -4,6 +4,7 @@
  */
 
 const { ref, nextTick } = Vue;
+import { buildAuthHeaders, forEachSSEEvent } from '../utils/api.js';
 
 export function createDaiyuModule() {
     const daiyuMessages = ref([{
@@ -41,10 +42,7 @@ export function createDaiyuModule() {
 
             const response = await fetch('/api/daiyu/stream', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-                },
+                headers: buildAuthHeaders(),
                 body: JSON.stringify(payload)
             });
 
@@ -58,30 +56,17 @@ export function createDaiyuModule() {
                 const { done, value } = await reader.read();
                 if (done) break;
                 const text = decoder.decode(value, { stream: true });
-                const lines = text.split('\n');
-                let eventType = null, eventData = null;
-
-                for (const line of lines) {
-                    if (line.startsWith('event: ')) eventType = line.slice(7).trim();
-                    else if (line.startsWith('data: ')) {
-                        const dataStr = line.slice(6).trim();
-                        if (dataStr) {
-                            try { eventData = JSON.parse(dataStr); } catch { eventData = dataStr; }
-                        }
-                    } else if (line === '') {
-                        if (eventType === 'chunk' && eventData) {
-                            currentContent += eventData;
-                            const idx = daiyuMessages.value.findIndex(m => m.id === aiMsgId);
-                            if (idx !== -1) daiyuMessages.value[idx].content = currentContent;
-                        }
-                        if (eventType === 'error' && eventData) {
-                            const idx = daiyuMessages.value.findIndex(m => m.id === aiMsgId);
-                            if (idx !== -1) daiyuMessages.value[idx].content += `\n\n（错误：${eventData}）`;
-                        }
-                        eventType = null;
-                        eventData = null;
+                forEachSSEEvent(text, (event) => {
+                    if (event.type === 'chunk' && event.data) {
+                        currentContent += event.data;
+                        const idx = daiyuMessages.value.findIndex(m => m.id === aiMsgId);
+                        if (idx !== -1) daiyuMessages.value[idx].content = currentContent;
                     }
-                }
+                    if (event.type === 'error' && event.data) {
+                        const idx = daiyuMessages.value.findIndex(m => m.id === aiMsgId);
+                        if (idx !== -1) daiyuMessages.value[idx].content += `\n\n（错误：${event.data}）`;
+                    }
+                });
                 await scrollDaiyuToBottom();
             }
         } catch (err) {

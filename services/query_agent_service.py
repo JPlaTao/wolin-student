@@ -151,9 +151,9 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
         从向量知识库检索数据库表结构信息，包括所有表名、字段名和字段类型。
         在生成 SQL 之前必须调用此工具来了解数据库结构。
         """
-        # 延迟导入避免与 api/query_agent.py 的循环依赖
-        from api.query_agent import vectordb, FALLBACK_SCHEMA
-        from api.query_agent import similarity_search_async as _similarity_search
+        # 延迟导入避免循环依赖
+        from api.query_agent import vectordb
+        from services.sql_generator import FALLBACK_SCHEMA, similarity_search_async as _similarity_search
 
         if vectordb is None:
             return FALLBACK_SCHEMA
@@ -173,7 +173,7 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
         当用户询问"规则"、"定义"、"含义"、"说明"等知识性问题时使用。
         """
         from api.query_agent import vectordb, QueryConstants
-        from api.query_agent import similarity_search_async as _similarity_search
+        from services.sql_generator import similarity_search_async as _similarity_search
 
         if vectordb is None:
             return "知识库不可用"
@@ -194,8 +194,8 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
         执行前会自动进行安全验证（禁止 DDL/DML/注入）和表名修正。
         """
         # 延迟导入避免循环依赖
-        from api.query_agent import fix_table_names, validate_sql
-        from api.query_agent import safe_json_dumps as _safe_json
+        from services.sql_generator import fix_table_names, validate_sql
+        from utils.json_encoder import safe_json_dumps as _safe_json
 
         # 第1步：修正表名常见拼写错误
         sql_fixed = fix_table_names(sql)

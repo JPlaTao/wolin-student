@@ -70,6 +70,26 @@ def create_empty_employment(
     return emp
 
 
+# 5b. 创建就业记录（含可选字段）
+def create_employment_record(db: Session, stu_id: int, stu_name: str,
+                              class_id: int, open_time=None, offer_time=None,
+                              company=None, salary=None):
+    emp = Employment(
+        stu_id=stu_id,
+        stu_name=stu_name,
+        class_id=class_id,
+        open_time=open_time,
+        offer_time=offer_time,
+        company=company,
+        salary=salary,
+        is_deleted=False
+    )
+    db.add(emp)
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
 # 6.根据emp_id查单条（删除用）
 def get_employment_by_emp_id(db: Session, emp_id: int):
     return db.query(Employment).filter(

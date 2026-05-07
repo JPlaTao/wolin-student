@@ -23,9 +23,10 @@ export function buildAuthHeaders() {
 }
 
 /**
- * 解析 SSE 事件
+ * 遍历 SSE 文本块中的每个事件，回调处理
+ * chat.js / daiyu.js 共用，消除重复的 SSE 解析代码
  */
-export function parseSSEEvent(text) {
+export function forEachSSEEvent(text, callback) {
     const lines = text.split('\n');
     let eventType = null;
     let eventData = null;
@@ -44,13 +45,12 @@ export function parseSSEEvent(text) {
             }
         } else if (line === '') {
             if (eventType && eventData !== null) {
-                return { type: eventType, data: eventData };
+                callback({ type: eventType, data: eventData });
             }
             eventType = null;
             eventData = null;
         }
     }
-    return null;
 }
 
 /**
