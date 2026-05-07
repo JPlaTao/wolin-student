@@ -80,6 +80,7 @@ const app = createApp({
             else if (newVal === 'statistics') await statistics.renderAdvancedCharts();
             else if (newVal === 'management') {
                 if (auth.hasRole('student')) {
+                    mgmtTab.value = 'exam';
                     await mgmt.loadMyExamScores();
                 } else {
                     await mgmt.loadManagementData();
@@ -92,9 +93,13 @@ const app = createApp({
 
         watch(mgmtTab, async (newTab) => {
             if (activeTab.value === 'management') {
-                if (newTab === 'student') await mgmt.loadStudents();
-                else if (newTab === 'exam') await mgmt.loadExamRecords();
-                else if (newTab === 'employment') await mgmt.loadEmploymentData();
+                if (auth.hasRole('student')) {
+                    if (newTab === 'exam') await mgmt.loadMyExamScores();
+                } else {
+                    if (newTab === 'student') await mgmt.loadStudents();
+                    else if (newTab === 'exam') await mgmt.loadExamRecords();
+                    else if (newTab === 'employment') await mgmt.loadEmploymentData();
+                }
             }
         });
 

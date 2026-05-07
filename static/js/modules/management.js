@@ -3,7 +3,7 @@
  * 学生/班级/教师/成绩/就业/用户 的增删改查
  */
 
-const { ref } = Vue;
+const { ref, computed } = Vue;
 const { ElMessage, ElMessageBox } = ElementPlus;
 
 export function createManagementModule() {
@@ -227,6 +227,14 @@ export function createManagementModule() {
     // ===================================
     const examRecords = ref([]);
     const examLoading = ref(false);
+    const examCurrentPage = ref(1);
+    const examPageSize = ref(15);
+    const pagedExamRecords = computed(() => {
+        const start = (examCurrentPage.value - 1) * examPageSize.value;
+        return examRecords.value.slice(start, start + examPageSize.value);
+    });
+    const handleExamPageChange = (page) => { examCurrentPage.value = page; };
+    const handleExamSizeChange = (size) => { examPageSize.value = size; examCurrentPage.value = 1; };
     const myExamRecords = ref([]);
     const myExamLoading = ref(false);
     const examDialogVisible = ref(false);
@@ -515,6 +523,7 @@ export function createManagementModule() {
         maintenanceEditForm, openMaintenanceEditForm, submitMaintenanceUpdate,
         deleteQueriedExam, resetExamMaintenance,
         myExamRecords, myExamLoading, loadMyExamScores,
+        examCurrentPage, examPageSize, pagedExamRecords, handleExamPageChange, handleExamSizeChange,
         // 就业
         empSearch, employmentRecords, empLoading, loadEmploymentData,
         selectedEmployment, handleEmploymentSelection, employmentDialogVisible, employmentForm,

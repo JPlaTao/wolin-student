@@ -21,5 +21,4 @@ class EmploymentResp(BaseModel):
     company: Optional[str]
     salary: Optional[float]
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

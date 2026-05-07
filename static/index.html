@@ -737,7 +737,7 @@
                                 </span>
                             </div>
                             <el-table
-                                :data="examRecords"
+                                :data="pagedExamRecords"
                                 stripe
                                 v-loading="examLoading"
                                 @current-change="handleExamSelection"
@@ -756,11 +756,23 @@
                                     </template>
                                 </el-table-column>
                             </el-table>
+                            <div class="mt-4 flex justify-end">
+                                <el-pagination
+                                    v-model:current-page="examCurrentPage"
+                                    v-model:page-size="examPageSize"
+                                    :page-sizes="[10, 15, 20, 50]"
+                                    :total="examRecords.length"
+                                    layout="total, sizes, prev, pager, next, jumper"
+                                    background
+                                    @current-change="handleExamPageChange"
+                                    @size-change="handleExamSizeChange"
+                                />
+                            </div>
                         </template>
                     </el-tab-pane>
 
                     <!-- 就业管理 -->
-                    <el-tab-pane label="就业管理" name="employment">
+                    <el-tab-pane label="就业管理" name="employment" v-if="hasRole('admin', 'teacher')">
                         <div class="mb-4 flex flex-wrap gap-4 items-end">
                             <el-input
                                 v-model="empSearch.stu_name"
