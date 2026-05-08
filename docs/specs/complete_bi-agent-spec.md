@@ -90,9 +90,8 @@ LLM 负责：
 1. **不改 statistics_api** — 端点/响应格式不变
 2. **不改 sql_generator** — 复用现有 `generate_sql()` + `execute_sql_to_dict()`
 3. **不改 config.json** — 不新增配置项
-4. **不引入 LangChain/LangGraph** — 坚持手写胶水代码
-5. **前端不引入新库** — ECharts 已有
-6. **SSE 事件格式**与现有流式接口兼容（event: data 格式）
+4. **前端不引入新库** — ECharts 已有
+5. **SSE 事件格式**与现有流式接口兼容（event: data 格式）
 
 ## 五、暂不处理
 
