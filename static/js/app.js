@@ -11,6 +11,7 @@ import { createDaiyuModule } from './modules/daiyu.js';
 import { createStatisticsModule } from './modules/statistics.js';
 import { createImageGenModule } from './modules/imageGen.js';
 import { createEmailModule } from './modules/email.js';
+import { createToolsModule } from './modules/tools.js';
 import { createManagementModule } from './modules/management.js';
 
 const { createApp, ref, onMounted, watch, nextTick } = Vue;
@@ -64,6 +65,7 @@ const app = createApp({
         const statistics = createStatisticsModule();
         const imageGen = createImageGenModule();
         const email = createEmailModule();
+        const tools = createToolsModule();
         const mgmt = createManagementModule();
 
         // ===================================
@@ -169,6 +171,9 @@ const app = createApp({
 
             // 邮件
             ...email,
+
+            // 教师工具
+            ...tools,
 
             // 数据管理
             ...mgmt
