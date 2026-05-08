@@ -178,7 +178,7 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
         返回: 纯 SQL 字符串（以分号结尾的 SELECT 语句）
         """
         from services.sql_generator import generate_sql as _gen_sql
-        from api.query_agent import vectordb
+        from services.vectordb import vectordb
 
         sql = await _gen_sql(
             question=question,

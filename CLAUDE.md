@@ -2,6 +2,12 @@
 
 本文件用于指导 Claude Code (claude.ai/code) 在该仓库中工作。
 
+## 约束
+
+当提问本身有问题时，回答它是帮倒忙。先修正提问，再回答。 Debug the question first.
+
+我给你挑战我的安全空间，用好这个权限。指出逻辑漏洞是尊重，不是冒犯。 Truth over comfort.
+
 ## 项目概览
 
 沃林学生管理系统 (Wolin Student Management System) — 基于 FastAPI + SQLAlchemy + MySQL 构建的教育管理系统，提供 RESTful API 和原生 JavaScript 前端。系统管理学生、班级、教师、考试成绩、就业跟踪和统计信息，同时包含 AI 智能问答 Agent、文生图、知识库和邮件发送功能。

@@ -15,7 +15,6 @@ from api import (
     exam_api,
     employment_api,
     statistics_api,
-    query_agent,
     auth_api,
     image_gen,
     email_api,
@@ -85,7 +84,6 @@ app.include_router(teacher_api.router)
 app.include_router(exam_api.router_exam)
 app.include_router(employment_api.router)
 app.include_router(statistics_api.router)
-app.include_router(query_agent.router)
 app.include_router(auth_api.router)  # 认证路由
 app.include_router(image_gen.router)  # 文生图路由
 app.include_router(email_api.router)  # 邮件路由
