@@ -204,7 +204,7 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
         from services.sql_generator import validate_sql, fix_table_names
         from utils.json_encoder import safe_json_dumps
 
-        sql_fixed = fix_table_names(sql)
+        sql_fixed = fix_table_names(sql).rstrip(';').strip()
 
         is_valid, error_msg = validate_sql(sql_fixed)
         if not is_valid:
@@ -220,7 +220,7 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
 
             # 分页查询
             offset = (page - 1) * page_size
-            paginated_sql = f"{sql_fixed.rstrip(';')} LIMIT {page_size} OFFSET {offset}"
+            paginated_sql = f"{sql_fixed} LIMIT {page_size} OFFSET {offset}"
 
             def _sync_execute():
                 r = db.execute(text(paginated_sql))

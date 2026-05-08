@@ -277,3 +277,47 @@ async def bi_data_page(req: PageRequest, db: Session = Depends(get_db),
             "rows": rows,
         }
     }
+
+
+# ── 会话管理端点 ────────────────────────────────────
+
+@router.get("/sessions")
+async def bi_list_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前用户的所有会话列表（含摘要）"""
+    from dao.conversation_dao import list_sessions as _list_sessions
+    sessions = _list_sessions(db, current_user.id)
+    return {"code": 200, "data": sessions}
+
+
+@router.get("/sessions/{session_id}")
+async def bi_get_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取指定会话的全部消息"""
+    from dao.conversation_dao import get_all_turns
+    turns = get_all_turns(db, current_user.id, session_id)
+
+    messages = []
+    for turn in turns:
+        result_summary = None
+        if turn.result_summary:
+            try:
+                result_summary = json.loads(turn.result_summary)
+            except (json.JSONDecodeError, TypeError):
+                result_summary = turn.result_summary
+
+        messages.append({
+            "turn_index": turn.turn_index,
+            "question": turn.question,
+            "answer_text": turn.answer_text,
+            "sql_query": turn.sql_query,
+            "result_summary": result_summary,
+            "created_at": turn.created_at.isoformat() if turn.created_at else None,
+        })
+
+    return {"code": 200, "data": messages}

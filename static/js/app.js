@@ -106,6 +106,7 @@ const app = createApp({
             const loggedIn = await auth.checkLogin();
             if (loggedIn) {
                 await dashboard.refreshDashboard();
+                await bi.init();  // 加载会话历史
                 if (auth.hasRole('student')) {
                     await mgmt.loadMyExamScores();
                 } else {
@@ -127,6 +128,7 @@ const app = createApp({
             const result = await originalSubmitAuth();
             if (result.success && result.action === 'login') {
                 await dashboard.refreshDashboard();
+                await bi.init();  // 加载会话历史
                 if (auth.hasRole('student')) {
                     await mgmt.loadMyExamScores();
                 } else {

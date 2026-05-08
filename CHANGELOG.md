@@ -3,6 +3,7 @@
 ## 待办
 
 ### P0 — 让系统能用
+- [x] BI 对话历史与会话管理 — 2026-05-08
 - [x] 成绩表格加班级/学号列（exam DAO JOIN class 表）— 2026-05-08
 - [x] 成绩表加分页（limit/offset 参数）— 2026-05-06
 
@@ -27,12 +28,22 @@
 ## 历史
 
 ### 2026-05-08
-**记忆系统初始化 + 轮次收尾技能 + 文档整理**
+**BI 对话历史与会话管理 + 多个 Bug 修复 + 记忆系统 + 收尾技能**
 
 - **记忆系统** — 新建 5 条记忆（UI 布局偏好 / schema 位置 / 错误提示规范 / 响应式渲染 / AI Chat V2 状态），更新 LangChain 学习目标，创建 MEMORY.md 索引（19 条记忆），诊断记忆未维护根因
 - **轮次收尾技能** — `.claude/skills/wrap.md`，7 步管线：审计改动 → 检查 Spec 状态 → 更新 CHANGELOG → 检查记忆 → 提交 → 推送 → 收尾报告
 - **Spec 文件整理** — `user-permission-plan` 重命名提交，`todo_bi-chat-ui-redesign` → `working_`，`working_ai-chat-v2-architecture` → `complete_`
 - **P0 成绩表修复** — `exam_get()` 三表 LEFT JOIN 返回 `stu_name` + `class_name`，学生自查成绩表加班级和姓名列
+- **BI 对话历史与会话管理** — 刷新页面后聊天不再空白
+  - 后端新增 `GET /bi/sessions` + `GET /bi/sessions/{session_id}` 端点和对应 DAO
+  - 前端会话 tab 栏（切换/新建/历史加载），刷新后自动恢复上次会话
+  - 会话隔离：每个会话独立对话历史，互不干扰
+- **BI Bug 修复**
+  - SSE 解析器：TCP 分块边界处理，事件不丢失
+  - SQL 子查询：去除尾部分号解决 `COUNT(*)` 包装失败
+  - 表名修正：LLM 输出 `student` → `stu_basic_info`
+  - SQL 错误前端可见：`success: false` 状态显示友好提示
+  - Markdown 表格 CSS：Tailwind 重置后恢复边框和斑马纹
 
 ### 2026-05-07
 **对话式 BI V2 — LangGraph Agent 替代 QueryAgent**

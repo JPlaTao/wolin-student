@@ -62,3 +62,38 @@ def get_previous_sql_turn(db: Session, user_id: int, session_id: str) -> Optiona
         ConversationMemory.session_id == session_id,
         ConversationMemory.sql_query.isnot(None)
     ).order_by(ConversationMemory.turn_index.desc()).first()
+
+
+def get_all_turns(db: Session, user_id: int, session_id: str) -> List[ConversationMemory]:
+    """获取指定会话的全部轮次（按 turn_index 升序）"""
+    return db.query(ConversationMemory).filter(
+        ConversationMemory.user_id == user_id,
+        ConversationMemory.session_id == session_id
+    ).order_by(ConversationMemory.turn_index.asc()).all()
+
+
+def list_sessions(db: Session, user_id: int) -> list[dict]:
+    """获取用户的所有会话摘要（含最后提问和轮次数量）"""
+    from sqlalchemy import text as sql_text
+    rows = db.execute(sql_text("""
+        SELECT t.session_id, t.turn_count, t.last_time,
+               (SELECT cm2.question FROM conversation_memory cm2
+                WHERE cm2.user_id = :uid2 AND cm2.session_id = t.session_id
+                ORDER BY cm2.turn_index DESC LIMIT 1) AS last_question
+        FROM (
+            SELECT session_id, COUNT(*) AS turn_count, MAX(created_at) AS last_time
+            FROM conversation_memory
+            WHERE user_id = :uid
+            GROUP BY session_id
+        ) t
+        ORDER BY t.last_time DESC
+    """), {"uid": user_id, "uid2": user_id}).fetchall()
+    return [
+        {
+            "session_id": r[0],
+            "turn_count": r[1],
+            "last_time": r[2].isoformat() if r[2] else None,
+            "last_question": r[3],
+        }
+        for r in rows
+    ]

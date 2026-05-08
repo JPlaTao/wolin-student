@@ -42,6 +42,7 @@ def fix_table_names(sql: str) -> str:
     """修正 SQL 中的表名"""
     sql = re.sub(r'\bteachers\b', 'teacher', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bstudents\b', 'stu_basic_info', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'\bstudent\b', 'stu_basic_info', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bcourses\b', 'class', sql, flags=re.IGNORECASE)
     return sql
 

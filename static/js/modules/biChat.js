@@ -1,6 +1,6 @@
 /**
  * 对话式 BI 模块
- * 负责 SSE 流式数据对话、SQL/表格/图表渲染、分页翻页
+ * 负责 SSE 流式数据对话、SQL/表格/图表渲染、分页翻页、会话管理
  *
  * 布局方案：文本优先 + 数据折叠
  *   - 自然语言回答（textContent）始终可见，最先展示
@@ -15,45 +15,158 @@ export function createBiChatModule({ scrollToBottom }) {
     // ===================================
     // 状态
     // ===================================
-    const biMessages = ref([{
-        id: 1,
-        role: 'ai',
-        textContent: '你好！我是数据分析助手。可以直接问我数据问题，比如"五班最近一次考试成绩怎么样？"或"分析一下各班级的就业率"。',
-        thinking: '',
-        sql: '',
-        sqlHash: '',
-        tableData: null,
-        analysisData: null,
-        chartId: null,
-        isComplete: true,
-    }]);
+    const biMessages = ref([]);
     const biQuestion = ref('');
     const biStreaming = ref(false);
     const biChatContainer = ref(null);
+
+    // 会话管理
+    const sessions = ref([]);
+    const activeSessionId = ref('');
+    const biLoading = ref(false);
 
     // 当前正在流式写入的消息索引
     let streamingMsgIndex = -1;
 
     // ===================================
-    // Markdown 表格生成
+    // 会话辅助
     // ===================================
-    const buildMarkdownTable = (data) => {
+    const sessionDisplayName = (s) => {
+        if (!s) return '新对话';
+        const q = s.last_question || '';
+        if (q.length > 22) return q.slice(0, 22) + '…';
+        if (q.length > 0) return q;
+        return '新对话';
+    };
+
+    const isActiveSession = (sid) => activeSessionId.value === sid;
+
+    // ===================================
+    // 会话管理
+    // ===================================
+    const loadSessions = async () => {
+        try {
+            const resp = await fetch('/bi/sessions', {
+                headers: buildAuthHeaders()
+            });
+            const result = await resp.json();
+            if (result.code === 200 && Array.isArray(result.data)) {
+                sessions.value = result.data;
+            }
+        } catch (err) {
+            console.error('加载会话列表失败:', err);
+        }
+    };
+
+    const loadSessionMessages = async (sessionId) => {
+        biLoading.value = true;
+        try {
+            const resp = await fetch(`/bi/sessions/${encodeURIComponent(sessionId)}`, {
+                headers: buildAuthHeaders()
+            });
+            const result = await resp.json();
+            if (result.code === 200 && Array.isArray(result.data)) {
+                const msgs = [];
+                result.data.forEach(turn => {
+                    msgs.push({
+                        id: turn.turn_index * 2,
+                        role: 'user',
+                        textContent: turn.question,
+                    });
+                    msgs.push({
+                        id: turn.turn_index * 2 + 1,
+                        role: 'ai',
+                        textContent: turn.answer_text || '',
+                        thinking: '',
+                        sql: turn.sql_query || '',
+                        sqlHash: turn.result_summary?.sql_hash || '',
+                        tableData: null,
+                        analysisData: null,
+                        chartId: null,
+                        isComplete: true,
+                    });
+                });
+                biMessages.value = msgs;
+            }
+        } catch (err) {
+            console.error('加载会话消息失败:', err);
+        } finally {
+            biLoading.value = false;
+        }
+    };
+
+    const switchSession = async (sessionId) => {
+        if (sessionId === activeSessionId.value) return;
+        activeSessionId.value = sessionId;
+        localStorage.setItem('bi_session_id', sessionId);
+        await loadSessionMessages(sessionId);
+        await nextTick();
+        await scrollToBottom();
+    };
+
+    const createNewSession = () => {
+        const newId = 'bi_' + crypto.randomUUID().slice(0, 12);
+        activeSessionId.value = newId;
+        localStorage.setItem('bi_session_id', newId);
+        biMessages.value = [];
+        // 不清除 sessions 列表 — 新会话发消息后会自动刷新
+    };
+
+    // 初始化：加载会话列表，自动选中上次活跃会话
+    const init = async () => {
+        await loadSessions();
+        const lastId = localStorage.getItem('bi_session_id');
+        if (lastId && sessions.value.some(s => s.session_id === lastId)) {
+            activeSessionId.value = lastId;
+            await loadSessionMessages(lastId);
+        } else {
+            biMessages.value = [{
+                id: 1,
+                role: 'ai',
+                textContent: '你好！我是数据分析助手。可以直接问我数据问题，比如"五班最近一次考试成绩怎么样？"或"分析一下各班级的就业率"。',
+                thinking: '',
+                sql: '',
+                sqlHash: '',
+                tableData: null,
+                analysisData: null,
+                chartId: null,
+                isComplete: true,
+            }];
+        }
+    };
+
+    // ===================================
+    // 数据表格 HTML 生成
+    // ===================================
+    const buildDataTableHTML = (data) => {
         if (!data || !data.success) return '';
-        if (!data.rows || data.rows.length === 0) return '（无数据）';
+        if (!data.rows || data.rows.length === 0) return '<p class="text-slate-400 text-sm">（无数据）</p>';
 
         const cols = data.columns;
         if (!cols || cols.length === 0) return '';
 
-        let md = '| ' + cols.join(' | ') + ' |\n';
-        md += '| ' + cols.map(() => '---').join(' | ') + ' |\n';
+        let html = '<div class="data-table-wrap"><table><thead><tr>';
+        cols.forEach(c => { html += `<th>${escapeHtml(String(c))}</th>`; });
+        html += '</tr></thead><tbody>';
         data.rows.forEach(row => {
-            md += '| ' + cols.map(c => {
+            html += '<tr>';
+            cols.forEach(c => {
                 const v = row[c];
-                if (v === null || v === undefined) return '-';
-                return String(v).replace(/\|/g, '\\|');
-            }).join(' | ') + ' |\n';
+                const text = v === null || v === undefined ? '-' : String(v);
+                html += `<td>${escapeHtml(text)}</td>`;
+            });
+            html += '</tr>';
         });
-        return md;
+        html += '</tbody></table></div>';
+        return html;
+    };
+
+    const escapeHtml = (text) => {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     };
 
     // ===================================
@@ -184,7 +297,6 @@ export function createBiChatModule({ scrollToBottom }) {
             case 'done':
                 msg.thinking = '';
                 msg.isComplete = true;
-                // 渲染图表
                 scheduleChartRender(msg);
                 break;
 
@@ -202,7 +314,6 @@ export function createBiChatModule({ scrollToBottom }) {
         if (!cs) return;
 
         await nextTick();
-        // 可能需要等待 DOM 渲染，延迟一点
         setTimeout(async () => {
             const container = document.getElementById(msg.chartId);
             if (container && container.clientHeight > 0) {
@@ -220,7 +331,14 @@ export function createBiChatModule({ scrollToBottom }) {
     const sendBiQuestion = async () => {
         if (!biQuestion.value.trim() || biStreaming.value) return;
 
+        // 如果无活跃会话，自动创建
+        if (!activeSessionId.value) {
+            createNewSession();
+        }
+
         const question = biQuestion.value;
+        const sessionId = activeSessionId.value;
+
         const userMsgId = Date.now();
         biMessages.value.push({
             id: userMsgId,
@@ -230,7 +348,6 @@ export function createBiChatModule({ scrollToBottom }) {
         biQuestion.value = '';
         biStreaming.value = true;
 
-        // 创建 AI 消息占位（所有字段有初始值）
         const aiMsgId = Date.now() + 1;
         const aiMsg = {
             id: aiMsgId,
@@ -247,12 +364,6 @@ export function createBiChatModule({ scrollToBottom }) {
         biMessages.value.push(aiMsg);
         streamingMsgIndex = biMessages.value.length - 1;
         await scrollToBottom();
-
-        let sessionId = localStorage.getItem('bi_session_id');
-        if (!sessionId) {
-            sessionId = 'bi_' + crypto.randomUUID().slice(0, 12);
-            localStorage.setItem('bi_session_id', sessionId);
-        }
 
         try {
             const response = await fetch('/bi/stream', {
@@ -295,23 +406,17 @@ export function createBiChatModule({ scrollToBottom }) {
         } finally {
             biStreaming.value = false;
             streamingMsgIndex = -1;
+            // 发送完毕刷新会话列表（让新会话出现）
+            await loadSessions();
             await scrollToBottom();
         }
     };
 
+    // ===================================
+    // 清空当前会话
+    // ===================================
     const clearBiChat = () => {
-        biMessages.value = [{
-            id: Date.now(),
-            role: 'ai',
-            textContent: '聊天记录已清空，有什么可以帮您分析的？',
-            thinking: '',
-            sql: '',
-            sqlHash: '',
-            tableData: null,
-            analysisData: null,
-            chartId: null,
-            isComplete: true,
-        }];
+        biMessages.value = [];
     };
 
     return {
@@ -319,9 +424,18 @@ export function createBiChatModule({ scrollToBottom }) {
         biQuestion,
         biStreaming,
         biChatContainer,
+        biLoading,
+        sessions,
+        activeSessionId,
         sendBiQuestion,
         clearBiChat,
         goToPage,
-        buildMarkdownTable,
+        buildDataTableHTML,
+        loadSessions,
+        switchSession,
+        createNewSession,
+        sessionDisplayName,
+        isActiveSession,
+        init,
     };
 }

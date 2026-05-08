@@ -25,30 +25,39 @@ export function buildAuthHeaders() {
 /**
  * 遍历 SSE 文本块中的每个事件，回调处理
  * chat.js / daiyu.js 共用，消除重复的 SSE 解析代码
+ *
+ * 关键：使用持久缓冲区处理 chunk 边界切分。
+ * stream reader 可能在任何字节处切断，单个 SSE 事件可能被 TCP 分片拆散。
  */
-export function forEachSSEEvent(text, callback) {
-    const lines = text.split('\n');
-    let eventType = null;
-    let eventData = null;
+let _sseBuf = '';
 
-    for (const line of lines) {
+export function forEachSSEEvent(text, callback) {
+    _sseBuf += text;
+
+    // 切行，保留末尾不完整行到下次
+    const parts = _sseBuf.split('\n');
+    _sseBuf = parts.pop() || '';
+
+    let eventType = null;
+    let dataAcc = [];
+
+    for (const line of parts) {
         if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
+            dataAcc = [];
         } else if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr) {
-                try {
-                    eventData = JSON.parse(dataStr);
-                } catch {
-                    eventData = dataStr;
-                }
-            }
+            dataAcc.push(line.slice(6).trim());
         } else if (line === '') {
-            if (eventType && eventData !== null) {
-                callback({ type: eventType, data: eventData });
+            if (eventType) {
+                const raw = dataAcc.join('\n');
+                let data = raw;
+                if (raw && raw.startsWith('{')) {
+                    try { data = JSON.parse(raw); } catch { /* keep raw */ }
+                }
+                callback({ type: eventType, data });
             }
             eventType = null;
-            eventData = null;
+            dataAcc = [];
         }
     }
 }
