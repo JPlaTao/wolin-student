@@ -4,15 +4,15 @@
 
 ### P0 — 让系统能用
 - [ ] 成绩表格加班级/学号列（exam DAO JOIN class 表）
-- [ ] 成绩表加分页（limit/offset 参数）
+- [x] 成绩表加分页（limit/offset 参数）— 2026-05-06
 
 ### P1 — 对话式 BI（替代现有 query_agent）
-- [ ] 对话式 BI：自然语言 → 统计图表
+- [x] 对话式 BI：自然语言 → 统计图表 — 2026-05-07
   - 前端引入 ECharts（CDN 加载）
-  - LLM Agent 两个 Tool：`call_statistics_api`（预置统计）+ `generate_sql_and_query`（动态 SQL）
+  - LangGraph Agent 三个 Tool：`generate_sql` + `execute_sql` + `analyze_data`
   - 返回结构化数据 + 图表类型建议 → ECharts 渲染
-  - 多轮会话记录
-  - 废弃 `query_agent` 及其前端 Tab
+  - 多轮会话记录（bi_ 前缀 session 隔离）
+  - 前端"数据对话"Tab 替代旧"智能查询"Tab（文本优先 + 数据折叠布局）
 
 ### P2 — 教师实用工具
 - [ ] 公告/通知润色助手
@@ -25,6 +25,26 @@
 ---
 
 ## 历史
+
+### 2026-05-08
+**记忆系统初始化 + 轮次收尾技能 + 文档整理**
+
+- **记忆系统** — 新建 5 条记忆（UI 布局偏好 / schema 位置 / 错误提示规范 / 响应式渲染 / AI Chat V2 状态），更新 LangChain 学习目标，创建 MEMORY.md 索引（19 条记忆），诊断记忆未维护根因
+- **轮次收尾技能** — `.claude/skills/wrap.md`，7 步管线：审计改动 → 检查 Spec 状态 → 更新 CHANGELOG → 检查记忆 → 提交 → 推送 → 收尾报告
+- **Spec 文件整理** — `user-permission-plan` 重命名提交，`todo_bi-chat-ui-redesign` → `working_`，`working_ai-chat-v2-architecture` → `complete_`
+
+### 2026-05-07
+**对话式 BI V2 — LangGraph Agent 替代 QueryAgent**
+
+改动文件：`services/bi_agent.py` `api/bi_agent.py` `schemas/bi_analysis.py` `static/js/modules/biChat.js` `main.py` `static/js/app.js` `static/index.html`
+
+- **LangGraph Agent** — `create_agent` + 3 个独立 Tool（generate_sql / execute_sql / analyze_data），替代 V1 手写意图分类
+- **SSE 流式** — `agent.astream_events(version="v2")`，事件映射：thinking/sql/data/analysis/chunk/done
+- **结构化分析输出** — `AnalysisOutput` Pydantic schema（summary + key_findings + chart_suggestion + statistics），含 JSON fallback
+- **SQL 缓存 + 分页** — 内存 30min TTL 缓存，首页 50 条 + `POST /bi/data-page` 翻页
+- **前端重构** — 消息从单 `v-html` 改为独立响应式字段 + Vue 模板逐块渲染；文本优先 + 数据折叠布局；ECharts 图表；用户友好错误提示
+
+**文档** — `docs/specs/working_ai-chat-v2-architecture.md` `docs/specs/todo_bi-chat-ui-redesign.md`（实现记录见 spec）
 
 ### 2026-05-06
 **学生自助查成绩 + 用户-学号绑定**
