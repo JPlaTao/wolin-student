@@ -770,6 +770,8 @@
                                 </el-button>
                             </div>
                             <el-table :data="myExamRecords" stripe v-loading="myExamLoading">
+                                <el-table-column prop="stu_name" label="姓名"></el-table-column>
+                                <el-table-column prop="class_name" label="班级"></el-table-column>
                                 <el-table-column prop="seq_no" label="考试序号" width="100"></el-table-column>
                                 <el-table-column prop="grade" label="成绩" width="80"></el-table-column>
                                 <el-table-column prop="exam_date" label="考试日期" width="120"></el-table-column>

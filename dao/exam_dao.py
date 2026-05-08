@@ -114,19 +114,30 @@ def exam_get(
         seq_no: int | None,
         db: Session
 ):
-    _query = db.query(StuExamRecord).filter(
-            and_(
-                StuExamRecord.is_deleted == 0,
-                StuExamRecord.stu_id == stu_id
-            )
-    )
+    sql = text("""
+        SELECT e.stu_id, s.stu_name, c.class_name, e.seq_no, e.grade, e.exam_date
+        FROM stu_exam_record e
+        LEFT JOIN stu_basic_info s ON e.stu_id = s.stu_id
+        LEFT JOIN class c ON s.class_id = c.class_id
+        WHERE e.is_deleted = 0 AND e.stu_id = :stu_id
+    """)
 
     if seq_no is not None:
-        _query = _query.filter(StuExamRecord.seq_no == seq_no).first()
-        data = {"stu_id": _query.stu_id, "seq_no": _query.seq_no, "grade": _query.grade, "exam_date": _query.exam_date}
+        sql = text("""
+            SELECT e.stu_id, s.stu_name, c.class_name, e.seq_no, e.grade, e.exam_date
+            FROM stu_exam_record e
+            LEFT JOIN stu_basic_info s ON e.stu_id = s.stu_id
+            LEFT JOIN class c ON s.class_id = c.class_id
+            WHERE e.is_deleted = 0 AND e.stu_id = :stu_id AND e.seq_no = :seq_no
+        """)
+        row = db.execute(sql, {"stu_id": stu_id, "seq_no": seq_no}).fetchone()
+        if row:
+            data = dict(row._mapping)
+        else:
+            data = None
     else:
-        _query = _query.all()
-        data = [ {"stu_id": i.stu_id, "seq_no": i.seq_no, "grade": i.grade, "exam_date": i.exam_date} for i in _query ]
+        rows = db.execute(sql, {"stu_id": stu_id}).fetchall()
+        data = [dict(row._mapping) for row in rows]
 
     if data:
         return {"msg": "success", "data": data}

@@ -3,7 +3,7 @@
 ## 待办
 
 ### P0 — 让系统能用
-- [ ] 成绩表格加班级/学号列（exam DAO JOIN class 表）
+- [x] 成绩表格加班级/学号列（exam DAO JOIN class 表）— 2026-05-08
 - [x] 成绩表加分页（limit/offset 参数）— 2026-05-06
 
 ### P1 — 对话式 BI（替代现有 query_agent）
@@ -32,6 +32,7 @@
 - **记忆系统** — 新建 5 条记忆（UI 布局偏好 / schema 位置 / 错误提示规范 / 响应式渲染 / AI Chat V2 状态），更新 LangChain 学习目标，创建 MEMORY.md 索引（19 条记忆），诊断记忆未维护根因
 - **轮次收尾技能** — `.claude/skills/wrap.md`，7 步管线：审计改动 → 检查 Spec 状态 → 更新 CHANGELOG → 检查记忆 → 提交 → 推送 → 收尾报告
 - **Spec 文件整理** — `user-permission-plan` 重命名提交，`todo_bi-chat-ui-redesign` → `working_`，`working_ai-chat-v2-architecture` → `complete_`
+- **P0 成绩表修复** — `exam_get()` 三表 LEFT JOIN 返回 `stu_name` + `class_name`，学生自查成绩表加班级和姓名列
 
 ### 2026-05-07
 **对话式 BI V2 — LangGraph Agent 替代 QueryAgent**
