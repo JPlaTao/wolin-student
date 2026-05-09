@@ -11,6 +11,22 @@
 const { ref, nextTick } = Vue;
 import { buildAuthHeaders, forEachSSEEvent } from '../utils/api.js';
 
+// AI 消息工厂函数 -- 保证流式创建和历史恢复使用完全相同的 shape
+function createAiMessage(overrides = {}) {
+    return {
+        role: 'ai',
+        textContent: '',
+        thinking: '',
+        sql: '',
+        sqlHash: '',
+        tableData: null,
+        analysisData: null,
+        chartId: null,
+        isComplete: false,
+        ...overrides,
+    };
+}
+
 export function createBiChatModule({ scrollToBottom }) {
     // ===================================
     // 状态
@@ -73,20 +89,49 @@ export function createBiChatModule({ scrollToBottom }) {
                         role: 'user',
                         textContent: turn.question,
                     });
-                    msgs.push({
+                    // 从 result_summary 恢复表格/图表数据
+                    const rs = turn.result_summary || {};
+                    let tableData = null;
+                    let analysisData = null;
+                    let chartId = null;
+                    if (rs.columns && rs.columns.length > 0) {
+                        const savedRows = rs.rows || [];
+                        tableData = {
+                            success: true,
+                            columns: rs.columns,
+                            rows: savedRows,
+                            row_count: rs.row_count || savedRows.length,
+                            page: 1,
+                            page_size: Math.max(savedRows.length, 50),
+                            total_pages: 1,
+                            has_more: false,
+                            statistics: rs.statistics || null,
+                            sql_hash: rs.sql_hash || '',
+                        };
+                    }
+                    if (rs.analysis) {
+                        analysisData = rs.analysis;
+                        if (rs.analysis.chart_suggestion && rs.rows?.length > 0) {
+                            chartId = 'chart-hist-' + (turn.turn_index * 2 + 1);
+                        }
+                    }
+
+                    msgs.push(createAiMessage({
                         id: turn.turn_index * 2 + 1,
-                        role: 'ai',
                         textContent: turn.answer_text || '',
-                        thinking: '',
                         sql: turn.sql_query || '',
-                        sqlHash: turn.result_summary?.sql_hash || '',
-                        tableData: null,
-                        analysisData: null,
-                        chartId: null,
+                        sqlHash: rs.sql_hash || '',
+                        tableData,
+                        analysisData,
+                        chartId,
                         isComplete: true,
-                    });
+                    }));
                 });
                 biMessages.value = msgs;
+
+                // 渲染历史消息中的图表
+                await nextTick();
+                msgs.forEach(m => { if (m.chartId) scheduleChartRender(m); });
             }
         } catch (err) {
             console.error('加载会话消息失败:', err);
@@ -120,18 +165,11 @@ export function createBiChatModule({ scrollToBottom }) {
             activeSessionId.value = lastId;
             await loadSessionMessages(lastId);
         } else {
-            biMessages.value = [{
+            biMessages.value = [createAiMessage({
                 id: 1,
-                role: 'ai',
                 textContent: '你好！我是数据分析助手。可以直接问我数据问题，比如"五班最近一次考试成绩怎么样？"或"分析一下各班级的就业率"。',
-                thinking: '',
-                sql: '',
-                sqlHash: '',
-                tableData: null,
-                analysisData: null,
-                chartId: null,
                 isComplete: true,
-            }];
+            })];
         }
     };
 
@@ -348,19 +386,10 @@ export function createBiChatModule({ scrollToBottom }) {
         biQuestion.value = '';
         biStreaming.value = true;
 
-        const aiMsgId = Date.now() + 1;
-        const aiMsg = {
-            id: aiMsgId,
-            role: 'ai',
-            textContent: '',
+        const aiMsg = createAiMessage({
+            id: Date.now() + 1,
             thinking: '正在分析问题...',
-            sql: '',
-            sqlHash: '',
-            tableData: null,
-            analysisData: null,
-            chartId: null,
-            isComplete: false,
-        };
+        });
         biMessages.value.push(aiMsg);
         streamingMsgIndex = biMessages.value.length - 1;
         await scrollToBottom();
