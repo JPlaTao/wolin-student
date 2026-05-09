@@ -203,12 +203,26 @@ async def bi_stream(req: BIStreamRequest, db: Session = Depends(get_db),
             analysis_result = result_store.get("analysis_result")
 
             result_summary = None
-            if query_result:
-                result_summary = json.dumps({
+            if query_result and query_result.get("success"):
+                summary = {
                     "row_count": query_result.get("row_count"),
                     "statistics": query_result.get("statistics"),
                     "sql_hash": query_result.get("sql_hash"),
-                }, ensure_ascii=False)
+                    "columns": query_result.get("columns", []),
+                }
+                # 保存第一页数据，用于刷新后恢复表格和图表
+                row_count = query_result.get("row_count", 0)
+                if row_count <= 100:
+                    summary["rows"] = query_result.get("rows", [])
+                if analysis_result:
+                    analysis = analysis_result if isinstance(analysis_result, dict) else None
+                    if analysis:
+                        chart = analysis.get("chart_suggestion")
+                        summary["analysis"] = {
+                            "key_findings": analysis.get("key_findings", []),
+                            "chart_suggestion": chart,
+                        }
+                result_summary = json.dumps(summary, ensure_ascii=False)
 
             answer_text = full_answer.strip()
             if not answer_text:
