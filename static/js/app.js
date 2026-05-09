@@ -13,6 +13,7 @@ import { createImageGenModule } from './modules/imageGen.js';
 import { createEmailModule } from './modules/email.js';
 import { createToolsModule } from './modules/tools.js';
 import { createManagementModule } from './modules/management.js';
+import { createRagModule } from './modules/ragManager.js';
 
 const { createApp, ref, onMounted, watch, nextTick } = Vue;
 const { ElMessage } = ElementPlus;
@@ -67,6 +68,7 @@ const app = createApp({
         const email = createEmailModule();
         const tools = createToolsModule();
         const mgmt = createManagementModule();
+        const rag = createRagModule();
 
         // ===================================
         // 帮助函数（模板需要，不在模块中）
@@ -174,6 +176,9 @@ const app = createApp({
 
             // 教师工具
             ...tools,
+
+            // 知识库
+            ...rag,
 
             // 数据管理
             ...mgmt
