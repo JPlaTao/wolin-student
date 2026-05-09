@@ -85,6 +85,14 @@ class AppConfig(BaseModel):
     version: str = Field(default="1.0.0", description="版本号")
 
 
+class RAGConfig(BaseModel):
+    """RAG 知识库配置"""
+    vector_models: list[str] = Field(default=["text-embedding-v3", "text-embedding-v4"])
+    rerank_model: str = Field(default="gte-rerank")
+    default_chunk_size: int = Field(default=500)
+    default_chunk_overlap: int = Field(default=100)
+
+
 class Settings(BaseModel):
     """全局配置"""
     database: DatabaseConfig
@@ -92,6 +100,7 @@ class Settings(BaseModel):
     api_keys: APIKeysConfig
     llm: LLMConfig = Field(default_factory=LLMConfig)
     app: AppConfig
+    rag: RAGConfig = Field(default_factory=RAGConfig)
 
 
 def _find_config_file() -> Path:

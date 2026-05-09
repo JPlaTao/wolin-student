@@ -34,5 +34,11 @@
     "debug": false,
     "title": "\u6c83\u6797\u5b66\u751f\u7ba1\u7406\u7cfb\u7edf",
     "version": "1.0.0"
+  },
+  "rag": {
+    "vector_models": ["text-embedding-v3", "text-embedding-v4"],
+    "rerank_model": "gte-rerank",
+    "default_chunk_size": 500,
+    "default_chunk_overlap": 100
   }
 }

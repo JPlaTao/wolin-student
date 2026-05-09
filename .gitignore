@@ -14,6 +14,9 @@ __pycache__/
 
 # Database
 chroma_db/
+data/novels/
+data/uploads/*
+!data/uploads/.gitkeep
 *.sqlite3
 
 # Environment

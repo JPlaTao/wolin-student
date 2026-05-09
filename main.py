@@ -21,6 +21,7 @@ from api import (
     lin_daiyu_agent,
     bi_agent,
     tools_api,
+    novel_rag_api,
 )
 from services.knowledge_base import build_knowledge_base
 from utils.logger import get_logger
@@ -91,6 +92,7 @@ app.include_router(email_api.router)  # 邮件路由
 app.include_router(lin_daiyu_agent.router)  # 林黛玉 Agent
 app.include_router(bi_agent.router)  # 对话式 BI Agent
 app.include_router(tools_api.router)  # 教师实用工具
+app.include_router(novel_rag_api.router)  # 四大名著 RAG
 
 
 @app.get("/", response_class=HTMLResponse)
