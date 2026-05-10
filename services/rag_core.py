@@ -52,6 +52,14 @@ class VectorStore(ABC):
     @abstractmethod
     def clear(self) -> None: ...
 
+    @abstractmethod
+    def list_documents(self) -> list[dict]:
+        """返回文档列表，每项 {filename, total_chunks, model, created_at}"""
+
+    @abstractmethod
+    def delete_by_source(self, filename: str) -> int:
+        """删除指定源文件的所有切片，返回被删除的切片数量"""
+
 
 
 # ── BM25 索引 ───────────────────────────────────────────
@@ -166,6 +174,66 @@ class ChromaStore(VectorStore):
             except Exception:
                 pass
             self._db = None
+
+    def list_documents(self) -> list[dict]:
+        """从 Chroma metadata 按 source 分组聚合文档列表"""
+        if not self._has_collection():
+            return []
+        all_data = self._ensure_db().get(include=["metadatas"])
+        metadatas = all_data.get("metadatas", [])
+        if not metadatas:
+            return []
+
+        doc_map: dict[str, dict] = {}
+        for meta in metadatas:
+            source = meta.get("source", "unknown")
+            if source not in doc_map:
+                doc_map[source] = {
+                    "filename": source,
+                    "total_chunks": 0,
+                    "model": "unknown",
+                    "chunk_size": meta.get("chunk_size", 0),
+                    "chunk_overlap": meta.get("chunk_overlap", 0),
+                    "created_at": "unknown",
+                }
+            doc_map[source]["total_chunks"] += 1
+            if doc_map[source]["model"] == "unknown" and meta.get("model"):
+                doc_map[source]["model"] = meta["model"]
+            if meta.get("chunk_size"):
+                doc_map[source]["chunk_size"] = meta["chunk_size"]
+            if meta.get("chunk_overlap"):
+                doc_map[source]["chunk_overlap"] = meta["chunk_overlap"]
+            ts = meta.get("created_at", "")
+            if ts and (
+                doc_map[source]["created_at"] == "unknown"
+                or ts < doc_map[source]["created_at"]
+            ):
+                doc_map[source]["created_at"] = ts
+        return list(doc_map.values())
+
+    def delete_by_source(self, filename: str) -> int:
+        """按 source 删除所有切片，返回删除数量"""
+        db = self._ensure_db()
+        results = db.get(where={"source": filename}, include=[])
+        ids = results.get("ids", [])
+        if not ids:
+            return 0
+        self._db._collection.delete(where={"source": {"$eq": filename}})
+        logger.info(f"ChromaStore 删除 source={filename}, 共 {len(ids)} 片")
+        return len(ids)
+
+    def get_all_chunks(self) -> tuple[list[Chunk], list[str]]:
+        """读取 Chroma 全部切片用于 BM25 重建，返回 (chunks, ids)"""
+        db = self._ensure_db()
+        results = db.get(include=["documents", "metadatas"])
+        chunks: list[Chunk] = []
+        ids: list[str] = []
+        for i, doc in enumerate(results.get("documents", []) or []):
+            if doc is not None:
+                meta = (results.get("metadatas") or [{}])[i] or {}
+                chunks.append(Chunk(content=doc, metadata=meta))
+                ids.append(results["ids"][i])
+        return chunks, ids
 
 
 # ── 重排序器 ────────────────────────────────────────────

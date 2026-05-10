@@ -4,6 +4,7 @@ RAG 知识库业务编排层
 文档处理、入库管线、检索编排
 """
 
+from datetime import datetime
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -60,21 +61,28 @@ class IngestionPipeline:
         filename: str,
         chunks: list[Chunk],
         model: str = "text-embedding-v4",
+        chunk_size: int = 500,
+        chunk_overlap: int = 100,
     ) -> int:
         """
         完整入库流程：
-        1. 补充 metadata（source, chunk_index, total_chunks）
+        1. 补充 metadata（source, chunk_index, total_chunks, model, chunk_size, chunk_overlap, created_at）
         2. 逐片生成嵌入 + 日志
         3. 存入 Chroma
         4. 重建 BM25 索引
         """
         settings = get_settings()
 
-        # 1. 补充 metadata
+        # 1. 补充 metadata（含模型参数和入库时间）
+        now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         for i, ch in enumerate(chunks):
             ch.metadata["source"] = filename
             ch.metadata["chunk_index"] = i
             ch.metadata["total_chunks"] = len(chunks)
+            ch.metadata["model"] = model
+            ch.metadata["chunk_size"] = chunk_size
+            ch.metadata["chunk_overlap"] = chunk_overlap
+            ch.metadata["created_at"] = now
 
         # 2. 生成嵌入
         api_key = settings.api_keys.dashscope
@@ -174,3 +182,30 @@ class RAGEngine:
             }
             for cid, chunk, score in results
         ]
+
+    def delete_document(self, filename: str) -> int:
+        """删除文档，重建 BM25，返回删除切片数。0 表示不存在。"""
+        deleted = self._vector_store.delete_by_source(filename)
+        if deleted == 0:
+            return 0
+
+        remaining_chunks, remaining_ids = self._vector_store.get_all_chunks()
+        if remaining_chunks:
+            self._bm25.build(remaining_chunks, remaining_ids)
+        else:
+            self._bm25 = BM25Index()
+        self._bm25.save()
+        self._chunks = dict(zip(remaining_ids, remaining_chunks))
+
+        logger.info(
+            f"RAGEngine 删除 '{filename}' 完成, "
+            f"删 {deleted} 片, 剩 {len(remaining_chunks)} 片"
+        )
+        return deleted
+
+    def get_stats(self) -> dict:
+        """返回 {total_documents, total_chunks}"""
+        docs = self._vector_store.list_documents()
+        total_documents = len(docs)
+        total_chunks = sum(d.get("total_chunks", 0) for d in docs)
+        return {"total_documents": total_documents, "total_chunks": total_chunks}

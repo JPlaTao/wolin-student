@@ -6,7 +6,7 @@
  */
 
 const { ref } = Vue;
-const { ElMessage } = ElementPlus;
+const { ElMessage, ElMessageBox } = ElementPlus;
 
 // ===================================
 // Mock 数据
@@ -80,6 +80,18 @@ export function createRagModule() {
 
     const hasSearched = ref(false);
 
+    // V2 新增: 入库阶段反馈
+    const ingestPhase = ref('');        // '' | 'chunking' | 'embedding' | 'indexing'
+
+    // V2 新增: 文档管理
+    const documents = ref([]);
+    const docTotal = ref(0);
+    const deleteLoading = ref(false);
+
+    // V2 新增: 库统计
+    const stats = ref(null);
+    const statsLoading = ref(false);
+
     // ===================================
     // 方法定义
     // ===================================
@@ -130,7 +142,7 @@ export function createRagModule() {
     }
 
     /**
-     * 确认入库（mock 版）
+     * 确认入库（含分阶段反馈 + 成功/失败弹窗）
      */
     async function doConfirm() {
         if (!uploadResult.value) {
@@ -138,9 +150,15 @@ export function createRagModule() {
             return;
         }
         ragLoading.value = true;
+        ingestPhase.value = 'chunking';
+
+        // setTimeout 链模拟分阶段提示
+        const t1 = setTimeout(() => { ingestPhase.value = 'embedding'; }, 800);
+        const t2 = setTimeout(() => { ingestPhase.value = 'indexing'; }, 2500);
+
         try {
             if (useMock.value) {
-                await delay(800);
+                await delay(1200);
                 confirmResult.value = MOCK_CONFIRM.data;
             } else {
                 const res = await axios.post('/rag/confirm', {
@@ -151,7 +169,17 @@ export function createRagModule() {
                 });
                 confirmResult.value = res.data.data;
             }
+            clearTimeout(t1);
+            clearTimeout(t2);
+            ingestPhase.value = '';
+            ElMessage.success('入库成功');
+            // 刷新文档列表和统计
+            fetchDocuments();
+            fetchStats();
         } catch (err) {
+            clearTimeout(t1);
+            clearTimeout(t2);
+            ingestPhase.value = '';
             ElMessage.error(err.response?.data?.detail || '入库失败，请稍后重试');
         } finally {
             ragLoading.value = false;
@@ -208,6 +236,66 @@ export function createRagModule() {
     }
 
     // ===================================
+    // V2 新增方法
+    // ===================================
+
+    /**
+     * 获取文档列表
+     */
+    async function fetchDocuments() {
+        try {
+            const res = await axios.get('/rag/documents');
+            documents.value = res.data.data.documents || [];
+            docTotal.value = res.data.data.total || 0;
+        } catch (err) {
+            console.error('获取文档列表失败:', err);
+            documents.value = [];
+            docTotal.value = 0;
+        }
+    }
+
+    /**
+     * 获取库统计
+     */
+    async function fetchStats() {
+        statsLoading.value = true;
+        try {
+            const res = await axios.get('/rag/stats');
+            stats.value = res.data.data;
+        } catch (err) {
+            console.error('获取库统计失败:', err);
+            stats.value = null;
+        } finally {
+            statsLoading.value = false;
+        }
+    }
+
+    /**
+     * 确认删除文档（二次确认弹窗）
+     */
+    async function confirmDelete(doc) {
+        try {
+            await ElMessageBox.confirm(
+                `确定要删除「${doc.filename}」吗？该操作不可恢复。`,
+                '删除确认',
+                { confirmButtonText: '确定删除', cancelButtonText: '取消', type: 'warning' }
+            );
+            deleteLoading.value = true;
+            await axios.delete(`/rag/documents/${encodeURIComponent(doc.filename)}`);
+            ElMessage.success('文档已删除');
+            fetchDocuments();
+            fetchStats();
+        } catch (err) {
+            // 用户取消不报错
+            if (err !== 'cancel') {
+                ElMessage.error(err.response?.data?.detail || '删除失败，请稍后重试');
+            }
+        } finally {
+            deleteLoading.value = false;
+        }
+    }
+
+    // ===================================
     // 返回导出
     // ===================================
     return {
@@ -219,7 +307,11 @@ export function createRagModule() {
         searchQuery, searchResults, searchTotal, hasSearched,
         // 通用
         ragLoading, useMock,
+        // V2 新增状态
+        ingestPhase, documents, docTotal, deleteLoading, stats, statsLoading,
         // 方法
         onFileSelected, doUpload, doConfirm, doSearch, resetUpload, formatScore,
+        // V2 新增方法
+        fetchDocuments, fetchStats, confirmDelete,
     };
 }

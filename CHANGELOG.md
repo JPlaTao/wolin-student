@@ -35,7 +35,15 @@
 - [x] 前端 Tasks（原子任务清单，12 项）— 2026-05-09
 - [x] 前端实现（ragManager.js + index.html + app.js）— 2026-05-09
 
-### P5 — 趣味聊天扩展
+### P5 — RAG 知识库增强（后端文档管理）
+- [x] 文档管理 API：GET /rag/documents + DELETE /rag/documents/{filename} — 2026-05-10
+- [x] Chroma metadata 聚合文档列表，按 source 分组统计 — 2026-05-10
+- [x] Chroma 按 metadata 过滤删除 + BM25 自动重建 — 2026-05-10
+- [x] VectorStore ABC 新增 list_documents() / delete_by_source() 抽象方法 — 2026-05-10
+- [x] IngestionPipeline 入库 metadata 增强（model, chunk_size, chunk_overlap, created_at）— 2026-05-10
+- [x] 全链路 10 项验证全部通过 — 2026-05-10
+
+### P6 — 趣味聊天扩展
 - [ ] 多角色聊天（扩展黛玉架构：面试官、英语陪练等）
 
 ---

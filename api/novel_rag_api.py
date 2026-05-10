@@ -17,12 +17,16 @@ from core.settings import get_settings
 from model.user import User
 from schemas.rag_schemas import (
     ConfirmRequest,
+    DeleteDocumentResponse,
+    DocumentItem,
+    DocumentListResponse,
     ModelsResponse,
     PreviewItem,
     SearchItem,
     SearchItemMetadata,
     SearchRequest,
     SearchResponse,
+    StatsResponse,
     UploadResponse,
     ConfirmResponse,
 )
@@ -179,6 +183,8 @@ async def confirm_ingestion(
         filename=req.filename,
         chunks=chunks,
         model=req.model,
+        chunk_size=req.chunk_size,
+        chunk_overlap=req.chunk_overlap,
     )
 
     logger.info(
@@ -242,4 +248,52 @@ async def search(
         code=200,
         message="success",
         data=SearchResponse(results=items, total=len(items)),
+    )
+
+
+@router.get("/documents")
+async def list_documents(
+    current_user: User = Depends(get_current_user),
+):
+    """获取知识库中文档列表"""
+    engine = _get_engine()
+    docs = engine._vector_store.list_documents()
+    return ResponseBase(
+        code=200,
+        message="success",
+        data=DocumentListResponse(total=len(docs), documents=[DocumentItem(**d) for d in docs]),
+    )
+
+
+@router.get("/stats")
+async def get_stats(
+    current_user: User = Depends(get_current_user),
+):
+    """获取知识库统计信息（文档总数、切片总数）"""
+    engine = _get_engine()
+    stats = engine.get_stats()
+    return ResponseBase(
+        code=200,
+        message="success",
+        data=StatsResponse(**stats),
+    )
+
+
+@router.delete("/documents/{filename}")
+async def delete_document(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+):
+    """删除指定文档及其所有切片"""
+    engine = _get_engine()
+    deleted = engine.delete_document(filename)
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"文档不存在: {filename}")
+    global _engine
+    _engine = None
+    logger.info(f"用户 {current_user.username} 删除文档: {filename}, 移除 {deleted} 片")
+    return ResponseBase(
+        code=200,
+        message="success",
+        data=DeleteDocumentResponse(filename=filename, deleted_chunks=deleted),
     )

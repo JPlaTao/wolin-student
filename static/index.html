@@ -1431,7 +1431,25 @@
                     <p class="text-sm mt-1 app-text-muted">上传文档 → 智能切片 → 语义检索</p>
                 </div>
 
+                <!-- 库概览统计 -->
+                <div v-if="stats" class="flex items-center gap-4 text-sm px-4 py-2 rounded-xl app-panel border app-border mb-2">
+                    <span class="app-text-muted">📊 知识库概览</span>
+                    <span class="app-text-primary font-medium">
+                        <i class="fas fa-file-alt text-blue-400"></i> 文档 {{ stats.total_documents }}
+                    </span>
+                    <span class="text-slate-500">|</span>
+                    <span class="app-text-primary font-medium">
+                        <i class="fas fa-cubes text-emerald-400"></i> 切片 {{ stats.total_chunks }}
+                    </span>
+                    <span v-if="statsLoading" class="text-slate-400">
+                        <i class="fas fa-spinner fa-pulse"></i>
+                    </span>
+                </div>
+
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 左列：上传面板 + 文档管理 -->
+                    <div class="space-y-6">
+
                     <!-- 上传面板 -->
                     <div class="backdrop-blur-xl rounded-2xl border p-6 shadow-2xl app-panel">
                         <h3 class="font-semibold mb-4 app-text-primary">
@@ -1505,7 +1523,13 @@
 
                                 <button @click="doConfirm" :disabled="ragLoading" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 transition px-4 py-2 rounded-xl text-white font-medium disabled:opacity-50 text-sm">
                                     <i :class="ragLoading ? 'fas fa-spinner fa-pulse' : 'fas fa-database'" class="mr-1"></i>
-                                    {{ ragLoading ? '入库中...' : '确认入库' }}
+                                    <template v-if="ragLoading">
+                                        <span v-if="ingestPhase === 'chunking'">正在切片…</span>
+                                        <span v-else-if="ingestPhase === 'embedding'">正在生成向量…</span>
+                                        <span v-else-if="ingestPhase === 'indexing'">正在重建索引…</span>
+                                        <span v-else>入库中…</span>
+                                    </template>
+                                    <template v-else>确认入库</template>
                                 </button>
                             </div>
 
@@ -1520,11 +1544,65 @@
                         </div>
                     </div>
 
+                    <!-- 文档管理面板 -->
+                    <div class="backdrop-blur-xl rounded-2xl border p-6 shadow-2xl app-panel">
+                        <h3 class="font-semibold mb-4 app-text-primary">
+                            <i class="fas fa-list text-amber-400"></i> 文档管理
+                        </h3>
+
+                        <!-- 空状态 -->
+                        <div v-if="!deleteLoading && documents.length === 0" class="text-center py-8">
+                            <i class="fas fa-folder-open text-4xl text-slate-400 mb-3"></i>
+                            <p class="text-sm app-text-muted">知识库为空，请上传文档</p>
+                        </div>
+
+                        <!-- 文档表格 -->
+                        <div v-if="documents.length > 0" class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="app-text-muted border-b app-border">
+                                        <th class="text-left py-2 pr-2 font-medium">文件名</th>
+                                        <th class="text-center py-2 px-2 font-medium">切片数</th>
+                                        <th class="text-center py-2 px-2 font-medium">模型</th>
+                                        <th class="text-right py-2 pl-2 font-medium">入库时间</th>
+                                        <th class="text-right py-2 pl-2 font-medium">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="doc in documents" :key="doc.filename" class="border-b app-border hover:opacity-80">
+                                        <td class="py-3 pr-2 app-text-primary truncate max-w-[160px]" :title="doc.filename">
+                                            <i class="fas fa-file-alt text-blue-400 mr-1"></i>
+                                            {{ doc.filename }}
+                                        </td>
+                                        <td class="py-3 px-2 text-center app-text-secondary">{{ doc.total_chunks }}</td>
+                                        <td class="py-3 px-2 text-center app-text-secondary text-xs">{{ doc.model }}</td>
+                                        <td class="py-3 pl-2 text-right app-text-muted text-xs whitespace-nowrap">{{ doc.created_at }}</td>
+                                        <td class="py-3 pl-2 text-right">
+                                            <button @click="confirmDelete(doc)" :disabled="deleteLoading" class="text-red-400 hover:text-red-300 transition disabled:opacity-40 text-sm" :title="'删除 ' + doc.filename">
+                                                <i :class="deleteLoading ? 'fas fa-spinner fa-pulse' : 'fas fa-trash-alt'"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    </div>
+
                     <!-- 搜索面板 -->
                     <div class="backdrop-blur-xl rounded-2xl border p-6 shadow-2xl app-panel">
                         <h3 class="font-semibold mb-4 app-text-primary">
                             <i class="fas fa-search text-purple-400"></i> 知识检索
                         </h3>
+
+                        <!-- 库为空提示 -->
+                        <div v-if="docTotal === 0" class="mb-4 p-3 rounded-xl text-center" style="background: var(--bg-secondary);">
+                            <p class="text-sm app-text-muted">
+                                <i class="fas fa-info-circle text-amber-400 mr-1"></i>
+                                知识库为空，请先上传文档
+                            </p>
+                        </div>
 
                         <!-- 搜索栏 -->
                         <div class="flex gap-2">
@@ -1532,16 +1610,18 @@
                                 v-model="searchQuery"
                                 @keyup.enter="doSearch"
                                 type="text"
+                                :disabled="docTotal === 0"
                                 class="flex-1 border border-slate-600 rounded-xl px-4 py-2 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 app-input text-sm"
+                                :class="docTotal === 0 ? 'opacity-50 cursor-not-allowed' : ''"
                                 placeholder="输入搜索内容..."
                             >
-                            <button @click="doSearch" :disabled="ragLoading" class="bg-purple-600 hover:bg-purple-700 transition px-4 py-2 rounded-xl text-white font-medium disabled:opacity-50">
+                            <button @click="doSearch" :disabled="ragLoading || docTotal === 0" class="bg-purple-600 hover:bg-purple-700 transition px-4 py-2 rounded-xl text-white font-medium disabled:opacity-50">
                                 <i :class="ragLoading ? 'fas fa-spinner fa-pulse' : 'fas fa-search'"></i>
                             </button>
                         </div>
 
-                        <!-- 从未搜索过：初始提示 -->
-                        <div v-if="searchTotal === 0 && !hasSearched" class="mt-8 text-center">
+                        <!-- 从未搜索过：初始提示（库非空时显示） -->
+                        <div v-if="searchTotal === 0 && !hasSearched && docTotal > 0" class="mt-8 text-center">
                             <i class="fas fa-search text-3xl text-slate-400 mb-3"></i>
                             <p class="text-sm app-text-muted">输入关键词搜索知识库内容</p>
                         </div>

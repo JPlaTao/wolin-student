@@ -92,6 +92,10 @@ const app = createApp({
                     else if (mgmtTab.value === 'employment') await mgmt.loadEmploymentData();
                 }
             } else if (newVal === 'userManagement') await mgmt.loadUsers();
+            else if (newVal === 'ragKnowledge') {
+                rag.fetchDocuments();
+                rag.fetchStats();
+            }
         });
 
         watch(mgmtTab, async (newTab) => {

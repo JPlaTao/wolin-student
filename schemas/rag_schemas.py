@@ -64,3 +64,29 @@ class SearchItem(BaseModel):
 class SearchResponse(BaseModel):
     results: list[SearchItem]
     total: int
+
+
+# ── 文档管理 ────────────────────────────────────────────
+
+class DocumentItem(BaseModel):
+    filename: str
+    total_chunks: int
+    model: str
+    chunk_size: int = 0
+    chunk_overlap: int = 0
+    created_at: str
+
+
+class DocumentListResponse(BaseModel):
+    total: int
+    documents: list[DocumentItem]
+
+
+class DeleteDocumentResponse(BaseModel):
+    filename: str
+    deleted_chunks: int
+
+
+class StatsResponse(BaseModel):
+    total_documents: int
+    total_chunks: int
