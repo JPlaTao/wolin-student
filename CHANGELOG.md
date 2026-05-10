@@ -43,6 +43,19 @@
 - [x] IngestionPipeline 入库 metadata 增强（model, chunk_size, chunk_overlap, created_at）— 2026-05-10
 - [x] 全链路 10 项验证全部通过 — 2026-05-10
 
+### P5b — RAG 知识库前端增强（入库反馈 + 文档管理）
+
+- [x] 前端 Spec（todo_rag-frontend-v2.md）— 2026-05-10
+- [x] 前端 Plan（plan-rag-frontend-v2.md）— 2026-05-10
+- [x] 前端 Tasks（tasks-rag-frontend-v2.md，14 项原子任务）— 2026-05-10
+- [x] 入库分阶段模拟反馈（setTimeout 链：切片→向量→索引）— 2026-05-10
+- [x] 入库成功 ElMessage.success + 失败 ElMessage.error 弹窗 — 2026-05-10
+- [x] 文档列表自动加载（进入页签触发 fetchDocuments）— 2026-05-10
+- [x] 文档管理表格（文件名/切片数/模型/入库时间/删除操作）— 2026-05-10
+- [x] 删除文档二次确认（ElMessageBox.confirm + API 调用 + 列表刷新）— 2026-05-10
+- [x] 文档空状态引导 + 搜索空库提示 — 2026-05-10
+- [x] 库概览统计（文档总数 / 切片总数）— 2026-05-10
+
 ### P6 — 趣味聊天扩展
 - [ ] 多角色聊天（扩展黛玉架构：面试官、英语陪练等）
 
