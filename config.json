@@ -39,6 +39,11 @@
     "vector_models": ["text-embedding-v3", "text-embedding-v4"],
     "rerank_model": "gte-rerank",
     "default_chunk_size": 500,
-    "default_chunk_overlap": 100
+    "default_chunk_overlap": 100,
+    "vector_store": "milvus",
+    "milvus_uri": "http://localhost:19530",
+    "milvus_token": "",
+    "milvus_collection": "rag_docs",
+    "vector_dimension": 1024
   }
 }

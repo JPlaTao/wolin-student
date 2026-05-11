@@ -33,6 +33,7 @@ from schemas.rag_schemas import (
 from schemas.response import ResponseBase
 from services.rag_core import (
     ChromaStore,
+    MilvusStore,
     BM25Index,
     Reranker,
     _CHROMA_DB_DIR,
@@ -61,19 +62,36 @@ def _get_engine() -> RAGEngine:
 
     settings = get_settings()
     api_key = settings.api_keys.dashscope
+    rag_cfg = settings.rag
 
     embedding_fn = DashScopeEmbeddings(
-        model=settings.rag.vector_models[0],
+        model=rag_cfg.vector_models[0],
         dashscope_api_key=api_key,
     )
-    store = ChromaStore(
-        collection_name="rag_docs",
-        persist_directory=_CHROMA_DB_DIR,
-        embedding_function=embedding_fn,
-    )
+
+    # 根据配置选择向量库实现
+    if rag_cfg.vector_store == "milvus":
+        store = MilvusStore(
+            collection_name=rag_cfg.milvus_collection,
+            uri=rag_cfg.milvus_uri,
+            dim=rag_cfg.vector_dimension,
+            token=rag_cfg.milvus_token,
+        )
+        logger.info(
+            f"使用 MilvusStore: uri={rag_cfg.milvus_uri}, "
+            f"collection={rag_cfg.milvus_collection}"
+        )
+    else:
+        store = ChromaStore(
+            collection_name="rag_docs",
+            persist_directory=_CHROMA_DB_DIR,
+            embedding_function=embedding_fn,
+        )
+        logger.info(f"使用 ChromaStore: persist_dir={_CHROMA_DB_DIR}")
+
     bm25 = BM25Index()
     bm25.load()
-    reranker = Reranker(api_key=api_key, model=settings.rag.rerank_model)
+    reranker = Reranker(api_key=api_key, model=rag_cfg.rerank_model)
     _engine = RAGEngine(vector_store=store, bm25=bm25, reranker=reranker)
     return _engine
 
@@ -161,17 +179,27 @@ async def confirm_ingestion(
 
     settings = get_settings()
     api_key = settings.api_keys.dashscope
+    rag_cfg = settings.rag
 
-    # 构建组件
     embedding_fn = DashScopeEmbeddings(
         model=req.model,
         dashscope_api_key=api_key,
     )
-    store = ChromaStore(
-        collection_name="rag_docs",
-        persist_directory=_CHROMA_DB_DIR,
-        embedding_function=embedding_fn,
-    )
+
+    # 根据配置选择向量库实现
+    if rag_cfg.vector_store == "milvus":
+        store = MilvusStore(
+            collection_name=rag_cfg.milvus_collection,
+            uri=rag_cfg.milvus_uri,
+            dim=rag_cfg.vector_dimension,
+            token=rag_cfg.milvus_token,
+        )
+    else:
+        store = ChromaStore(
+            collection_name="rag_docs",
+            persist_directory=_CHROMA_DB_DIR,
+            embedding_function=embedding_fn,
+        )
     bm25 = BM25Index()
     pipeline = IngestionPipeline(
         processor=DocumentProcessor(),

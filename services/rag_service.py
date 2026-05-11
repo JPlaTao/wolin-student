@@ -140,22 +140,12 @@ class RAGEngine:
         )
 
     def _rebuild_chunk_map(self) -> None:
-        """从 BM25 索引重建 chunk_id → Chunk 映射"""
-        if not self._bm25.chunk_ids:
+        """从向量库重建 chunk_id → Chunk 映射"""
+        if self._vector_store.count() == 0:
             return
         try:
-            db = self._vector_store._db
-            if db is None:
-                # 延迟初始化尚未触发，尝试通过 count() 触发
-                if self._vector_store.count() == 0:
-                    return
-                db = self._vector_store._db
-            for cid in self._bm25.chunk_ids:
-                results = db.get(ids=[cid])
-                if results and results["documents"] and results["documents"][0] is not None:
-                    content = results["documents"][0]
-                    metadata = results["metadatas"][0] if results.get("metadatas") else {}
-                    self._chunks[cid] = Chunk(content=content, metadata=metadata)
+            chunks, ids = self._vector_store.get_all_chunks()
+            self._chunks = dict(zip(ids, chunks))
         except Exception as e:
             logger.warning(f"重建 chunk 映射失败（不影响搜索）: {e}")
 

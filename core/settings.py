@@ -92,6 +92,18 @@ class RAGConfig(BaseModel):
     default_chunk_size: int = Field(default=500)
     default_chunk_overlap: int = Field(default=100)
 
+    # 向量库类型
+    vector_store: str = Field(default="milvus", description="向量库类型: milvus | chroma")
+
+    # Milvus 连接配置
+    milvus_uri: str = Field(
+        default="http://localhost:19530",
+        description="Milvus 连接地址: Standalone=http://host:19530, Lite=本地文件路径",
+    )
+    milvus_token: str = Field(default="", description="Milvus 认证 Token（可选）")
+    milvus_collection: str = Field(default="rag_docs", description="Milvus Collection 名称")
+    vector_dimension: int = Field(default=1024, ge=128, le=4096, description="向量维度")
+
 
 class Settings(BaseModel):
     """全局配置"""

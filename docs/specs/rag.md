@@ -38,19 +38,21 @@ RAG 知识库模块提供"上传文档 → 切片 → 向量化 → 混合检索
 ┌────────▼──────────────────────────▼──────────────────────────────────────┐
 │          基础设施层 (services/rag_core.py)                                │
 │                                                                          │
-│  VectorStore (ABC)     ChromaStore       BM25Index       Reranker        │
-│  ├─ add()              ├─ (实现所有       ├─ build()      └─ rerank()     │
-│  ├─ search()           │   抽象方法)      ├─ save()/load()                │
-│  ├─ count()            ├─ list_docs()    └─ search()    HybridRetriever  │
-│  ├─ clear()            ├─ delete_by()                  └─ search()       │
-│  ├─ list_documents()   └─ get_all()                    BM25∪Vec→Rerank   │
-│  └─ delete_by_source()                                                     │
-└────────┬──────────────────────────┬──────────────────────────────────────┘
-         │                          │
-┌────────▼──────────┐  ┌───────────▼──────────────────────────────────────┐
-│ ./chroma_db/rag/  │  │ ./chroma_db/rag/bm25_index.pkl                   │
-│  Chroma SQLite    │  │  BM25Okapi 序列化索引                             │
-└───────────────────┘  └──────────────────────────────────────────────────┘
+│  VectorStore (ABC)     MilvusStore (默认)  BM25Index     Reranker        │
+│  ├─ add()              ├─ pymilvus 直接调用 ├─ build()    └─ rerank()     │
+│  ├─ search()           ├─ Standalone/Lite  ├─ save()/load()              │
+│  ├─ count()            ├─ COSINE + HNSW    └─ search()  HybridRetriever  │
+│  ├─ clear()            │                    ▼                            │
+│  ├─ list_documents()   │ ChromaStore (保留)  bm25_index.pkl             │
+│  └─ delete_by_source() │ (config回退)                                    │
+└────────┬───────────────────────────────────────┬──────────────────────────┘
+         │                                       │
+┌────────▼───────────────┐  ┌───────────────────▼──────────────────────────┐
+│ Milvus Standalone      │  │ ./chroma_db/rag/bm25_index.pkl               │
+│ http://localhost:19530  │  │ BM25Okapi 序列化索引                         │
+│ Collection: rag_docs   │  │                                               │
+│ (Docker)               │  │                                               │
+└────────────────────────┘  └───────────────────────────────────────────────┘
 ```
 
 ### 1.2 数据流
@@ -147,7 +149,53 @@ class VectorStore(ABC):
 - **`delete_by_source()`**：先 `db.get(where={"source": filename})` 获取 ID 列表，再用 `_collection.delete(where={"source": {"$eq": filename}})` 执行删除；空 ID 列表直接返回 0
 - **`get_all_chunks()`**：`db.get(include=["documents", "metadatas"])` 返回全部剩余切片的 `(list[Chunk], list[str])`
 
-### 2.3 BM25Index
+**注意**：ChromaStore 不再是默认实现，通过 `config.json` 中 `rag.vector_store = "chroma"` 回退。
+
+### 2.3 MilvusStore（默认）
+
+位置：`services/rag_core.py`
+
+基于 `pymilvus.MilvusClient` 的高性能向量库实现，通过配置中的 `vector_store = "milvus"` 启用（默认）。
+
+**构造参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `collection_name` | str | Milvus Collection 名称（默认 `"rag_docs"`） |
+| `uri` | str | Milvus 连接地址（Standalone: `http://localhost:19530`，Lite: 本地文件路径） |
+| `dim` | int | 向量维度（默认 1024） |
+| `token` | str | Milvus 认证 Token（可选） |
+
+**Collection Schema：**
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | VARCHAR(36) | Primary Key | UUID chunk_id |
+| `vector` | FLOAT_VECTOR(dim) | dim=config.vector_dimension | Embedding 向量 |
+| `text` | VARCHAR(65535) | — | 切片内容 |
+| `source` | VARCHAR(255) | — | 源文件名 |
+| `chunk_index` | INT64 | — | 切片序号 |
+| `total_chunks` | INT64 | — | 总切片数 |
+| `model` | VARCHAR(50) | — | 向量模型名 |
+| `chunk_size` | INT64 | — | 切片参数 |
+| `chunk_overlap` | INT64 | — | 重叠量参数 |
+| `created_at` | VARCHAR(30) | — | ISO8601 入库时间 |
+
+**向量索引**：`COSINE` + `HNSW`（M=16, efConstruction=200）
+
+**实现要点：**
+
+- **延迟连接**：`_ensure_client()` 首次调用时创建 `MilvusClient` 实例；`_ensure_collection()` 额外确保 collection 存在（不存在则自动创建）
+- **`_create_collection()`**：使用 `consistency_level="Strong"`，确保删除操作立即可见（Milvus 默认 "Bounded" 有 ~1s 滞后）
+- **`add()`**：生成 UUID 作为 id，构造完整字段字典，`client.insert()` 批量写入
+- **`search()`**：`client.search(metric_type="COSINE")`，返回 `[(chunk_id, distance), ...]`
+- **`count()`**：`client.query(output_fields=["count(*)"])`
+- **`clear()`**：`client.drop_collection()` + `client = None`
+- **`list_documents()`**：`client.query()` 全量读取，按 `source` 分组聚合
+- **`delete_by_source()`**：`client.delete(filter='source == "filename"')` 表达式过滤
+- **`get_all_chunks()`**：`client.query()` 全量读取返回 `(list[Chunk], list[str])`
+
+### 2.4 BM25Index
 
 位置：`services/rag_core.py`
 
@@ -172,7 +220,7 @@ class BM25Index:
 - `build()` 和 `save()` 分离，允许构建后选择性持久化
 - `load()` 返回 bool，调用方据此判断是否需要重新构建
 
-### 2.4 Reranker
+### 2.5 Reranker
 
 位置：`services/rag_core.py`
 
@@ -197,7 +245,7 @@ Response: {
 
 **退避策略**：HTTP 调用失败时返回空列表，不抛异常，由调用方降级。
 
-### 2.5 HybridRetriever
+### 2.6 HybridRetriever
 
 位置：`services/rag_core.py`
 
@@ -218,7 +266,7 @@ class HybridRetriever:
 
 **退避策略**：Reranker 调用失败时，直接返回向量检索的 Top K 结果，不中断请求。
 
-### 2.6 DocumentProcessor
+### 2.7 DocumentProcessor
 
 位置：`services/rag_service.py`
 
@@ -235,7 +283,7 @@ class DocumentProcessor:
 
 **分隔符优先级**：`["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""]`
 
-### 2.7 IngestionPipeline
+### 2.8 IngestionPipeline
 
 位置：`services/rag_service.py`
 
@@ -263,13 +311,14 @@ class IngestionPipeline:
    日志逐片输出 "第X片, 共Y片 正在向量化..." / "已存入向量库"
    ⚠ 同步执行，大规模文档可能耗时数秒到数十秒
 
-3. 写入 Chroma → vector_store.add(chunks, embeddings)
+3. 写入向量库 → vector_store.add(chunks, embeddings)
+   默认写入 Milvus（可通过配置切换到 Chroma）
    每条自动生成 UUID 作为 chunk_id，同时写入 metadata
 
 4. 重建 BM25 → bm25.build(chunks, chunk_ids) + bm25.save()
 ```
 
-### 2.8 RAGEngine
+### 2.9 RAGEngine
 
 位置：`services/rag_service.py`
 
@@ -788,7 +837,8 @@ MOCK_SEARCH_EMPTY = {
 | 路径 | 类型 | 说明 |
 |------|------|------|
 | `data/uploads/{filename}` | 临时 | 上传的原始文件，入库后保留（不自动清理） |
-| `./chroma_db/rag/` | 持久 | Chroma SQLite 持久化目录，collection 名 `rag_docs` |
+| Milvus (Docker Standalone `http://localhost:19530`) | 持久 | 默认向量库，Collection 名 `rag_docs` |
+| `./chroma_db/rag/` | 持久 | Chroma SQLite（仅 `vector_store=chroma` 时使用） |
 | `./chroma_db/rag/bm25_index.pkl` | 持久 | BM25Okapi 序列化索引 |
 
 ---
@@ -807,6 +857,15 @@ MOCK_SEARCH_EMPTY = {
 | 8 | 入库阶段反馈用 setTimeout 模拟 | 后端同步 API 无法推送进度 | 阶段时间固定，与实际进度无关 |
 | 9 | RAGEngine 全局单例 | 避免每次请求重建 embedding 函数和映射 | 入库/删除后设 None 触发重建 |
 | 10 | 前端 Mock 数据驱动 | 不依赖后端端点可用性，前后端可并行开发 | 联调时 useMock=false 切换 |
+| 11 | Chroma → Milvus 迁移（2026-05-11） | Milvus 性能更好、并发更强、社区更活跃 | VectorStore ABC 不变，新增 MilvusStore，配置切换 |
+| 12 | 使用 pymilvus 直接调用（非 langchain-milvus） | VectorStore ABC 已提供抽象，无需 LangChain 包装器 | 依赖更轻、控制更灵活 |
+| 13 | Milvus Standalone + Docker 部署 | 生产级方案，URI 可配置切换 | 需要 Docker 环境 |
+| 14 | ChromaStore 保留但不默认 | 向后兼容，已有数据可降级回 Chroma | 通过 `vector_store=chroma` 配置回退 |
+| 15 | 旧数据重新入库 | 简单可靠，原始文件保留在 data/uploads/ | 迁移后需手动重新确认入库 |
 
 
-> **版本历史**：本规约整合了 RAG 核心模块（2026-05-09）、前端界面（2026-05-09）和 V2 增强（2026-05-10）三个阶段的所有功能，替代以下原子文件：spec-rag-core.md、plan-rag-core.md、todo_rag-frontend-spec.md、plan-rag-frontend.md、tasks-rag-frontend.md、todo_rag-backend-v2.md、plan-rag-backend-v2.md、tasks-rag-backend-v2.md、todo_rag-frontend-v2.md、plan-rag-frontend-v2.md、tasks-rag-frontend-v2.md。
+> **版本历史**：
+>
+> - 2026-05-09 — RAG 核心模块 + 前端界面初版
+> - 2026-05-10 — V2 增强（文档管理 API、入库反馈、前端优化）
+> - 2026-05-11 — Chroma → Milvus 迁移（MilvusStore 新增、配置切换、ChromaStore 保留回退）

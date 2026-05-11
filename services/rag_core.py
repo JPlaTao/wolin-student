@@ -236,6 +236,203 @@ class ChromaStore(VectorStore):
         return chunks, ids
 
 
+# ── Milvus 实现 ─────────────────────────────────────────
+
+class MilvusStore(VectorStore):
+    """基于 pymilvus MilvusClient 的向量库实现（延迟连接）"""
+
+    def __init__(self, collection_name: str, uri: str, dim: int, token: str = ""):
+        self._collection_name = collection_name
+        self._uri = uri
+        self._dim = dim
+        self._token = token
+        self._client = None
+
+    def _ensure_client(self) -> "MilvusClient":
+        """确保已连接（不自动创建集合）"""
+        if self._client is None:
+            from pymilvus import MilvusClient
+            self._client = MilvusClient(uri=self._uri, token=self._token or None)
+        return self._client
+
+    def _ensure_collection(self) -> "MilvusClient":
+        """确保连接且集合存在"""
+        client = self._ensure_client()
+        if not client.has_collection(self._collection_name):
+            self._create_collection()
+        return client
+
+    def _has_collection(self) -> bool:
+        if self._client is None:
+            return False
+        return self._client.has_collection(self._collection_name)
+
+    def _create_collection(self) -> None:
+        from pymilvus import MilvusClient, DataType
+
+        schema = MilvusClient.create_schema(auto_id=False, enable_dynamic_field=False)
+        schema.add_field("id", datatype=DataType.VARCHAR, is_primary=True, max_length=36)
+        schema.add_field("vector", datatype=DataType.FLOAT_VECTOR, dim=self._dim)
+        schema.add_field("text", datatype=DataType.VARCHAR, max_length=65535)
+        schema.add_field("source", datatype=DataType.VARCHAR, max_length=255)
+        schema.add_field("chunk_index", datatype=DataType.INT64)
+        schema.add_field("total_chunks", datatype=DataType.INT64)
+        schema.add_field("model", datatype=DataType.VARCHAR, max_length=50)
+        schema.add_field("chunk_size", datatype=DataType.INT64)
+        schema.add_field("chunk_overlap", datatype=DataType.INT64)
+        schema.add_field("created_at", datatype=DataType.VARCHAR, max_length=30)
+
+        index_params = MilvusClient.prepare_index_params()
+        index_params.add_index(
+            field_name="vector",
+            metric_type="COSINE",
+            index_type="HNSW",
+            params={"M": 16, "efConstruction": 200},
+        )
+
+        self._client.create_collection(
+            collection_name=self._collection_name,
+            schema=schema,
+            index_params=index_params,
+            consistency_level="Strong",
+        )
+        logger.info(f"Milvus collection '{self._collection_name}' 已创建, dim={self._dim}")
+
+    def add(self, chunks: list[Chunk], embeddings: list[list[float]]) -> list[str]:
+        import uuid
+        client = self._ensure_collection()
+        data = []
+        ids = []
+        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+            cid = str(uuid.uuid4())
+            ids.append(cid)
+            meta = chunk.metadata
+            data.append({
+                "id": cid,
+                "vector": emb,
+                "text": chunk.content,
+                "source": meta.get("source", ""),
+                "chunk_index": meta.get("chunk_index", 0),
+                "total_chunks": meta.get("total_chunks", 0),
+                "model": meta.get("model", ""),
+                "chunk_size": meta.get("chunk_size", 0),
+                "chunk_overlap": meta.get("chunk_overlap", 0),
+                "created_at": meta.get("created_at", ""),
+            })
+            chunk.metadata["chunk_id"] = cid
+        client.insert(self._collection_name, data)
+        logger.info(f"MilvusStore 插入 {len(data)} 条记录")
+        return ids
+
+    def search(self, query_embedding: list[float], k: int) -> list[tuple[str, float]]:
+        client = self._ensure_collection()
+        results = client.search(
+            collection_name=self._collection_name,
+            data=[query_embedding],
+            limit=k,
+            metric_type="COSINE",
+            output_fields=["id"],
+        )
+        out = []
+        if results and results[0]:
+            for hit in results[0]:
+                out.append((hit["id"], float(hit["distance"])))
+        return out
+
+    def count(self) -> int:
+        client = self._ensure_client()
+        if not client.has_collection(self._collection_name):
+            return 0
+        result = client.query(
+            collection_name=self._collection_name,
+            output_fields=["count(*)"],
+        )
+        return result[0]["count(*)"] if result else 0
+
+    def clear(self) -> None:
+        if self._client is not None:
+            self._client.drop_collection(self._collection_name)
+            self._client = None
+            logger.info(f"Milvus collection '{self._collection_name}' 已清除")
+
+    def list_documents(self) -> list[dict]:
+        if not self._has_collection():
+            return []
+        client = self._ensure_collection()
+        results = client.query(
+            collection_name=self._collection_name,
+            output_fields=["source", "chunk_index", "total_chunks",
+                           "model", "chunk_size", "chunk_overlap", "created_at"],
+            limit=10000,
+        )
+        doc_map: dict[str, dict] = {}
+        for row in results:
+            source = row.get("source", "unknown")
+            if source not in doc_map:
+                doc_map[source] = {
+                    "filename": source,
+                    "total_chunks": 0,
+                    "model": "unknown",
+                    "chunk_size": row.get("chunk_size", 0) or 0,
+                    "chunk_overlap": row.get("chunk_overlap", 0) or 0,
+                    "created_at": "unknown",
+                }
+            doc_map[source]["total_chunks"] += 1
+            if doc_map[source]["model"] == "unknown" and row.get("model"):
+                doc_map[source]["model"] = row["model"]
+            if row.get("chunk_size"):
+                doc_map[source]["chunk_size"] = row["chunk_size"]
+            if row.get("chunk_overlap"):
+                doc_map[source]["chunk_overlap"] = row["chunk_overlap"]
+            ts = row.get("created_at", "")
+            if ts and (doc_map[source]["created_at"] == "unknown" or ts < doc_map[source]["created_at"]):
+                doc_map[source]["created_at"] = ts
+        return list(doc_map.values())
+
+    def delete_by_source(self, filename: str) -> int:
+        client = self._ensure_collection()
+        count_res = client.query(
+            collection_name=self._collection_name,
+            filter=f'source == "{filename}"',
+            output_fields=["count(*)"],
+        )
+        to_delete = count_res[0]["count(*)"] if count_res else 0
+        if to_delete == 0:
+            return 0
+        client.delete(
+            collection_name=self._collection_name,
+            filter=f'source == "{filename}"',
+        )
+        logger.info(f"MilvusStore 删除 source={filename}, 共 {to_delete} 片")
+        return to_delete
+
+    def get_all_chunks(self) -> tuple[list[Chunk], list[str]]:
+        client = self._ensure_collection()
+        results = client.query(
+            collection_name=self._collection_name,
+            output_fields=["id", "text", "source", "chunk_index",
+                           "total_chunks", "model", "chunk_size",
+                           "chunk_overlap", "created_at"],
+            limit=10000,
+        )
+        chunks: list[Chunk] = []
+        ids: list[str] = []
+        for row in results:
+            meta = {
+                "source": row.get("source", ""),
+                "chunk_index": row.get("chunk_index"),
+                "total_chunks": row.get("total_chunks"),
+                "model": row.get("model", ""),
+                "chunk_size": row.get("chunk_size", 0),
+                "chunk_overlap": row.get("chunk_overlap", 0),
+                "created_at": row.get("created_at", ""),
+                "chunk_id": row["id"],
+            }
+            chunks.append(Chunk(content=row["text"], metadata=meta))
+            ids.append(row["id"])
+        return chunks, ids
+
+
 # ── 重排序器 ────────────────────────────────────────────
 
 class Reranker:

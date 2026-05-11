@@ -59,6 +59,11 @@
 ### P6 — 趣味聊天扩展
 - [ ] 多角色聊天（扩展黛玉架构：面试官、英语陪练等）
 
+### P7 — Chroma → Milvus 向量库迁移
+- [x] MilvusStore 实现（pymilvus 直接调用，Strong consistency + HNSW + COSINE）— 2026-05-11
+- [x] 配置驱动切换（config.json: vector_store=milvus|chroma）— 2026-05-11
+- [x] 全链路测试（空库/入库/检索/删除/文档管理）— 2026-05-11
+
 ---
 
 ## 历史
