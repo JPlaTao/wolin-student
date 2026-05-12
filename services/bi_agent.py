@@ -169,8 +169,6 @@ def _create_tools(db: Session, result_store: Dict[str, Any]) -> list:
     创建 3 个 Agent Tool。
     通过闭包注入 db / result_store，避免暴露基础设施参数给 LLM。
     """
-
-    @tool
     async def generate_sql(question: str, context: str = "") -> str:
         """
         根据自然语言问题生成 SQL 查询语句。

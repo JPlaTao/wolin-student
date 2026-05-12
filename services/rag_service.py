@@ -4,6 +4,7 @@ RAG 知识库业务编排层
 文档处理、入库管线、检索编排
 """
 
+import os
 from datetime import datetime
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -11,6 +12,16 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from core.settings import get_settings
 from services.rag_core import Chunk, ChromaStore, BM25Index, Reranker, HybridRetriever
 from utils.logger import get_logger
+
+# DashScope 是国内 API，绕过系统代理避免 Clash/V2Ray 断连
+_NO_PROXY_DOMAIN = "dashscope.aliyuncs.com"
+
+
+def _patch_no_proxy():
+    """确保 DashScope 域名不在系统代理之后"""
+    current = os.environ.get("NO_PROXY", "")
+    if _NO_PROXY_DOMAIN not in current:
+        os.environ["NO_PROXY"] = f"{current},{_NO_PROXY_DOMAIN}" if current else _NO_PROXY_DOMAIN
 
 logger = get_logger("rag_service")
 
@@ -84,7 +95,8 @@ class IngestionPipeline:
             ch.metadata["chunk_overlap"] = chunk_overlap
             ch.metadata["created_at"] = now
 
-        # 2. 生成嵌入
+        # 2. 生成嵌入（绕过系统代理）
+        _patch_no_proxy()
         api_key = settings.api_keys.dashscope
         embedding_fn = DashScopeEmbeddings(model=model, dashscope_api_key=api_key)
 
@@ -123,7 +135,8 @@ class RAGEngine:
         self._chunks: dict[str, Chunk] = {}
         self._rebuild_chunk_map()
 
-        # 构建 embedding_fn 用于检索
+        # 构建 embedding_fn 用于检索（绕过系统代理）
+        _patch_no_proxy()
         settings = get_settings()
         api_key = settings.api_keys.dashscope
         self._embedding_fn = DashScopeEmbeddings(

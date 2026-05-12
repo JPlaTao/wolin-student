@@ -23,7 +23,16 @@ data/uploads/*
 .env
 .env.local
 .env.*.local
+.env.example.local
+.envrc
+.direnv/
+.python-version
+.tool-versions
+.env.test
+.env.prod
+.env.dev
 .config.json
+config.json
 
 # Testing
 test_report.json
